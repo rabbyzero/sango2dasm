@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-proc_scope_17_18.py - Add .proc/.endproc scoping to prg_17_18_display.asm
+proc_scope_17_18.py - Add .proc/.endproc scoping to prg_17_18_duel_and_display.asm
 
 Transforms the flat label file into properly scoped ca65 assembly with:
 - .proc/.endproc around each function
@@ -672,7 +672,7 @@ def main():
     dry_run = '--dry-run' in sys.argv
     verbose = '--verbose' in sys.argv
 
-    asm_path = Path(__file__).parent.parent / 'asm' / 'banks' / 'prg_17_18_display.asm'
+    asm_path = Path(__file__).parent.parent / 'asm' / 'banks' / 'prg_17_18_duel_and_display.asm'
     lines = asm_path.read_text().splitlines()
     print(f"Read {len(lines)} lines from {asm_path}")
 

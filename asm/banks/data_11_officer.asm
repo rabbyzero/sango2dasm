@@ -469,13 +469,17 @@ ArrivalSchedule_EISHOU:
 ;     3. entry[1] > $6F00 (reign year not reached) -> also no candidate;
 ;        entry[1] <= $6F00 -> append the Officer to the province roster
 ;        ($00 + $11..) and set his status to 2 = rostered ($AF4E-$AF52).
+;     4. all ten roster slots $11-$1A occupied -> also no candidate
+;        ($AF36 CPX #$0A / BEQ $AF19); the next monthly pass retries.
 ; Content (decoded names): the pools group Officers by family -
 ; list 0 曹氏/夏侯氏/司马氏, list 1 周瑜+孙氏+诸葛恪, list 2
 ; 关氏/张苞/刘封/诸葛瞻, list 3 马氏. EventReinforceGate ($A33C,
-; prg_19_1a_event_scenes) picks pool (Country-2) for the acting Country each
-; January (Country 6 aliases slot 3; Countries 0/1/5 have none),
-; and OfficerReinforceScene ($AEC0) inducts the first still-hidden
-; Officer whose year has arrived into the Country's home Province.
+; prg_19_1a_event_scenes; sub-state 2 of the monthly dispatch) picks
+; pool (Country-2) for the acting Country every month (Country 6 aliases
+; slot 3; Countries 0/1/5 have none), and OfficerReinforceScene ($AEC0)
+; inspects the first still-hidden Officer: once his year has arrived he
+; joins the Country's home Province roster if a slot is free; a full
+; 10-slot roster retries next month.
 ; Editing surface: docs/officer_reinforcement.csv.
 ; ==============================================================================
 ReinforceCandidatePtrTable:
@@ -526,9 +530,9 @@ ReinforceCandidateList_3:  ; $8DAB Country 6, 4 (Officer id, year) pairs, displa
 ; bias live in the readers, not here):
 ;   OfficerNameSpritePost prg_1d_1e_menu_screens $AB38 - officer-card name sprites;
 ;   ProvinceDataWindowFrame $ABD7 -> RenderSubState $B1B1 - province
-;     window ruler/governor names; prg_17_18_display $B1EE ->
+;     window ruler/governor names; prg_17_18_duel_and_display $B1EE ->
 ;     ExpandMetatileToSprites $CFDB - 4 rows x 6 tiles metatile;
-;   WarSideStatDigitsRender prg_0c_0d_tactical_commands $CC29 -> @GetRulerValue $CC86 -
+;   RecalcExchangeStats prg_0c_0d_tactical_commands $CC29 -> @GetRulerValue $CC86 -
 ;     exchange-screen ruler name (index = ruler base value, not id);
 ;   @MarchFormationOamDraw prg_19_1a_event_scenes $D2EA -> $D334 - marching
 ;     formation name flag (index $0664[$0509]).
@@ -841,7 +845,7 @@ ZeroFiller11_99BD_9AB3:
 ; arming sites include the player-driven WarSceneLaunch prg_1b_1c_strategy_mode $B5DC
 ; (frame sub-state 21, controller polled at $0081) plus
 ; ArmyDeploySceneTrigger prg_19_1a_event_scenes $CA42. The GetCityOfficerData readers
-; are player UI in the army-deploy scene ArmyDeploy prg_0c_0d_tactical_commands
+; are player UI in the army-deploy scene ArmyDeployDispatch prg_0c_0d_tactical_commands
 ; $C204: the readers test only mode byte $050B == 2, written by
 ; @State_CheckSrcRuler $C267 (side 0 of $0507, the defender); every other
 ; value ($03 from @State_CheckDestRuler $C2A6 = side 1, $00 from

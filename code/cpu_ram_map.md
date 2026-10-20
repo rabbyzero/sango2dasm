@@ -5,7 +5,7 @@ RAM (`$0000-$07FF`) and the battery-backed PRG-RAM window (`$6000-$7FFF`) of
 *Sangokushi 2 - Haou no Tairiku (J)*, Namco-163 (mapper 19).
 
 Sources: the analyzed bank files `asm/banks/prg_08_09_tactical_war.asm`, `prg_0a_0b_strategy_ai.asm`,
-`prg_0c_0d_tactical_commands.asm`, `prg_0e_0f_battle.asm`, `prg_17_18_display.asm`, `prg_19_1a_event_scenes.asm`,
+`prg_0c_0d_tactical_commands.asm`, `prg_0e_0f_battle.asm`, `prg_17_18_duel_and_display.asm`, `prg_19_1a_event_scenes.asm`,
 `prg_1b_1c_strategy_mode.asm`, `prg_1d_1e_menu_screens.asm`, `prg_1f_boot.asm` (banks `$00-$07` and `$10-$16`
 are still unanalyzed stubs), plus the curated notes under `memory/`
 (`officer-12-byte-record-field-layout`, `ruler-country-province-domain-model`,
@@ -100,12 +100,12 @@ Writes to `$6000-$7FFF` are gated by the Namco-163 write-protect register at
 | `$0081-$0086`  | controller latches                | pad 1/2 newly-pressed (edge) `$0081/$0082`, pad 1/2 raw `$0083/$0085`, pad 1/2 previous `$0084/$0086`; battle bank aliases them as `btl_pad1_lo/hi`, `btl_pad2_lo/hi`; `prg_1d_1e_menu_screens` reads `input_flags` `$0081` |
 | `$0087-$008A`  | palette animation                 | `addr_anim_direction/step/speed/counter` (`$0087` bit 7 = animation halted) |
 | `$008B-$008C`  | PPU mirrors                       | RAM copy of PPUCTRL `$008B`, PPUMASK `$008C` |
-| `$008E-$0091`  | scroll registers                  | scroll X lo/hi `$008E/$008F`, scroll Y lo/hi `$0090/$0091` (the high bytes carry the nametable-select bit) |
-| `$0094-$0095`  | input prev-change flags           | X / Y d-pad change latch |
+| `$008E-$0091`  | scroll registers                  | scroll X lo/hi `$008E/$008F`, scroll Y lo/hi `$0090/$0091` (the high bytes carry the nametable-select bit); in Tactical Mode this is the field-map camera, and a set `$008F` marks the wrapped view the map refresh skips |
+| `$0094-$0095`  | `map_row_cache` / `map_col_cache` | Field-map rebuild caches - palette row `$0094`, scene column `$0095`, compared by `TacticalMapScrollRefresh $AB53`; `$F077` writes `$FF` into the axis whose scroll step changed to force a rebuild |
 | `$0098-$0099`  | `addr_display_mode(_h)`           | Display mode parameter |
-| `$009C-$009D`  | controller state X/Y              | D-pad state cells |
+| `$009C-$009D`  | `map_dir_flags` / `map_dir_prev`  | Last field-map scroll step (7=E, 6=W, 4=N, 5=S) and its previous-frame copy: `WarMapScrollUpdate $D57B` sets them, `$F95E` snapshots them for the `$F077` compare, banks `$17+$18` branch on them |
 | `$00A5`        | Namco-163 write-protect shadow    | RAM copy of `NAMCO_CTRL` (`$F800`), the external-RAM write-protect register. Written together with the hardware register at `$E0B5`, `$E587`, and around every SRAM copy. Normal value `$4C`; the save routine (`prg_19_1a_event_scenes` `$BC02`) uses `$40` while copying, then restores `$4C`. **Not** a code patch — `$F800` is a mapper port, not writable ROM (some inline comments still call it "patch NMI handler") |
-| `$00A6-$00AD`  | data / bank-switch pointers       | Banked data source pointer pairs used by the bank-switch helpers; `$00A6/$00A7` = menu data-stream pointer (`prg_1d_1e_menu_screens`), `$00A8-$00AD` = bank-switch/ptr work pairs (`prg_17_18_display`) |
+| `$00A6-$00AD`  | data / bank-switch pointers       | Banked data source pointer pairs used by the bank-switch helpers; `$00A6/$00A7` = menu data-stream pointer (`prg_1d_1e_menu_screens`), `$00A8-$00AD` = bank-switch/ptr work pairs (`prg_17_18_duel_and_display`) |
 | `$00AE-$00B5`  | CHR bank shadows                  | RAM copies of the 8 CHR bank registers ($8000..$B800 slots) |
 | `$00DE-$00E3`  | PRG bank selects                  | select set A `$00DE-$00E0` (restored by NmiEpilogue), set B `$00E1-$00E3` (applied by NmiHandler); `$00E1` also read as `cur_bank_8000` in `prg_1d_1e_menu_screens` |
 | `$00E6-$00E9`  | CHR register copies               | `NAMCO_CHR_BANK_0..3` shadows; `$00EA-$00ED` extended bank config |
@@ -250,15 +250,15 @@ overlay owns `$0540-$05D7`.
 
 | Address | Bank(s) | Meaning |
 |---------|---------|---------|
-| `$0500-$0501` | — | mode id + sub-phase: `war_scene_id/phase` (08_09), `tactical_turn_state/phase` (0c_0d), `select_mode` (1f), mode scratch (17_18, 19_1a, 1b_1c) |
+| `$0500-$0501` | — | mode id + sub-phase: `war_scene_id/phase` (08_09), `tactical_turn_state/phase` (0c_0d), `war_scene_id` launch selector (1f), mode scratch (17_18, 19_1a, 1b_1c); under Tactical Mode `$0500` is the 16-state machine listed below |
 | `$0504-$0507` | — | direction/side flag, action budget/points, round counter, packed pair — `war_*` (08_09), `acting_side_flag`/tactical-turn cells (0c_0d), packed_ruler_pair `$0507` |
 | `$0508-$050F` | — | timers, officer slots, scene index, province index, attacker code: `war_*` (08_09), tactical-turn cells (0c_0d), `territory_event_type` `$050F` (17_18) |
-| `$0510-$0513` | — | map scroll X/Y lo/hi (0c_0d, 1f, 19_1a, 1b_1c) |
+| `$0510-$0513` | — | map scroll Y lo/hi `$0510/$0511`, X lo/hi `$0512/$0513` (0c_0d, 1f, 19_1a, 1b_1c); `TacticalMapScene_Init $DC99` derives them from the province centre, `State_WarSceneLaunch $E1BA` copies them into `$0090/$0091/$008E/$008F` |
 | `$0514-$0517` | — | `war_side_selector` + strip sel/flags (08_09, 0e_0f `btl_strip_sel/flag`); player officer ids (17_18); province ptrs (0c_0d `$0522-$0525` variant) |
 | `$051A-$0525` | — | merit sums, officer counts, province ptr pairs (0c_0d); war stat pairs `$0522-$0527` side A/B (08_09, 0e_0f-adjacent) |
 | `$052A-$052F` | — | battle target province/officer/param + special-officer flag (08_09); tactical-map scene state incl. level-up snapshots $052C/$052E (0c_0d) |
 | `$053D-$053F` | — | undo state snapshot (0c_0d) |
-| `$0540-$0544` | — | phase/sub-phase cells: `btl_overlay_phase/sub` `$0540/$0541` (0e_0f), `csel_sub_mode`/`csel_phase` (08_09), `title_scene_phase/step` (0a_0b, also `dispatch_buffer` alias), `move_path_x/y/cost/total` (0c_0d), `strat_scroll_*` (17_18), `battle_phase` `$0544` (0e_0f, also `action_type` in 1f) |
+| `$0540-$0544` | — | phase/sub-phase cells: `btl_overlay_phase/sub` `$0540/$0541` (0e_0f), `csel_sub_mode`/`csel_phase` (08_09), `title_scene_phase/step` (0a_0b, also `dispatch_buffer` alias), `move_path_x/y/cost/total` (0c_0d), `event_scene_phase`/`event_sub_state`/`event_disp_page`/`event_scroll_index` (17_18 dated-message / ending scroll scene; `$0541` is the scene phase and the entry value written by the callers of boot Entry 13 - 0 = message panel, 1/2/3 = the ending tier from `UnificationEndingDispatch` $C61A, which also picks the scene music), `battle_phase` `$0544` (0e_0f, also `action_type` in 1f) |
 | `$0545-$0549` | — | `btl_scan_col/row/wait` + `btl_frame_counter` + `btl_acting_unit` (0e_0f); `state_overlay_param`/`state_palette_mode` (0a_0b); `csel_cheat_step` 4 bytes `$0545-$0548` (08_09) |
 | `$054A-$054F` | — | `btl_walk_row/col`, `btl_recorded_status`, `btl_target_col`, `btl_command` (0e_0f) |
 | `$0550-$055B` | — | `btl_order_slots_a/b` `$0550/$0554`, `btl_advance_*` `$0558-$055B` (0e_0f); `unit_ally_counts` `$0550` (08_09); `province_sel_list` `$0550-$055F` (0c_0d) |
@@ -267,6 +267,31 @@ overlay owns `$0540-$05D7`.
 | `$056A-$0577` | — | combat stats: `btl_attack_a/b`, `btl_defense_a/b`, `btl_edge_bonus_a/b`, `btl_point_budget_a/b`, `btl_status_ctr0-3` (0e_0f) |
 | `$0578-$057C` | — | `btl_reload_a/b`, `btl_round_pass`, `btl_input_mask`, `btl_side_index` (0e_0f) |
 | `$0580-$05D7` | — | battlefield unit arrays, stride `$0B` side B at `+`: `btl_unit_col_a/b` `$0580/$058B`, `btl_unit_row_a/b` `$0596/$05A1`, `btl_troops_a/b` `$05AC/$05B7`, `btl_roster_code_a/b` `$05C2/$05CD` (0e_0f); `officer_select_flg` `$0580-$059F` (0c_0d); `slot_id_list` `$0580` (08_09); unit columns (19_1a `$0580`) |
+
+### `$0500` tactical-turn state ids
+
+Under Tactical Mode `TacticalTurnStateDispatch` (`$A028`, prg_0c_0d) indexes a
+16-handler table with `$0500` once per frame; bank `$1F` maps banks `$0C+$0D` and
+calls it from `NmiState3_TacticalMap $F8FE`. Ids `$0C-$0F` are the result and
+redistribution scenes, and that `$0C` cutoff gates `WarMapScrollUpdate $D57B` and -
+together with a clear scroll X high byte `$008F` - `WarStatusPanelDraw $CFA2`,
+`DrawStratagemTargetMarkers $D1ED` and the state-3 bank-`$17` map-layer refresh
+`$F923`.
+
+| `$0500` | Handler | `$0500` | Handler |
+|---------|---------|---------|---------|
+| `$00` | `WarOrderMenu` | `$08` | `AiMarch` |
+| `$01` | `OfficerDetailView` | `$09` | `TownAction` |
+| `$02`, `$03` | `UnitAttack` | `$0A` | `ArmyDeploy` |
+| `$04` | `UnitMove` | `$0B` | `OfficerLevelUp` |
+| `$05` | `UnitStratagem` | `$0C` | `WarResultPanel` |
+| `$06` | `UnitRetreat` | `$0D` | `UnitWithdraw` |
+| `$07` | `ArmyTurnEnd` | `$0E` | `UnitGarrison` |
+| | | `$0F` | `TacticalMapScene` |
+
+`$0B` has two readers: the launch frame `State_WarSceneLaunch $E18B` takes it as
+the post-battle officer-fate commit selector, while the per-frame machine
+dispatches it to `OfficerLevelUp`.
 
 ---
 
@@ -481,7 +506,7 @@ seeded `$AA`. They are only reachable from the anti-piracy path of
 | `prg_0a_0b_strategy_ai.asm` | file-top + proc-local equates | strategy AI work `$0020-$0045`, state cells `$0540-$0547`, SRAM game level/player, SRAM verify + load (`$DC2F`/`$DC97`) |
 | `prg_0c_0d_tactical_commands.asm` | file-top equates | tactical-turn + post-war screens `$0500-$0565`, menu/panel `$0400-$04D8` |
 | `prg_0e_0f_battle.asm` | `btl_`/`snd_` globals + proc-local zp | battle overlay `$0514-$05D7`, anim queue `$0300-$0311`, vram script `$0380-$039C`, sound `$0700-$07F9` |
-| `prg_17_18_display.asm` | file-top equates | kernel cells, map tile grids `$0600-$06FF`, player state `$04A8-$04C6`, display queue `$0300-$0313` |
+| `prg_17_18_duel_and_display.asm` | file-top equates | kernel cells, map tile grids `$0600-$06FF`, player state `$04A8-$04C6`, display queue `$0300-$0313` |
 | `prg_19_1a_event_scenes.asm` | raw addresses + comments (no equates) | attract demo / map screen frame states `$0400-$0437`, overlay sentinels `$0300-$03BB`, demo SRAM scratch `$6F00-$6F06`, `$6F8B` mailbox handler (frame state 9), SRAM save (`$BC02`) |
 | `prg_1b_1c_strategy_mode.asm` | raw addresses + comments (no equates) | strategy frame states `$0400-$04E4`, transition busy `$0140/$0150` |
 | `prg_1d_1e_menu_screens.asm` | file-top equates | state handler zp `$00A6-$00DD`, render buffers `$0100-$0190`, `$0300-$03C3`, menu system `$0420-$04D6` |
@@ -504,7 +529,7 @@ seeded `$AA`. They are only reachable from the anti-piracy path of
 - The officer *slot* count (240) is the `SramInit` copy length `$0B40` and the
   geometry of `$63C0-$6EFF`; the officer count proper is 237 (`CMP #$ED`).
 - `$0600-$06FF` is documented both as war unit columns (`prg_08_09_tactical_war`) and as the
-  map tile grid (`prg_17_18_display`). Whether these truly alias the same bytes or
+  map tile grid (`prg_17_18_duel_and_display`). Whether these truly alias the same bytes or
   occupy disjoint sub-ranges has not been verified.
 - The exact bit semantics of the `NAMCO_CTRL` values `$4C` / `$40` are not
   established; only the observed usage pattern is documented here.

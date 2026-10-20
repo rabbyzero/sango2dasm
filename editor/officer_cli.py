@@ -220,8 +220,9 @@ def cmd_show(m, model, args):
     pool = model.reinforce_entry(off.id)
     if pool:
         print('  reinforcement pool: joins Country %d in %d (bank $31 $8D74 - '
-              'each January the Country inducts the first still-hidden heir '
-              'whose year has arrived)'
+              'the Country checks its pool every month; the first still-hidden '
+              'officer joins once his year has arrived, if the home Province '
+              'roster has a free slot, else the check retries next month)'
               % pool)
     if model.has_heirs:
         hits = model.heir_successor_lists(off.id)
@@ -354,7 +355,7 @@ def cmd_roster(m, model, args):
 
 
 def cmd_reinforce(m, model, args):
-    """Change one heir's reinforcement join year (bank $31 $8D74 pools)."""
+    """Change one officer's reinforcement join year (bank $31 $8D74 pools)."""
     off = _officer(m, model, args.id)
     snapshot = model.snapshot()
     try:
@@ -364,10 +365,10 @@ def cmd_reinforce(m, model, args):
     return _finish(model, args, snapshot, 'officer %d reinforcement' % off.id)
 
 
-def cmd_heirs(m, model, args):
+def cmd_successors(m, model, args):
     """The AI ruler successor priority lists, all seven countries."""
     if not model.has_heirs:
-        print('heir priority lists not loaded (pass --repo, or keep '
+        print('successor priority lists not loaded (pass --repo, or keep '
               'rom/prg/prg_0b.bin beside the CSVs)')
         return 0
     print('AI ruler successor priority (prg_0b $CAD8, AppointSuccessor $CA68)')
@@ -480,6 +481,9 @@ def _load(m, args, officer_csv=None):
     heir_bank = m.sibling_path(officer_csv,
                                os.path.join('rom', 'prg', 'prg_0b.bin')) \
         or paths.get('heir_bank')
+    preferred_bank = m.sibling_path(
+        officer_csv, os.path.join('rom', 'prg', 'prg_19.bin')) \
+        or paths.get('preferred_bank')
     chr_dir = m.sibling_path(officer_csv, os.path.join('rom', 'chr')) \
         or paths.get('chr_dir')
     try:
@@ -494,7 +498,9 @@ def _load(m, args, officer_csv=None):
             portrait_page_bank=page_bank
             if page_bank and os.path.exists(page_bank) else None,
             heir_bank=heir_bank if heir_bank and os.path.exists(heir_bank)
-            else None)
+            else None,
+            preferred_bank=preferred_bank
+            if preferred_bank and os.path.exists(preferred_bank) else None)
     except m.OfficerError as exc:
         die(str(exc), 2)
 
@@ -645,15 +651,15 @@ def build_parser(m):
     p.set_defaults(func=cmd_roster)
 
     p = sub.add_parser('reinforce', parents=[common],
-                       help='set one heir\'s reinforcement join year')
+                       help='set one officer\'s reinforcement join year')
     p.add_argument('id')
     p.add_argument('year', help='display year 100-255 (the stored byte is '
                                 'year - 100)')
     p.set_defaults(func=cmd_reinforce)
 
-    p = sub.add_parser('heirs', parents=[common],
+    p = sub.add_parser('successors', parents=[common],
                        help='the AI ruler successor priority lists (read-only)')
-    p.set_defaults(func=cmd_heirs)
+    p.set_defaults(func=cmd_successors)
 
     p = sub.add_parser('check', parents=[common],
                        help='the invariant report (exit 1 on problems)')

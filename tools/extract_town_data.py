@@ -134,7 +134,7 @@ def item_class(cell):
 
 
 # Equipment weight per item id, from StrategyMode_EquipWeightTable
-# ($B2C0-$B2DF in prg_17_18_display.asm): entries $00-$17 = weapons (swords,
+# ($B2C0-$B2DF in prg_17_18_duel_and_display.asm): entries $00-$17 = weapons (swords,
 # blades, spears), entries $18-$1F = armors (item ids 24-31). Subtracted
 # from (Vitality + Might) / 10 + $14 to elect the faster duelist as the
 # first actor (StrategyMode_CalcEquipSpeed).

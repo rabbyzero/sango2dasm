@@ -6,7 +6,7 @@ All decisions below are reconstructed from the byte-exact disassembly.
 Companions in the four-AI-layer set (Strategy > Tactical > Battle > Duel):
 `code/strategy_ai_decision_tree.md` (strategy-layer AI, `prg_0a_0b_strategy_ai.asm`),
 `code/battle_ai_decision_tree.md` (Battle Mode side director, `prg_0e_0f_battle.asm`),
-`code/duel_ai_decision_tree.md` (one-on-one duel AI, `prg_17_18_display.asm`).
+`code/duel_ai_decision_tree.md` (one-on-one duel AI, `prg_17_18_duel_and_display.asm`).
 
 ## Key inputs
 

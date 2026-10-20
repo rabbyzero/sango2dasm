@@ -9,16 +9,16 @@
 ; Two very different payloads share the bank:
 ;   $8000-$95E5  the Tactical (war) layer's unit placement geometry - the records
 ;        that the attack/defense "side type" selectors point into.
-;   $95E6-$9FBB  graphics for the strategy scroll screen machine in prg_17_18_display
-;        (StrategyCommandDispatch $D693): tile rows and OAM sprite blobs.
+;   $95E6-$9FBB  graphics for the dated-message / ending scroll machine in prg_17_18_duel_and_display
+;        (EventMessageSceneDispatch $D693): tile rows and OAM sprite blobs.
 ;
 ; Selected as $26 ($26 & $1F = $06) from eight sites in three consumer banks:
 ;   prg_08_09_tactical_war  GetOrderedDestination $A1E5, @SetupDefenderRoster $B2E4,
 ;              @SetupAttackerRoster $B343     - war AI unit placement
 ;   prg_0c_0d_tactical_commands  @BuildOfficerList $C3DC/$C42B and @CheckBoundsForPosition
-;              $C455/$C495 (ArmyDeploy)  - army-deploy command
-;   prg_17_18_display  StrategyCommandDispatch $D693, ScrollPanel_LoadRow $DC13 and
-;              RenderDispatchSprite $DBF3     - strategy scroll screens
+;              $C455/$C495 (ArmyDeployDispatch)  - army-deploy command
+;   prg_17_18_duel_and_display  EventMessageSceneDispatch $D693, ScrollPanel_LoadRow $DC13 and
+;              RenderDispatchSprite $DBF3     - dated-message / ending scroll scene
 ;
 ; Layout (window addresses; file offset = addr - $8000):
 ;   $8000-$803B  30 x .word attack-side unit placement pool bases
@@ -29,12 +29,12 @@
 ;   $936A-$94D5  91 x  4 B  [row_min,col_min,row_max,col_max]
 ;   $94D6-$9511  30 x .word defense-side city bounds rectangle bases
 ;   $9512-$95E5  53 x  4 B  
-;   $95E6-$9A7D  3 x 392 B  strategy scroll phase 1-3 tile rows (14 x 28)
-;   $9A7E-$9AA7  21 x .word strategy scroll phase 1 sprite blobs
+;   $95E6-$9A7D  3 x 392 B  ending panel tile rows, scene phases 1-3 (14 x 28)
+;   $9A7E-$9AA7  21 x .word chronicle-pass sprite blobs (phase 0 arms $9A7E)
 ;   $9AA8-$9CD8  21 blobs   
-;   $9CD9-$9CE0  4 x .word  strategy scroll phase 2 sprite blobs
+;   $9CD9-$9CE0  4 x .word  hero-rise-pass sprite blobs (phase 1 arms $9CD9)
 ;   $9CE1-$9E74  4 blobs    
-;   $9E75-$9E80  6 x .word  strategy scroll phase 3 sprite blobs
+;   $9E75-$9E80  6 x .word  hero-name-pass sprite blobs (phase 2 arms $9E75)
 ;   $9E81-$9FBA  6 blobs    
 ;   $9FBB-$9FFF  69 B       unused $FF filler
 ;
@@ -1985,15 +1985,16 @@ TacticalDefenseBounds_29_0:
   .byte $0C, $02, $14, $0B                                                ; $95E2: 0C 02 14 0B
 
 ;-------------------------------------------------------------------------------
-; STRATEGY SCROLL PHASE TILE BLOCKS  ($95E6-$9A7D)
-;   3 blocks of 14 rows x 28 tile bytes - the tile rows of strategy scroll
-;   phases 1-3.
-;   The scroll machine prg_17_18_display StrategyCommandDispatch ($D693)
-;   dispatches on strat_scroll_param ($0541) as a PHASE index (6 handlers;
-;   phases chain with INC $0541 at $D831/$D8B8/$D90C), and ScrollPanel_LoadRow
-;   is called from exactly three of them - $D7B7, $D847 and $D8D6 - so $0541 =
-;   1/2/3 select blocks 1/2/3 through the local ScrollPanel_DataPtrTable
-;   ($DCD5 = $95E6/$976E/$98F6). Phases 4-6 never read this bank.
+; EVENT-MESSAGE SCENE PANEL TILE BLOCKS  ($95E6-$9A7D)
+;   3 blocks of 14 rows x 28 tile bytes - the tile rows of the ending panels
+;   (scene phases 1-3).
+;   The scroll machine prg_17_18_duel_and_display EventMessageSceneDispatch
+;   ($D693) dispatches on event_scene_phase ($0541) as a PHASE index (6
+;   handlers; phases chain with INC $0541 at $D831/$D8B8/$D90C), and
+;   ScrollPanel_LoadRow is called from exactly three of them - $D7B7, $D847
+;   and $D8D6 - so $0541 = 1/2/3 select blocks 1/2/3 through the local
+;   ScrollPanel_DataPtrTable ($DCD5 = $95E6/$976E/$98F6). Phases 4-6 never
+;   read this bank.
 ;   Each call copies one 28-byte row into the $0383 tile buffer and terminates
 ;   it with $FF (count $1C at $0380); the PPU target is ($0381,$0382) =
 ;   dispatch_offset_ptr ($04D4/$04D5), seeded $2082 at $DCC8/$DCCD and stepped
@@ -2006,13 +2007,15 @@ TacticalDefenseBounds_29_0:
 ;   i.e. attribute rows 1-4. Those three local records are attribute payloads,
 ;   whatever
 ;   ScrollPanel_PrepareRowData's comment calls them.
-;   UNPROVEN: the CHR page set live while a panel is drawn is not identified
-;   in this project, so no claim is made about what these tile values depict;
-;   they are rendered as raw bytes.
+;   The CHR pages live while a panel is drawn are display record $0D bytes 4-7
+;   = $02/$A5/$A6/$A7 (State_EventMessageScene $E46A -> DisplayInit $E474 ->
+;   MenuFontRecordLoad record 13); the IRQ CHR blocks repeat the same set. The
+;   tile values are rendered as raw bytes; their pictorial layout is still
+;   open.
 ;-------------------------------------------------------------------------------
 
 ; phase 1 block ($0541 = 1, armed via ScrollPanel_DataPtrTable entry 1) - 14 rows x 28 tiles
-StrategyScrollPhase1TileRows:
+EventMessagePhase1TileRows:
   .byte $53, $54, $55, $56, $01, $01, $01, $57, $58, $01, $01, $01, $01, $01, $01, $01 ; $95E6: 53 54 55 56 01 01 01 57 58 01 01 01 01 01 01 01  ; row 0 (PPU $2082)
   .byte $53, $54, $55, $56, $01, $01, $01, $01, $01, $01, $53, $54        ; $95F6: 53 54 55 56 01 01 01 01 01 01 53 54  ; row 0 (PPU $2082) tail
   .byte $55, $56, $53, $54, $55, $56, $59, $5A, $5B, $5C, $5D, $5E, $5F, $60, $01, $53 ; $9602: 55 56 53 54 55 56 59 5A 5B 5C 5D 5E 5F 60 01 53  ; row 1 (PPU $20A2)
@@ -2043,7 +2046,7 @@ StrategyScrollPhase1TileRows:
   .byte $B4, $B5, $B6, $B7, $B8, $B9, $BA, $03, $BB, $BC, $BD, $BE        ; $9762: B4 B5 B6 B7 B8 B9 BA 03 BB BC BD BE  ; row 13 (PPU $2222) tail
 
 ; phase 2 block ($0541 = 2, armed via ScrollPanel_DataPtrTable entry 2) - 14 rows x 28 tiles
-StrategyScrollPhase2TileRows:
+EventMessagePhase2TileRows:
   .byte $01, $01, $01, $40, $02, $02, $02, $41, $01, $01, $42, $02, $02, $02, $02, $02 ; $976E: 01 01 01 40 02 02 02 41 01 01 42 02 02 02 02 02  ; row 0 (PPU $2082)
   .byte $02, $43, $01, $01, $44, $02, $02, $02, $45, $01, $01, $01        ; $977E: 02 43 01 01 44 02 02 02 45 01 01 01  ; row 0 (PPU $2082) tail
   .byte $01, $01, $01, $02, $02, $02, $02, $46, $01, $01, $47, $02, $02, $48, $49, $02 ; $978A: 01 01 01 02 02 02 02 46 01 01 47 02 02 48 49 02  ; row 1 (PPU $20A2)
@@ -2074,7 +2077,7 @@ StrategyScrollPhase2TileRows:
   .byte $F2, $F3, $03, $F4, $F5, $F6, $F7, $00, $00, $00, $00, $00        ; $98EA: F2 F3 03 F4 F5 F6 F7 00 00 00 00 00  ; row 13 (PPU $2222) tail
 
 ; phase 3 block ($0541 = 3, armed via ScrollPanel_DataPtrTable entry 3) - 14 rows x 28 tiles
-StrategyScrollPhase3TileRows:
+EventMessagePhase3TileRows:
   .byte $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $4A, $4B, $4C, $4D, $60, $61 ; $98F6: 40 41 42 43 44 45 46 47 48 49 4A 4B 4C 4D 60 61  ; row 0 (PPU $2082)
   .byte $62, $63, $64, $65, $66, $67, $68, $69, $6A, $6B, $6C, $6D        ; $9906: 62 63 64 65 66 67 68 69 6A 6B 6C 6D  ; row 0 (PPU $2082) tail
   .byte $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5A, $5B, $5C, $5D, $70, $71 ; $9912: 50 51 52 53 54 55 56 57 58 59 5A 5B 5C 5D 70 71  ; row 1 (PPU $20A2)
@@ -2105,174 +2108,184 @@ StrategyScrollPhase3TileRows:
   .byte $7B, $7B, $7B, $7B, $7B, $7B, $C8, $C9, $CA, $CB, $CC, $CD        ; $9A72: 7B 7B 7B 7B 7B 7B C8 C9 CA CB CC CD  ; row 13 (PPU $2222) tail
 
 ;-------------------------------------------------------------------------------
-; STRATEGY SCROLL PHASE 1 SPRITE BLOBS  ($9A7E-$9AA7)
+; EVENT-MESSAGE SCENE CHRONICLE-PASS SPRITE BLOBS  ($9A7E-$9AA7)
 ;   21 x .word, 1-based index -> $80-terminated OAM blobs. Sprites land at
-;   screen
-;   x = x_off + $10, y = y_off + $1F - 1 (OAM stores Y-1):
-;   RenderDispatchSprite ($DBF3)
-;   forces the writer bases itself - X $000C = $10 at $DBF3/$DBF5, Y $000A =
-;   $1F at
-;   $DC06/$DC08, tile bias $0003 = 0 at $DC0B/$DC0D and flip/attr EOR $0002 =
-;   0 - so
-;   the blob's own attr byte is used unchanged and no caller alters it.
-;   prg_17_18_display StrategyCommand_InitOfficerScroll ($D6AA) arms ($10/$11)
-;   = $9A7E ($D6D7-$D6DD)
-;   and calls RenderDispatchSprite three times per pass: index
-;   dispatch_src_ptr_lo
-;   ($04CA, 1..8), then $04CA+4 (5..12), then dispatch_src_ptr_hi ($04CB,
-;   9..21), the
-;   last skipped when that byte is negative (BMI $D6E2). $04CA comes from the
-;   scroll row
-;   offset at $D6F7-$D702 ($04CD >> 3 & 3 + 1).
-;   The 9..21 half is a SEQUENCE, not a lookup of a subject id: $04CB =
-;   SpriteBlobIndexTable[$04CE >> 2] ($D71D-$D723, that table's only read site)
-;   and $04CE is
-;   a pass counter (cleared $D6B4, INC $D71A/$D7E4/$D874/$D8FB). Its 24 bytes
-;   - $09..$15
-;   with repeats, three $F0 and a closing $FE - are therefore the blob played
-;   at each
-;   pass, where bit7 ($F0) means "draw no sprite this pass" and $FE is the end
-;   sentinel
-;   tested at $D708. Despite its name SpriteBlobIndexTable holds no PRG bank
-;   numbers.
+;   screen x = x_off + $10, y = y_off + $1F - 1 (OAM stores Y-1):
+;   RenderDispatchSprite ($DBF3) forces X $000C = $10 at $DBF3/$DBF5, Y $000A
+;   = $1F at $DC06/$DC08, tile bias $0003 = 0 at $DC0B/$DC0D and attr EOR
+;   $0002 = 0, so each blob's own attr byte reaches OAM unchanged.
+;   Caller: NmiState8_EventMessage ($FA53) calls the bank-pair entry
+;   B17_18_EventMessageSceneDispatch at $FA85; the target
+;   EventMessageSceneDispatch ($D693) switches bank $06 in at $D695 (LDY #$26)
+;   and dispatches event_scene_phase ($0541) through the 6-entry table at
+;   $D69E. Phase 0, EventMessageScene_ChronPanel ($D6AA), arms ($10/$11) =
+;   $9A7E at $D6D7-$D6DD and calls RenderDispatchSprite three times per pass:
+;   $04CB first when it is non-negative ($D6DF-$D6E4), then $04CA
+;   ($D6E7-$D6EA), then $04CA+4 ($D6ED-$D6F4).
+;   Index roles: $04CA = (($04CD >> 3) & 3) + 1 ($D6F7-$D702) cycles 1-4, and
+;   $04CA+4 therefore cycles 5-8. $04CB = SpriteBlobIndexTable[$04CE >> 2]
+;   ($D71D-$D723, the table's only read site); $04CE is the pass counter
+;   (cleared at $D6B4, incremented at $D71A). The 24 bytes at $D755-$D76C are
+;   $09-$0C, $F0 x3, $0D-$15, then $15,$15,$14,$14,$13,$13 and $FE: 1-4 and
+;   5-8 cycle together every pass while 9-21 play as a scripted overlay, $F0
+;   (negative) drawing nothing and $FE ending at $D708.
+;   Message: phase 0 opens the chronicle window at $D6C2-$D6CD - stream $D9
+;   when war_result_phase ($042E) = $FF, stream $D8 otherwise. The records are
+;   in bank $13: MenuStream_posD8_DefeatEpilogue $98E5 (63 B) reads "In
+;   <year>/<month> <name> was crushed by the army of <name>; thus the clan of
+;   <name> vanished from the continent"; MenuStream_posD9_DeathEpilogue $9924
+;   (72 B) reads "In <year>/<month> <name> left this world with ambitions
+;   half-fulfilled; thus the clan of <name> vanished from the continent".
+;   ScenarioHandoffPrep @HandoffLeaderStore ($C3DB-$C41A) fills
+;   $042E/$042F/$0432 and enters this scene with $0541 = 0; the later phases
+;   use the sibling tables $9CD9 and $9E75 and open $DC/$DD, then $DE.
+;   Scene and CHR: State_EventMessageScene ($E46A) selects display record $0D
+;   (DisplayInit $E474 -> MenuFontRecordLoad -> record 13 at bank $01 $96DC).
+;   Record bytes 0-3 are sprite CHR pages $A7/$A8/$A9/$00 for PPU $0000-$0FFF:
+;   chr_14 window 7 = tiles $00-$3F, chr_15 window 0 = $40-$7F, chr_15 window
+;   1 = $80-$BF; the IRQ CHR blocks $BE-$DD repeat the set. The blob tiles
+;   match the windows: 1-4 use $01-$34, 5-8 use $40-$72, 9-21 use $73-$99.
+;   Rendered through those pages: 1-4 are four frames of a drifting cloud band
+;   in the upper right, 5-8 four frames of a galloping horse at mid left, 9-18
+;   the trail frames of a shooting star, 19-21 its growing and fading burst.
 ;   Measured over the 135 records of this table: tile $01-$99, y_off $08-$60,
 ;   x_off $30-$98, attr values $00.
 ;-------------------------------------------------------------------------------
-StrategyScrollPhase1SpritePtrTable:
-  .word StrategyScrollPhase1Sprite_Blob0                                  ; $9A7E: A8 9A  ; index 1 -> blob $9AA8
-  .word StrategyScrollPhase1Sprite_Blob1                                  ; $9A80: D1 9A  ; index 2 -> blob $9AD1
-  .word StrategyScrollPhase1Sprite_Blob2                                  ; $9A82: FA 9A  ; index 3 -> blob $9AFA
-  .word StrategyScrollPhase1Sprite_Blob3                                  ; $9A84: 23 9B  ; index 4 -> blob $9B23
-  .word StrategyScrollPhase1Sprite_Blob4                                  ; $9A86: 4C 9B  ; index 5 -> blob $9B4C
-  .word StrategyScrollPhase1Sprite_Blob5                                  ; $9A88: 85 9B  ; index 6 -> blob $9B85
-  .word StrategyScrollPhase1Sprite_Blob6                                  ; $9A8A: BE 9B  ; index 7 -> blob $9BBE
-  .word StrategyScrollPhase1Sprite_Blob7                                  ; $9A8C: F7 9B  ; index 8 -> blob $9BF7
-  .word StrategyScrollPhase1Sprite_Blob8                                  ; $9A8E: 30 9C  ; index 9 -> blob $9C30
-  .word StrategyScrollPhase1Sprite_Blob9                                  ; $9A90: 35 9C  ; index 10 -> blob $9C35
-  .word StrategyScrollPhase1Sprite_Blob10                                 ; $9A92: 42 9C  ; index 11 -> blob $9C42
-  .word StrategyScrollPhase1Sprite_Blob11                                 ; $9A94: 4B 9C  ; index 12 -> blob $9C4B
-  .word StrategyScrollPhase1Sprite_Blob12                                 ; $9A96: 54 9C  ; index 13 -> blob $9C54
-  .word StrategyScrollPhase1Sprite_Blob13                                 ; $9A98: 5D 9C  ; index 14 -> blob $9C5D
-  .word StrategyScrollPhase1Sprite_Blob14                                 ; $9A9A: 6A 9C  ; index 15 -> blob $9C6A
-  .word StrategyScrollPhase1Sprite_Blob15                                 ; $9A9C: 7B 9C  ; index 16 -> blob $9C7B
-  .word StrategyScrollPhase1Sprite_Blob16                                 ; $9A9E: 88 9C  ; index 17 -> blob $9C88
-  .word StrategyScrollPhase1Sprite_Blob17                                 ; $9AA0: 91 9C  ; index 18 -> blob $9C91
-  .word StrategyScrollPhase1Sprite_Blob18                                 ; $9AA2: 9A 9C  ; index 19 -> blob $9C9A
-  .word StrategyScrollPhase1Sprite_Blob19                                 ; $9AA4: 9F 9C  ; index 20 -> blob $9C9F
-  .word StrategyScrollPhase1Sprite_Blob20                                 ; $9AA6: B4 9C  ; index 21 -> blob $9CB4
+ChronPanelSpritePtrTable:
+  .word ChronPanelSprite_Cloud0                                           ; $9A7E: A8 9A  ; index 1 -> blob $9AA8
+  .word ChronPanelSprite_Cloud1                                           ; $9A80: D1 9A  ; index 2 -> blob $9AD1
+  .word ChronPanelSprite_Cloud2                                           ; $9A82: FA 9A  ; index 3 -> blob $9AFA
+  .word ChronPanelSprite_Cloud3                                           ; $9A84: 23 9B  ; index 4 -> blob $9B23
+  .word ChronPanelSprite_GallopingHorse0                                  ; $9A86: 4C 9B  ; index 5 -> blob $9B4C
+  .word ChronPanelSprite_GallopingHorse1                                  ; $9A88: 85 9B  ; index 6 -> blob $9B85
+  .word ChronPanelSprite_GallopingHorse2                                  ; $9A8A: BE 9B  ; index 7 -> blob $9BBE
+  .word ChronPanelSprite_GallopingHorse3                                  ; $9A8C: F7 9B  ; index 8 -> blob $9BF7
+  .word ChronPanelSprite_ShootingStarTrail0                               ; $9A8E: 30 9C  ; index 9 -> blob $9C30
+  .word ChronPanelSprite_ShootingStarTrail1                               ; $9A90: 35 9C  ; index 10 -> blob $9C35
+  .word ChronPanelSprite_ShootingStarTrail2                               ; $9A92: 42 9C  ; index 11 -> blob $9C42
+  .word ChronPanelSprite_ShootingStarTrail3                               ; $9A94: 4B 9C  ; index 12 -> blob $9C4B
+  .word ChronPanelSprite_ShootingStarTrail4                               ; $9A96: 54 9C  ; index 13 -> blob $9C54
+  .word ChronPanelSprite_ShootingStarTrail5                               ; $9A98: 5D 9C  ; index 14 -> blob $9C5D
+  .word ChronPanelSprite_ShootingStarTrail6                               ; $9A9A: 6A 9C  ; index 15 -> blob $9C6A
+  .word ChronPanelSprite_ShootingStarTrail7                               ; $9A9C: 7B 9C  ; index 16 -> blob $9C7B
+  .word ChronPanelSprite_ShootingStarTrail8                               ; $9A9E: 88 9C  ; index 17 -> blob $9C88
+  .word ChronPanelSprite_ShootingStarTrail9                               ; $9AA0: 91 9C  ; index 18 -> blob $9C91
+  .word ChronPanelSprite_ShootingStarBurst0                               ; $9AA2: 9A 9C  ; index 19 -> blob $9C9A
+  .word ChronPanelSprite_ShootingStarBurst1                               ; $9AA4: 9F 9C  ; index 20 -> blob $9C9F
+  .word ChronPanelSprite_ShootingStarBurst2                               ; $9AA6: B4 9C  ; index 21 -> blob $9CB4
 
 ; blob index 1 (@$9AA8): 10 [y,tile,attr,x] records, $80 terminator @ $9AD0
-StrategyScrollPhase1Sprite_Blob0:
+ChronPanelSprite_Cloud0:
   .byte $08, $01, $00, $78, $08, $02, $00, $80, $08, $03, $00, $88, $08, $04, $00, $90 ; $9AA8: 08 01 00 78 08 02 00 80 08 03 00 88 08 04 00 90
   .byte $08, $05, $00, $98, $10, $11, $00, $78, $10, $12, $00, $80, $10, $13, $00, $88 ; $9AB8: 08 05 00 98 10 11 00 78 10 12 00 80 10 13 00 88
   .byte $10, $14, $00, $90, $10, $15, $00, $98, $80                       ; $9AC8: 10 14 00 90 10 15 00 98 80  ; terminator $80
 
 ; blob index 2 (@$9AD1): 10 [y,tile,attr,x] records, $80 terminator @ $9AF9
-StrategyScrollPhase1Sprite_Blob1:
+ChronPanelSprite_Cloud1:
   .byte $08, $06, $00, $78, $08, $07, $00, $80, $08, $08, $00, $88, $08, $09, $00, $90 ; $9AD1: 08 06 00 78 08 07 00 80 08 08 00 88 08 09 00 90
   .byte $08, $0A, $00, $98, $10, $16, $00, $78, $10, $17, $00, $80, $10, $18, $00, $88 ; $9AE1: 08 0A 00 98 10 16 00 78 10 17 00 80 10 18 00 88
   .byte $10, $19, $00, $90, $10, $1A, $00, $98, $80                       ; $9AF1: 10 19 00 90 10 1A 00 98 80  ; terminator $80
 
 ; blob index 3 (@$9AFA): 10 [y,tile,attr,x] records, $80 terminator @ $9B22
-StrategyScrollPhase1Sprite_Blob2:
+ChronPanelSprite_Cloud2:
   .byte $08, $0B, $00, $78, $08, $0C, $00, $80, $08, $0D, $00, $88, $08, $0E, $00, $90 ; $9AFA: 08 0B 00 78 08 0C 00 80 08 0D 00 88 08 0E 00 90
   .byte $08, $0F, $00, $98, $10, $1B, $00, $78, $10, $1C, $00, $80, $10, $1D, $00, $88 ; $9B0A: 08 0F 00 98 10 1B 00 78 10 1C 00 80 10 1D 00 88
   .byte $10, $1E, $00, $90, $10, $1F, $00, $98, $80                       ; $9B1A: 10 1E 00 90 10 1F 00 98 80  ; terminator $80
 
 ; blob index 4 (@$9B23): 10 [y,tile,attr,x] records, $80 terminator @ $9B4B
-StrategyScrollPhase1Sprite_Blob3:
+ChronPanelSprite_Cloud3:
   .byte $08, $20, $00, $78, $08, $21, $00, $80, $08, $22, $00, $88, $08, $23, $00, $90 ; $9B23: 08 20 00 78 08 21 00 80 08 22 00 88 08 23 00 90
   .byte $08, $24, $00, $98, $10, $30, $00, $78, $10, $31, $00, $80, $10, $32, $00, $88 ; $9B33: 08 24 00 98 10 30 00 78 10 31 00 80 10 32 00 88
   .byte $10, $33, $00, $90, $10, $34, $00, $98, $80                       ; $9B43: 10 33 00 90 10 34 00 98 80  ; terminator $80
 
 ; blob index 5 (@$9B4C): 14 [y,tile,attr,x] records, $80 terminator @ $9B84
-StrategyScrollPhase1Sprite_Blob4:
+ChronPanelSprite_GallopingHorse0:
   .byte $40, $40, $00, $48, $40, $41, $00, $50, $48, $42, $00, $38, $48, $43, $00, $40 ; $9B4C: 40 40 00 48 40 41 00 50 48 42 00 38 48 43 00 40
   .byte $48, $44, $00, $48, $48, $45, $00, $50, $48, $46, $00, $58, $50, $47, $00, $30 ; $9B5C: 48 44 00 48 48 45 00 50 48 46 00 58 50 47 00 30
   .byte $50, $48, $00, $38, $50, $49, $00, $40, $50, $4A, $00, $48, $58, $4B, $00, $30 ; $9B6C: 50 48 00 38 50 49 00 40 50 4A 00 48 58 4B 00 30
   .byte $58, $4B, $00, $38, $58, $4C, $00, $40, $80                       ; $9B7C: 58 4B 00 38 58 4C 00 40 80  ; terminator $80
 
 ; blob index 6 (@$9B85): 14 [y,tile,attr,x] records, $80 terminator @ $9BBD
-StrategyScrollPhase1Sprite_Blob5:
+ChronPanelSprite_GallopingHorse1:
   .byte $40, $4D, $00, $48, $40, $4E, $00, $50, $48, $4B, $00, $38, $48, $4F, $00, $40 ; $9B85: 40 4D 00 48 40 4E 00 50 48 4B 00 38 48 4F 00 40
   .byte $48, $50, $00, $48, $48, $51, $00, $50, $48, $52, $00, $58, $50, $53, $00, $30 ; $9B95: 48 50 00 48 48 51 00 50 48 52 00 58 50 53 00 30
   .byte $50, $54, $00, $38, $50, $55, $00, $40, $50, $56, $00, $48, $58, $4B, $00, $30 ; $9BA5: 50 54 00 38 50 55 00 40 50 56 00 48 58 4B 00 30
   .byte $58, $57, $00, $38, $58, $58, $00, $40, $80                       ; $9BB5: 58 57 00 38 58 58 00 40 80  ; terminator $80
 
 ; blob index 7 (@$9BBE): 14 [y,tile,attr,x] records, $80 terminator @ $9BF6
-StrategyScrollPhase1Sprite_Blob6:
+ChronPanelSprite_GallopingHorse2:
   .byte $40, $59, $00, $48, $40, $5A, $00, $50, $48, $4B, $00, $38, $48, $5B, $00, $40 ; $9BBE: 40 59 00 48 40 5A 00 50 48 4B 00 38 48 5B 00 40
   .byte $48, $5C, $00, $48, $48, $5D, $00, $50, $48, $5E, $00, $58, $50, $4B, $00, $30 ; $9BCE: 48 5C 00 48 48 5D 00 50 48 5E 00 58 50 4B 00 30
   .byte $50, $5F, $00, $38, $50, $60, $00, $40, $50, $61, $00, $48, $58, $62, $00, $30 ; $9BDE: 50 5F 00 38 50 60 00 40 50 61 00 48 58 62 00 30
   .byte $58, $63, $00, $38, $58, $64, $00, $40, $80                       ; $9BEE: 58 63 00 38 58 64 00 40 80  ; terminator $80
 
 ; blob index 8 (@$9BF7): 14 [y,tile,attr,x] records, $80 terminator @ $9C2F
-StrategyScrollPhase1Sprite_Blob7:
+ChronPanelSprite_GallopingHorse3:
   .byte $40, $65, $00, $48, $40, $66, $00, $50, $48, $67, $00, $38, $48, $68, $00, $40 ; $9BF7: 40 65 00 48 40 66 00 50 48 67 00 38 48 68 00 40
   .byte $48, $69, $00, $48, $48, $6A, $00, $50, $48, $6B, $00, $58, $50, $6C, $00, $30 ; $9C07: 48 69 00 48 48 6A 00 50 48 6B 00 58 50 6C 00 30
   .byte $50, $6D, $00, $38, $50, $6E, $00, $40, $50, $6F, $00, $48, $58, $70, $00, $30 ; $9C17: 50 6D 00 38 50 6E 00 40 50 6F 00 48 58 70 00 30
   .byte $58, $71, $00, $38, $58, $72, $00, $40, $80                       ; $9C27: 58 71 00 38 58 72 00 40 80  ; terminator $80
 
 ; blob index 9 (@$9C30): 1 [y,tile,attr,x] records, $80 terminator @ $9C34
-StrategyScrollPhase1Sprite_Blob8:
+ChronPanelSprite_ShootingStarTrail0:
   .byte $08, $73, $00, $38, $80                                           ; $9C30: 08 73 00 38 80
 
 ; blob index 10 (@$9C35): 3 [y,tile,attr,x] records, $80 terminator @ $9C41
-StrategyScrollPhase1Sprite_Blob9:
+ChronPanelSprite_ShootingStarTrail1:
   .byte $08, $74, $00, $40, $10, $75, $00, $40, $10, $76, $00, $48, $80   ; $9C35: 08 74 00 40 10 75 00 40 10 76 00 48 80
 
 ; blob index 11 (@$9C42): 2 [y,tile,attr,x] records, $80 terminator @ $9C4A
-StrategyScrollPhase1Sprite_Blob10:
+ChronPanelSprite_ShootingStarTrail2:
   .byte $18, $77, $00, $50, $18, $78, $00, $58, $80                       ; $9C42: 18 77 00 50 18 78 00 58 80
 
 ; blob index 12 (@$9C4B): 2 [y,tile,attr,x] records, $80 terminator @ $9C53
-StrategyScrollPhase1Sprite_Blob11:
+ChronPanelSprite_ShootingStarTrail3:
   .byte $20, $79, $00, $60, $20, $7A, $00, $68, $80                       ; $9C4B: 20 79 00 60 20 7A 00 68 80
 
 ; blob index 13 (@$9C54): 2 [y,tile,attr,x] records, $80 terminator @ $9C5C
-StrategyScrollPhase1Sprite_Blob12:
+ChronPanelSprite_ShootingStarTrail4:
   .byte $20, $7B, $00, $90, $28, $7C, $00, $88, $80                       ; $9C54: 20 7B 00 90 28 7C 00 88 80
 
 ; blob index 14 (@$9C5D): 3 [y,tile,attr,x] records, $80 terminator @ $9C69
-StrategyScrollPhase1Sprite_Blob13:
+ChronPanelSprite_ShootingStarTrail5:
   .byte $30, $7E, $00, $80, $30, $7D, $00, $88, $38, $7F, $00, $80, $80   ; $9C5D: 30 7E 00 80 30 7D 00 88 38 7F 00 80 80
 
 ; blob index 15 (@$9C6A): 4 [y,tile,attr,x] records, $80 terminator @ $9C7A
-StrategyScrollPhase1Sprite_Blob14:
+ChronPanelSprite_ShootingStarTrail6:
   .byte $40, $80, $00, $78, $48, $81, $00, $78, $50, $82, $00, $70, $50, $83, $00, $78 ; $9C6A: 40 80 00 78 48 81 00 78 50 82 00 70 50 83 00 78
   .byte $80                                                               ; $9C7A: 80  ; terminator $80
 
 ; blob index 16 (@$9C7B): 3 [y,tile,attr,x] records, $80 terminator @ $9C87
-StrategyScrollPhase1Sprite_Blob15:
+ChronPanelSprite_ShootingStarTrail7:
   .byte $50, $86, $00, $68, $58, $84, $00, $68, $58, $85, $00, $70, $80   ; $9C7B: 50 86 00 68 58 84 00 68 58 85 00 70 80
 
 ; blob index 17 (@$9C88): 2 [y,tile,attr,x] records, $80 terminator @ $9C90
-StrategyScrollPhase1Sprite_Blob16:
+ChronPanelSprite_ShootingStarTrail8:
   .byte $48, $87, $00, $58, $48, $88, $00, $60, $80                       ; $9C88: 48 87 00 58 48 88 00 60 80
 
 ; blob index 18 (@$9C91): 2 [y,tile,attr,x] records, $80 terminator @ $9C99
-StrategyScrollPhase1Sprite_Blob17:
+ChronPanelSprite_ShootingStarTrail9:
   .byte $48, $89, $00, $50, $50, $8A, $00, $48, $80                       ; $9C91: 48 89 00 50 50 8A 00 48 80
 
 ; blob index 19 (@$9C9A): 1 [y,tile,attr,x] records, $80 terminator @ $9C9E
-StrategyScrollPhase1Sprite_Blob18:
+ChronPanelSprite_ShootingStarBurst0:
   .byte $50, $8B, $00, $48, $80                                           ; $9C9A: 50 8B 00 48 80
 
 ; blob index 20 (@$9C9F): 5 [y,tile,attr,x] records, $80 terminator @ $9CB3
-StrategyScrollPhase1Sprite_Blob19:
+ChronPanelSprite_ShootingStarBurst1:
   .byte $48, $8C, $00, $48, $50, $8D, $00, $40, $50, $8E, $00, $48, $50, $8F, $00, $50 ; $9C9F: 48 8C 00 48 50 8D 00 40 50 8E 00 48 50 8F 00 50
   .byte $58, $90, $00, $48, $80                                           ; $9CAF: 58 90 00 48 80  ; terminator $80
 
 ; blob index 21 (@$9CB4): 9 [y,tile,attr,x] records, $80 terminator @ $9CD8
-StrategyScrollPhase1Sprite_Blob20:
+ChronPanelSprite_ShootingStarBurst2:
   .byte $40, $91, $00, $48, $48, $92, $00, $48, $48, $93, $00, $50, $50, $94, $00, $40 ; $9CB4: 40 91 00 48 48 92 00 48 48 93 00 50 50 94 00 40
   .byte $50, $95, $00, $48, $50, $96, $00, $50, $50, $97, $00, $58, $58, $98, $00, $48 ; $9CC4: 50 95 00 48 50 96 00 50 50 97 00 58 58 98 00 48
   .byte $60, $99, $00, $48, $80                                           ; $9CD4: 60 99 00 48 80  ; terminator $80
 
 ;-------------------------------------------------------------------------------
-; STRATEGY SCROLL PHASE 2 SPRITE BLOBS  ($9CD9-$9CE0)
-;   4 x .word, 1-based index. prg_17_18_display
-;   StrategyCommand_ScrollIntroPanel ($D795) arms
+; EVENT-MESSAGE SCENE HERO-RISE-PASS SPRITE BLOBS  ($9CD9-$9CE0)
+;   4 x .word, 1-based index. prg_17_18_duel_and_display
+;   EventMessageScene_HeroRisePanel ($D795) arms
 ;   ($10/$11) = $9CD9 at $D7E7-$D7ED and calls RenderDispatchSprite with
 ;   dispatch_src_ptr_lo ($04CA) = 1..4, one blob per pass of that phase. All
 ;   four blobs
@@ -2282,14 +2295,14 @@ StrategyScrollPhase1Sprite_Blob20:
 ;   Measured over the 100 records of this table: tile $0C-$BF, y_off $08-$48,
 ;   x_off $04-$C0, attr values $00, $01.
 ;-------------------------------------------------------------------------------
-StrategyScrollPhase2SpritePtrTable:
-  .word StrategyScrollPhase2Sprite_Blob0                                  ; $9CD9: E1 9C  ; index 1 -> blob $9CE1
-  .word StrategyScrollPhase2Sprite_Blob1                                  ; $9CDB: 46 9D  ; index 2 -> blob $9D46
-  .word StrategyScrollPhase2Sprite_Blob2                                  ; $9CDD: AB 9D  ; index 3 -> blob $9DAB
-  .word StrategyScrollPhase2Sprite_Blob3                                  ; $9CDF: 10 9E  ; index 4 -> blob $9E10
+HeroRisePanelSpritePtrTable:
+  .word HeroRisePanelSprite_Blob0                                         ; $9CD9: E1 9C  ; index 1 -> blob $9CE1
+  .word HeroRisePanelSprite_Blob1                                         ; $9CDB: 46 9D  ; index 2 -> blob $9D46
+  .word HeroRisePanelSprite_Blob2                                         ; $9CDD: AB 9D  ; index 3 -> blob $9DAB
+  .word HeroRisePanelSprite_Blob3                                         ; $9CDF: 10 9E  ; index 4 -> blob $9E10
 
 ; blob index 1 (@$9CE1): 25 [y,tile,attr,x] records, $80 terminator @ $9D45
-StrategyScrollPhase2Sprite_Blob0:
+HeroRisePanelSprite_Blob0:
   .byte $08, $0C, $00, $A8, $08, $0D, $00, $B0, $08, $0E, $00, $B8, $08, $0F, $00, $C0 ; $9CE1: 08 0C 00 A8 08 0D 00 B0 08 0E 00 B8 08 0F 00 C0
   .byte $10, $10, $00, $A8, $10, $10, $00, $B0, $10, $2D, $00, $B8, $10, $2E, $00, $C0 ; $9CF1: 10 10 00 A8 10 10 00 B0 10 2D 00 B8 10 2E 00 C0
   .byte $18, $9F, $00, $04, $18, $9F, $00, $78, $18, $9F, $00, $82, $18, $10, $00, $A8 ; $9D01: 18 9F 00 04 18 9F 00 78 18 9F 00 82 18 10 00 A8
@@ -2299,7 +2312,7 @@ StrategyScrollPhase2Sprite_Blob0:
   .byte $48, $2E, $01, $28, $80                                           ; $9D41: 48 2E 01 28 80  ; terminator $80
 
 ; blob index 2 (@$9D46): 25 [y,tile,attr,x] records, $80 terminator @ $9DAA
-StrategyScrollPhase2Sprite_Blob1:
+HeroRisePanelSprite_Blob1:
   .byte $08, $1E, $00, $A8, $08, $1F, $00, $B0, $08, $2E, $00, $B8, $08, $2F, $00, $C0 ; $9D46: 08 1E 00 A8 08 1F 00 B0 08 2E 00 B8 08 2F 00 C0
   .byte $10, $10, $00, $A8, $10, $10, $00, $B0, $10, $6E, $00, $B8, $10, $6F, $00, $C0 ; $9D56: 10 10 00 A8 10 10 00 B0 10 6E 00 B8 10 6F 00 C0
   .byte $18, $AF, $00, $04, $18, $AF, $00, $78, $18, $AF, $00, $82, $18, $10, $00, $A8 ; $9D66: 18 AF 00 04 18 AF 00 78 18 AF 00 82 18 10 00 A8
@@ -2309,7 +2322,7 @@ StrategyScrollPhase2Sprite_Blob1:
   .byte $48, $2E, $01, $28, $80                                           ; $9DA6: 48 2E 01 28 80  ; terminator $80
 
 ; blob index 3 (@$9DAB): 25 [y,tile,attr,x] records, $80 terminator @ $9E0F
-StrategyScrollPhase2Sprite_Blob2:
+HeroRisePanelSprite_Blob2:
   .byte $08, $3E, $00, $A8, $08, $3F, $00, $B0, $08, $77, $00, $B8, $08, $78, $00, $C0 ; $9DAB: 08 3E 00 A8 08 3F 00 B0 08 77 00 B8 08 78 00 C0
   .byte $10, $10, $00, $A8, $10, $10, $00, $B0, $10, $74, $00, $B8, $10, $75, $00, $C0 ; $9DBB: 10 10 00 A8 10 10 00 B0 10 74 00 B8 10 75 00 C0
   .byte $18, $BF, $00, $04, $18, $BF, $00, $78, $18, $BF, $00, $82, $18, $10, $00, $A8 ; $9DCB: 18 BF 00 04 18 BF 00 78 18 BF 00 82 18 10 00 A8
@@ -2319,7 +2332,7 @@ StrategyScrollPhase2Sprite_Blob2:
   .byte $48, $2E, $01, $28, $80                                           ; $9E0B: 48 2E 01 28 80  ; terminator $80
 
 ; blob index 4 (@$9E10): 25 [y,tile,attr,x] records, $80 terminator @ $9E74
-StrategyScrollPhase2Sprite_Blob3:
+HeroRisePanelSprite_Blob3:
   .byte $08, $79, $00, $A8, $08, $7A, $00, $B0, $08, $7B, $00, $B8, $08, $7C, $00, $C0 ; $9E10: 08 79 00 A8 08 7A 00 B0 08 7B 00 B8 08 7C 00 C0
   .byte $10, $10, $00, $A8, $10, $10, $00, $B0, $10, $7C, $00, $B8, $10, $7D, $00, $C0 ; $9E20: 10 10 00 A8 10 10 00 B0 10 7C 00 B8 10 7D 00 C0
   .byte $18, $2B, $00, $04, $18, $2B, $00, $78, $18, $2B, $00, $82, $18, $10, $00, $A8 ; $9E30: 18 2B 00 04 18 2B 00 78 18 2B 00 82 18 10 00 A8
@@ -2329,9 +2342,9 @@ StrategyScrollPhase2Sprite_Blob3:
   .byte $48, $2E, $01, $28, $80                                           ; $9E70: 48 2E 01 28 80  ; terminator $80
 
 ;-------------------------------------------------------------------------------
-; STRATEGY SCROLL PHASE 3 SPRITE BLOBS  ($9E75-$9E80)
-;   6 x .word, 1-based index. prg_17_18_display
-;   StrategyCommand_ScrollTextPhase2 ($D82A) arms
+; EVENT-MESSAGE SCENE HERO-NAME-PASS SPRITE BLOBS  ($9E75-$9E80)
+;   6 x .word, 1-based index. prg_17_18_duel_and_display
+;   EventMessageScene_HeroNamePanel ($D82A) arms
 ;   ($10/$11) = $9E75 at $D877-$D87D and calls RenderDispatchSprite twice per
 ;   pass, with
 ;   $04CA (1..3) and $04CA+3 (4..6), so two blobs layer per pass. $04CA is
@@ -2340,30 +2353,30 @@ StrategyScrollPhase2Sprite_Blob3:
 ;   Measured over the 77 records of this table: tile $08-$7F, y_off $08-$48,
 ;   x_off $58-$A0, attr values $00.
 ;-------------------------------------------------------------------------------
-StrategyScrollPhase3SpritePtrTable:
-  .word StrategyScrollPhase3Sprite_Blob0                                  ; $9E75: 81 9E  ; index 1 -> blob $9E81
-  .word StrategyScrollPhase3Sprite_Blob1                                  ; $9E77: BE 9E  ; index 2 -> blob $9EBE
-  .word StrategyScrollPhase3Sprite_Blob2                                  ; $9E79: FB 9E  ; index 3 -> blob $9EFB
-  .word StrategyScrollPhase3Sprite_Blob3                                  ; $9E7B: 40 9F  ; index 4 -> blob $9F40
-  .word StrategyScrollPhase3Sprite_Blob4                                  ; $9E7D: 69 9F  ; index 5 -> blob $9F69
-  .word StrategyScrollPhase3Sprite_Blob5                                  ; $9E7F: 92 9F  ; index 6 -> blob $9F92
+HeroNamePanelSpritePtrTable:
+  .word HeroNamePanelSprite_Blob0                                         ; $9E75: 81 9E  ; index 1 -> blob $9E81
+  .word HeroNamePanelSprite_Blob1                                         ; $9E77: BE 9E  ; index 2 -> blob $9EBE
+  .word HeroNamePanelSprite_Blob2                                         ; $9E79: FB 9E  ; index 3 -> blob $9EFB
+  .word HeroNamePanelSprite_Blob3                                         ; $9E7B: 40 9F  ; index 4 -> blob $9F40
+  .word HeroNamePanelSprite_Blob4                                         ; $9E7D: 69 9F  ; index 5 -> blob $9F69
+  .word HeroNamePanelSprite_Blob5                                         ; $9E7F: 92 9F  ; index 6 -> blob $9F92
 
 ; blob index 1 (@$9E81): 15 [y,tile,attr,x] records, $80 terminator @ $9EBD
-StrategyScrollPhase3Sprite_Blob0:
+HeroNamePanelSprite_Blob0:
   .byte $10, $5C, $00, $68, $10, $5D, $00, $70, $08, $08, $00, $58, $08, $09, $00, $60 ; $9E81: 10 5C 00 68 10 5D 00 70 08 08 00 58 08 09 00 60
   .byte $08, $0A, $00, $68, $10, $18, $00, $58, $10, $19, $00, $60, $10, $1A, $00, $68 ; $9E91: 08 0A 00 68 10 18 00 58 10 19 00 60 10 1A 00 68
   .byte $10, $1B, $00, $70, $10, $1C, $00, $78, $18, $28, $00, $58, $18, $29, $00, $60 ; $9EA1: 10 1B 00 70 10 1C 00 78 18 28 00 58 18 29 00 60
   .byte $18, $2A, $00, $68, $18, $2B, $00, $70, $18, $2C, $00, $78, $80   ; $9EB1: 18 2A 00 68 18 2B 00 70 18 2C 00 78 80  ; terminator $80
 
 ; blob index 2 (@$9EBE): 15 [y,tile,attr,x] records, $80 terminator @ $9EFA
-StrategyScrollPhase3Sprite_Blob1:
+HeroNamePanelSprite_Blob1:
   .byte $10, $5F, $00, $68, $10, $60, $00, $70, $08, $08, $00, $58, $08, $0B, $00, $60 ; $9EBE: 10 5F 00 68 10 60 00 70 08 08 00 58 08 0B 00 60
   .byte $08, $0C, $00, $68, $10, $18, $00, $58, $10, $38, $00, $60, $10, $39, $00, $68 ; $9ECE: 08 0C 00 68 10 18 00 58 10 38 00 60 10 39 00 68
   .byte $10, $3A, $00, $70, $10, $3B, $00, $78, $18, $28, $00, $58, $18, $3C, $00, $60 ; $9EDE: 10 3A 00 70 10 3B 00 78 18 28 00 58 18 3C 00 60
   .byte $18, $3D, $00, $68, $18, $3E, $00, $70, $18, $3F, $00, $78, $80   ; $9EEE: 18 3D 00 68 18 3E 00 70 18 3F 00 78 80  ; terminator $80
 
 ; blob index 3 (@$9EFB): 17 [y,tile,attr,x] records, $80 terminator @ $9F3F
-StrategyScrollPhase3Sprite_Blob2:
+HeroNamePanelSprite_Blob2:
   .byte $08, $61, $00, $60, $08, $62, $00, $68, $08, $08, $00, $58, $08, $0D, $00, $60 ; $9EFB: 08 61 00 60 08 62 00 68 08 08 00 58 08 0D 00 60
   .byte $08, $0E, $00, $68, $08, $0F, $00, $70, $08, $1D, $00, $78, $10, $18, $00, $58 ; $9F0B: 08 0E 00 68 08 0F 00 70 08 1D 00 78 10 18 00 58
   .byte $10, $19, $00, $60, $10, $1E, $00, $68, $10, $1F, $00, $70, $10, $2D, $00, $78 ; $9F1B: 10 19 00 60 10 1E 00 68 10 1F 00 70 10 2D 00 78
@@ -2371,19 +2384,19 @@ StrategyScrollPhase3Sprite_Blob2:
   .byte $18, $5B, $00, $78, $80                                           ; $9F3B: 18 5B 00 78 80  ; terminator $80
 
 ; blob index 4 (@$9F40): 10 [y,tile,attr,x] records, $80 terminator @ $9F68
-StrategyScrollPhase3Sprite_Blob3:
+HeroNamePanelSprite_Blob3:
   .byte $30, $63, $00, $78, $30, $64, $00, $80, $30, $69, $00, $90, $30, $6A, $00, $98 ; $9F40: 30 63 00 78 30 64 00 80 30 69 00 90 30 6A 00 98
   .byte $38, $73, $00, $78, $38, $74, $00, $80, $38, $79, $00, $90, $38, $7A, $00, $98 ; $9F50: 38 73 00 78 38 74 00 80 38 79 00 90 38 7A 00 98
   .byte $40, $6F, $00, $A0, $48, $7F, $00, $A0, $80                       ; $9F60: 40 6F 00 A0 48 7F 00 A0 80  ; terminator $80
 
 ; blob index 5 (@$9F69): 10 [y,tile,attr,x] records, $80 terminator @ $9F91
-StrategyScrollPhase3Sprite_Blob4:
+HeroNamePanelSprite_Blob4:
   .byte $30, $65, $00, $78, $30, $66, $00, $80, $30, $6B, $00, $90, $30, $6C, $00, $98 ; $9F69: 30 65 00 78 30 66 00 80 30 6B 00 90 30 6C 00 98
   .byte $38, $75, $00, $78, $38, $76, $00, $80, $38, $7B, $00, $90, $38, $7C, $00, $98 ; $9F79: 38 75 00 78 38 76 00 80 38 7B 00 90 38 7C 00 98
   .byte $40, $70, $00, $A0, $48, $71, $00, $A0, $80                       ; $9F89: 40 70 00 A0 48 71 00 A0 80  ; terminator $80
 
 ; blob index 6 (@$9F92): 10 [y,tile,attr,x] records, $80 terminator @ $9FBA
-StrategyScrollPhase3Sprite_Blob5:
+HeroNamePanelSprite_Blob5:
   .byte $30, $67, $00, $78, $30, $68, $00, $80, $38, $77, $00, $78, $38, $78, $00, $80 ; $9F92: 30 67 00 78 30 68 00 80 38 77 00 78 38 78 00 80
   .byte $30, $6D, $00, $90, $30, $6E, $00, $98, $38, $7D, $00, $90, $38, $7E, $00, $98 ; $9FA2: 30 6D 00 90 30 6E 00 98 38 7D 00 90 38 7E 00 98
   .byte $40, $72, $00, $A0, $48, $5E, $00, $A0, $80                       ; $9FB2: 40 72 00 A0 48 5E 00 A0 80  ; terminator $80

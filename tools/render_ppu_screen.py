@@ -4,7 +4,7 @@
 The data banks reachable only through the $8000 window (`SwitchBank8_A/B`,
 mapper registers $30-$37) hold whole 1KB nametable images: 960 tile bytes
 (30 rows x 32 cols) followed by 64 attribute bytes. `PpuCopyRaw` ($A212,
-prg_17_18_display.asm) and `ScenePageCopy` ($BC9B, prg_1d_1e_menu_screens.asm) stream exactly that
+prg_17_18_duel_and_display.asm) and `ScenePageCopy` ($BC9B, prg_1d_1e_menu_screens.asm) stream exactly that
 many bytes to PPUDATA - see code/initial_data_tables.md §9.
 
 A screen is only recognisable with the CHR pages *and* the palette the game had

@@ -6999,9 +6999,10 @@ PaletteRecordLoad:
   .byte $0E, $14, $14, $14, $0E, $14                                                  ; $DF5C
   .byte $0F, $14, $14, $14, $0F, $14                                                  ; $DF62
   .byte $03, $0A, $0B, $08, $03, $03                                                  ; $DF68
-
+.endproc
 ;-------------------------------------------------------------------------------
-; Unused padding (all $FF)
+; Bank fill ($DF6E-$DFFF)
+; Unused tail of bank $1E, $FF padding to the end of the $A000-$DFFF mapping.
 ;-------------------------------------------------------------------------------
   .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DF6E
   .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DF7E
@@ -7013,4 +7014,3 @@ PaletteRecordLoad:
   .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFDE
   .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFEE
   .byte $FF, $FF                                                                       ; $DFFE
-.endproc

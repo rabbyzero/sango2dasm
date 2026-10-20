@@ -128,7 +128,7 @@ PORTRAIT_NOTE = (
     'brown; verified against the manual scan card). Left to right: normal '
     '(strategy card), angry (duel), sad (defeat), happy (victory). All 237 '
     'officers have authored pages: $18-$53 shared across the roster, plus '
-    '$9F for 13/116 and $DB for 19/228 (the reinforcement-only heirs). '
+    '$9F for 13/116 and $DB for 19/228 (the reinforcement-only officers). '
     'Read-only.')
 HEIR_NOTE = (
     'prg_0b $CAD8 (AppointSuccessor $CA68, runs when a country\'s ruler '
@@ -487,17 +487,21 @@ class OfficerEditor(tk.Tk):
                               ('Clear', self.clear_arrival)):
             ttk.Button(arrival, text=text, command=command).pack(
                 side='left', padx=(0, 4))
-        heir = ttk.Frame(box)
-        heir.grid(row=5, column=0, columnspan=4, sticky='w', padx=6, pady=2)
-        ttk.Label(heir, text='継承 heir').pack(side='left')
-        self.heir_info = tk.StringVar(value='')
-        ttk.Label(heir, textvariable=self.heir_info, width=14).pack(
-            side='left', padx=(6, 6))
-        self.heir_year = ttk.Spinbox(heir, from_=100, to=255, width=6,
-                                     state='disabled')
-        self.heir_year.pack(side='left')
-        ttk.Button(heir, text='Set', command=self.set_heir_year).pack(
-            side='left', padx=(4, 0))
+        auto_arrival = ttk.Frame(box)
+        auto_arrival.grid(row=5, column=0, columnspan=4, sticky='w',
+                          padx=6, pady=2)
+        ttk.Label(auto_arrival, text='自動出現 auto arrival').grid(
+            row=0, column=0, sticky='w')
+        self.auto_arrival_info = tk.StringVar(value='')
+        ttk.Label(auto_arrival, textvariable=self.auto_arrival_info,
+                  width=14).grid(row=0, column=1, sticky='w', padx=(6, 6))
+        self.auto_arrival_year = ttk.Spinbox(auto_arrival, from_=100,
+                                             to=255, width=6,
+                                             state='disabled')
+        self.auto_arrival_year.grid(row=1, column=0, sticky='w', pady=(2, 0))
+        ttk.Button(auto_arrival, text='Set',
+                   command=self.set_auto_arrival_year).grid(
+                       row=1, column=1, sticky='w', padx=(6, 0), pady=(2, 0))
         self.roster_info = tk.StringVar(value='')
         self._wrap(ttk.Label(box, textvariable=self.roster_info,
                              foreground='#555')).grid(
@@ -516,7 +520,7 @@ class OfficerEditor(tk.Tk):
                        HEIR_NOTE,
                        text='\n'.join(self.model.heir_priority_lines())
                        if self.model.has_heirs else
-                       'heir priority lists not loaded '
+                       'successor priority lists not loaded '
                        '(rom/prg/prg_0b.bin beside the CSVs)')).grid(
                            row=1, column=0, sticky='e', padx=6, pady=(0, 4))
 
@@ -565,9 +569,7 @@ class OfficerEditor(tk.Tk):
             return
         lines = off.stratagem_lines()
         self.stratagem_detail = lines
-        # The pane carries the verdict and the reason; the full name lists and
-        # the tier ladder stay in the popup, where the column text can wrap.
-        self.stratagem_var.set('\n'.join(lines[:3]))
+        self.stratagem_var.set('\n'.join(lines))
 
     def _build_plate(self, parent):
         box = ttk.LabelFrame(parent, text=dict(GROUP_TITLES)['plate'])
@@ -732,6 +734,10 @@ class OfficerEditor(tk.Tk):
             'heir_bank': sibling(officer_csv,
                                  os.path.join('rom', 'prg', 'prg_0b.bin'))
                          or paths.get('heir_bank'),
+            'preferred_bank': sibling(officer_csv,
+                                      os.path.join('rom', 'prg',
+                                                   'prg_19.bin'))
+                              or paths.get('preferred_bank'),
             'chr_dir': sibling(officer_csv, os.path.join('rom', 'chr'))
                        or paths.get('chr_dir'),
         }
@@ -745,7 +751,8 @@ class OfficerEditor(tk.Tk):
             reinforce_csv=paths.get('reinforce'),
             card_bank=paths.get('card_bank'),
             portrait_page_bank=paths.get('portrait_page_bank'),
-            heir_bank=paths.get('heir_bank'))
+            heir_bank=paths.get('heir_bank'),
+            preferred_bank=paths.get('preferred_bank'))
         self.source = dict(self.model.paths)
         self.log_line('loaded %s (%d officers, %d provinces, death years %s, '
                       'kanji plates %s)'
@@ -937,15 +944,15 @@ class OfficerEditor(tk.Tk):
                                   off.placement()))
         pool = self.model.reinforce_entry(off.id)
         if pool:
-            self.heir_info.set('Country %d pool' % pool[0])
-            self.heir_year.configure(state='normal'
+            self.auto_arrival_info.set('Country %d pool' % pool[0])
+            self.auto_arrival_year.configure(state='normal'
                                      if self.model.has_reinforce
                                      else 'disabled')
-            self.heir_year.delete(0, 'end')
-            self.heir_year.insert(0, str(pool[1]))
+            self.auto_arrival_year.delete(0, 'end')
+            self.auto_arrival_year.insert(0, str(pool[1]))
         else:
-            self.heir_info.set('not an heir')
-            self.heir_year.configure(state='disabled')
+            self.auto_arrival_info.set('not in a pool')
+            self.auto_arrival_year.configure(state='disabled')
         self.roster_box.set(by_id.get(off.roster_province, provinces[0]))
         self.sched_box.set(by_id.get(off.schedule_province_id, provinces[0]))
         for widget, value in ((self.slot_box, off.roster_slot or 0),
@@ -1124,11 +1131,11 @@ class OfficerEditor(tk.Tk):
         self._apply('arrival', None,
                     action=lambda: self.model.clear_schedule(off.id))
 
-    def set_heir_year(self):
+    def set_auto_arrival_year(self):
         off = self.current_officer()
         if off is None:
             return
-        year = self.heir_year.get().strip()
+        year = self.auto_arrival_year.get().strip()
         self._apply('reinforce_year', None,
                     action=lambda: self.model.set_reinforce_year(off.id, year))
 

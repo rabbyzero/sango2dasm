@@ -116,11 +116,11 @@ addr_scroll_x_hi    = $008F                     ; Scroll X high (nametable bit)
 addr_scroll_y       = $0090                     ; Scroll Y position
 addr_scroll_y_hi    = $0091                     ; Scroll Y high
 
-; --- Input State ---
-addr_input_prev_x   = $0094                     ; Input prev X change flag
-addr_input_prev_y   = $0095                     ; Input prev Y change flag
-addr_ctrl_state_x   = $009C                     ; Controller state X
-addr_ctrl_state_y   = $009D                     ; Controller state Y
+; --- Field-map scroll state ---
+map_row_cache       = $0094                     ; Palette-row cache; $FF forces a palette reload
+map_col_cache       = $0095                     ; Scene-column cache; $FF forces an overlay reload
+map_dir_flags       = $009C                     ; Last field-map scroll step (7=E, 6=W, 4=N, 5=S)
+map_dir_prev        = $009D                     ; Previous-frame copy, snapshotted at $F95E
 
 ; --- CHR Banks ---
 addr_chr_bank_0     = $00AE                     ; CHR bank 0 ($8000)
@@ -303,7 +303,7 @@ VectorTable:
 ;      caller has NOT staged a scene handoff, i.e. $0400 != $0D ($E126-$E12F).
 ;      ClearOverlayWait $DB0C and WarPostProcess $BBAA both stage $0400 = $0D (with
 ;      $0401 = 3 / 0), so the write happens on the CountrySelect_Finalize $D8FF and
-;      StrategyCommand_InitOfficerScroll $D74E entries. That conditional is itself
+;      EventMessageScene_ChronPanel $D74E entries. That conditional is itself
 ;      the proof that this state is not new-game-only; see
 ;      code/initial_data_tables.md §9 for the full caller list.
 ;   4. Clears the menu state $0420 and the province dirty bitmap $04E0-$04E3,
@@ -405,14 +405,14 @@ VectorTable:
 ; One-shot launch frame on the war/battle side, then INC addr_game_state -> 4
 ; (WarAiTurnFrame / AiTurnProcess). Only four sites store game state 3:
 ;   WarSceneLaunch prg_1b_1c_strategy_mode $B5E1 / ArmyDeploySceneTrigger prg_19_1a_event_scenes $CA4A
-;     arm war_scene_id $0500 = $0A; Spoils_ExitFade prg_17_18_display $C354 and
+;     arm war_scene_id $0500 = $0A; Spoils_ExitFade prg_17_18_duel_and_display $C354 and
 ;     BattleResultFlashTrigger prg_0e_0f_battle $A403 arm $0500 = $0B post-battle.
 ; Dispatch on $0500:
 ;   $0B  -> bank $0C/$0D OfficerFateCommit: commit post-battle officer
 ;           fates queued in $0514-$0517 (action 2 = officer killed/removed)
 ;   else -> bank $08/$09 WarSetup: deploy the $0507 faction pair for battle
 ; No controller input is polled; NMI render sub-state $0078 = 3
-; (NmiState3_WarScene).
+; (NmiState3_TacticalMap).
 ; Params: $0500 = launch selector ($0B = officer-fate commit)
 ;         $0510-$0513 = map scroll target data (cleared by the launchers)
 ;         $0068/$0069 = map data pointer
@@ -2864,23 +2864,25 @@ ptr_hi   = $0C
 .endproc
 
 ;===============================================================================
-; $F077: Namco-163 Sound Register Change Detect
-; Compares $009C and $009D, flags changes in $0094/$0095
+; $F077: Field-Map Scroll Step Change Detect
+; XORs $009C against its previous-frame copy $009D and writes $FF into the cache
+; of whichever axis changed - $0095 on an X step (bits 7/6), $0094 on a Y step
+; (bits 5/4). Bank $17 TacticalMapScrollRefresh $AB53 then rebuilds that axis.
 ;===============================================================================
-.proc NamcoSoundRegRead
-  LDA a:addr_ctrl_state_x                       ; $F077: AD 9C 00
-  EOR a:addr_ctrl_state_y                       ; $F07A: 4D 9D 00
+.proc MapScrollStepChangeDetect
+  LDA a:map_dir_flags                           ; $F077: AD 9C 00
+  EOR a:map_dir_prev                            ; $F07A: 4D 9D 00
   PHA                                           ; $F07D: 48
   AND #$C0                                      ; $F07E: 29 C0
   BEQ @check_low                                ; $F080: F0 05
   LDY #$FF                                      ; $F082: A0 FF
-  STY a:addr_input_prev_y                       ; $F084: 8C 95 00
+  STY a:map_col_cache                           ; $F084: 8C 95 00
 @check_low:
   PLA                                           ; $F087: 68
   AND #$30                                      ; $F088: 29 30
   BEQ @done                                     ; $F08A: F0 05
   LDY #$FF                                      ; $F08C: A0 FF
-  STY a:addr_input_prev_x                       ; $F08E: 8C 94 00
+  STY a:map_row_cache                           ; $F08E: 8C 94 00
 @done:
   RTS                                           ; $F091: 60
 .endproc
@@ -3718,7 +3720,7 @@ MetaTileData:
 
 NmiDispatchTable:
   .word NmiState0_Idle, NmiState0_Idle          ; $F87B: states 0,1
-  .word NmiState2_StrategyMap, NmiState3_WarScene ; $F87F: states 2,3
+  .word NmiState2_StrategyMap, NmiState3_TacticalMap ; $F87F: states 2,3
   .word NmiState4_Battle, NmiState5_Duel        ; $F883: states 4,5
   .word NmiState6_TitleScreen, NmiState7_CountrySelect ; $F887: states 6,7
   .word NmiState8_EventMessage                  ; $F88B: state 8
@@ -3786,8 +3788,8 @@ NmiDispatchTable:
   JMP NmiEpilogue                               ; $F8FB: 4C 8D F8
 .endproc
 
-;--- $F8FE: VBlank handler - war scene (Tactical Mode map) ---
-.proc NmiState3_WarScene
+;--- $F8FE: VBlank handler - Tactical Mode field map ---
+.proc NmiState3_TacticalMap
   JSR NmiSubDispatch                            ; $F8FE: 20 53 EE
   JSR ChrBankSwitch                             ; $F901: 20 06 F2
   JSR SetupChrBanksAndWait                      ; $F904: 20 0B FB
@@ -3802,17 +3804,23 @@ NmiDispatchTable:
   STA $A5                                       ; $F91B: 85 A5
   STA NAMCO_WRAM_WRITE_PROTECT                  ; $F91D: 8D 00 F8
   JSR CalcScrollAddr                            ; $F920: 20 62 FF
-  LDA $0500                                     ; $F923: AD 00 05
+  ; The bank $17 map-layer refresh pair runs only in the tactical turn phases
+  ; and only on the unwrapped view. $0500 is the state cell bank $0C/$0D drives
+  ; through its 16-handler table $A02E, ids $0C-$0F being WarResultPanel,
+  ; UnitWithdraw, UnitGarrison and TacticalMapScene; $008F is the map scroll X
+  ; high byte, whose nametable bit is set once the camera wraps.
+  ; WarStatusPanelDraw $CFA2 and DrawStratagemTargetMarkers $D1ED gate the same pair.
+  LDA $0500                                     ; $F923: AD 00 05  tactical turn state (bank $0C/$0D)
   CMP #$0C                                      ; $F926: C9 0C
-  BCS @skip_weather                             ; $F928: B0 13
-  LDA a:$008F                                   ; $F92A: AD 8F 00
-  BNE @skip_weather                             ; $F92D: D0 0E
-  JSR NamcoSoundRegRead                         ; $F92F: 20 77 F0
+  BCS @skip_map_refresh                         ; $F928: B0 13
+  LDA a:$008F                                   ; $F92A: AD 8F 00  map scroll X high byte
+  BNE @skip_map_refresh                         ; $F92D: D0 0E
+  JSR MapScrollStepChangeDetect                 ; $F92F: 20 77 F0  scroll-step change detect ($F077)
   LDY #$37                                      ; $F932: A0 37
   JSR SwitchBankAC_B                            ; $F934: 20 37 F2
-  JSR B17_18_DisplayAndChrSetup                 ; $F937: 20 0C A0
-  JSR B17_18_BattleEffects                      ; $F93A: 20 0F A0
-@skip_weather:
+  JSR B17_18_DisplayAndChrSetup                 ; $F937: 20 0C A0  map tile re-render on scroll change (bank $17)
+  JSR B17_18_TacticalMapScrollRefresh           ; $F93A: 20 0F A0  terrain + palette rebuild on camera change (bank $17)
+@skip_map_refresh:
   JSR SwapPlayerPointers                        ; $F93D: 20 A9 FA
   LDY #$39                                      ; $F940: A0 39
   JSR SwitchBankAC_B                            ; $F942: 20 37 F2
@@ -3825,7 +3833,7 @@ NmiDispatchTable:
   JSR B1D_1E_MenuUpdate                         ; $F955: 20 03 A0  Menu update (bank $1D)
   JSR RestorePlayerPointers                     ; $F958: 20 BF FA
   JSR SpriteClearFromIndex                      ; $F95B: 20 30 E8
-  LDA a:$009C                                   ; $F95E: AD 9C 00
+  LDA a:$009C                                   ; $F95E: AD 9C 00  previous-frame copy for the change detect
   STA a:$009D                                   ; $F961: 8D 9D 00
   JSR WaitVBlank                                ; $F964: 20 28 FB
   JMP NmiEpilogue                               ; $F967: 4C 8D F8
@@ -3956,7 +3964,7 @@ NmiDispatchTable:
   JSR SwapPlayerPointers                        ; $FA7D: 20 A9 FA
   LDY #$37                                      ; $FA80: A0 37
   JSR SwitchBankAC_B                            ; $FA82: 20 37 F2
-  JSR B17_18_StrategyCommandDispatch            ; $FA85: 20 1E A0  Strategy command dispatch (bank $17)
+  JSR B17_18_EventMessageSceneDispatch          ; $FA85: 20 1E A0  Dated-message / ending scroll scene (bank $17)
   JSR RestorePlayerPointers                     ; $FA88: 20 BF FA
   JSR CalcScrollAddr                            ; $FA8B: 20 62 FF
   JSR SpriteClearFromIndex                      ; $FA8E: 20 30 E8

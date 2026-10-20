@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Extract the family-heir reinforcement pools from the ROM.
+"""Extract the auto-arrival reinforcement pools from the ROM.
 
-Each January, EventReinforceGate ($A33C, prg_19_1a_event_scenes) picks the acting
-Country's pool from the pointer table at bank $31 $8D74 (Countries 2/3/4,
-with 6 aliasing slot 3; 0/1/5 have none), and OfficerReinforceScene ($AEC0)
-inducts the FIRST still-hidden officer (record[$0B] & 3 == 1) whose join
-year has arrived into the Country's home Province roster (status <- 2,
-officer card shown). The four $FF-terminated (Officer id, join year) lists
-hold exactly the 26 hidden officers that have no arrival-schedule entry.
+Every month, EventReinforceGate ($A33C, prg_19_1a_event_scenes; sub-state 2 of
+the monthly event dispatch) picks the acting Country's pool from the pointer
+table at bank $31 $8D74 (Countries 2/3/4, with 6 aliasing slot 3; 0/1/5 have
+none), and OfficerReinforceScene ($AEC0) inspects the FIRST still-hidden
+officer (record[$0B] & 3 == 1) in list order. Once his join year has arrived he
+joins the Country's home Province roster (status <- 2, officer card shown); if
+the roster's 10 slots ($11-$1A) are full the scan fails and retries next month.
+The four $FF-terminated (Officer id, join year) lists hold exactly the 26
+hidden officers that have no arrival-schedule entry.
 
 Pointer layout: $8D74-$8D7B holds 4 little-endian words whose HIGH byte is
 stored biased by -$60 (the reader adds #$60 back), each pointing at one
@@ -79,7 +81,8 @@ def check(pools):
     if sorted(ids) != sorted(set(ids)):
         problems.append('an officer appears in two pools')
     if len(ids) != 26:
-        problems.append('expected the 26 unscheduled heirs, got %d' % len(ids))
+        problems.append('expected the 26 unscheduled pool officers, got %d'
+                        % len(ids))
     for oid in ids:
         if not 0 <= oid < 237:
             problems.append('pool officer id %d out of range' % oid)
@@ -113,15 +116,22 @@ def _pad(text, width):
 
 def write_md(pools, names, path):
     with open(path, 'w', encoding='utf-8') as f:
-        f.write('# Family-heir reinforcement pools (bank $31 $8D74)\n\n')
-        f.write('Each January `EventReinforceGate` (`$A33C`, prg_19_1a_event_scenes) picks\n')
-        f.write('the acting Country\'s pool - Countries 2/3/4, with 6 aliasing\n')
-        f.write('slot 3; Countries 0/1/5 have none - and\n')
-        f.write('`OfficerReinforceScene` (`$AEC0`) inducts the FIRST still-\n')
-        f.write('hidden officer whose year has arrived into the Country\'s\n')
-        f.write('home Province roster (状態 <- 2, officer card shown). The\n')
-        f.write('byte stored is `year - 100` (`@ReinforceScan` $AF12 compares\n')
-        f.write('it straight against $6F00).\n\n')
+        f.write('# Auto-arrival reinforcement pools (bank $31 $8D74)\n\n')
+        f.write('Every month `EventReinforceGate` (`$A33C`, prg_19_1a_event_scenes,\n')
+        f.write('sub-state 2 of the monthly event dispatch) picks the acting\n')
+        f.write('Country\'s pool - Countries 2/3/4, with 6 aliasing slot 3;\n')
+        f.write('Countries 0/1/5 have none - and `OfficerReinforceScene`\n')
+        f.write('(`$AEC0`) inspects the FIRST still-hidden officer in list\n')
+        f.write('order. Once his year has arrived he joins the Country\'s\n')
+        f.write('home Province roster (状態 <- 2, officer card shown); if his\n')
+        f.write('year has not arrived, the month\'s check ends. The byte\n')
+        f.write('stored is `year - 100` (`@ReinforceScan` $AF12 compares it\n')
+        f.write('straight against $6F00, which ticks each January, so January\n')
+        f.write('of that year is the first possible pass). A home Province\n')
+        f.write('roster holds 10 officers ($11-$1A); when all 10 slots are\n')
+        f.write('full the insertion fails and the same officer is retried\n')
+        f.write('next month - the arrival slips a month at a time, not a\n')
+        f.write('whole year. At most one officer joins per Country per month.\n\n')
         f.write('These are exactly the 26 hidden officers with no arrival-\n')
         f.write('schedule entry, grouped by family. Editing surface:\n')
         f.write('`docs/officer_reinforcement.csv` (this file\'s CSV twin),\n')

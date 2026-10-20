@@ -157,11 +157,12 @@ province_check_flag = $050E  ; province check flag
 ruler_status_flag   = $050F  ; ruler data byte 3 (alliance/status)
 
 ; --- Map scroll position ($0510-$0513) ---
-; Copied from ZP $8E-$91 in UnitAttack_ShowResult.
-map_scroll_x_lo     = $0510  ; map scroll X lo
-map_scroll_x_hi     = $0511  ; map scroll X hi
-map_scroll_y_lo     = $0512  ; map scroll Y lo
-map_scroll_y_hi     = $0513  ; map scroll Y hi
+; Y at $0510/$0511, X at $0512/$0513 (the axis order bank $1F reads back at
+; $E1BA). UnitAttack_ShowResult $A340 snapshots ZP $90/$91 and $8E/$8F into them.
+map_scroll_y_lo     = $0510  ; map scroll Y lo
+map_scroll_y_hi     = $0511  ; map scroll Y hi
+map_scroll_x_lo     = $0512  ; map scroll X lo
+map_scroll_x_hi     = $0513  ; map scroll X hi
 
 ; --- Army merit sums ($051A-$051F) ---
 ; Computed by SumArmyOfficerStats: merit = byte8 + (byte9 & 3).
@@ -7462,7 +7463,7 @@ UpdateCursorTile:
   LDY #$37                              ; $D72C: A0 37
   JSR B1F_BankedCallbackTrampoline      ; $D72E: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B17_18_BattleDispatch           ; $D731: $12 A0
+  .word B17_18_FieldMapCropResolve      ; $D731: $12 A0
   LDA $10                                     ; $D733: A5 10
   AND #$0F                                    ; $D735: 29 0F
   STA $08                                     ; $D737: 85 08
@@ -8049,7 +8050,7 @@ GetTerrainType:
   LDY #$37                              ; $DB6B: A0 37
   JSR B1F_BankedCallbackTrampoline      ; $DB6D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B17_18_BattleDispatch           ; $DB70: $12 A0
+  .word B17_18_FieldMapCropResolve      ; $DB70: $12 A0
   LDA #$9E                                    ; $DB72: A9 9E
   STA $0002                                   ; $DB74: 8D 02 00
   LDA #$DB                                    ; $DB77: A9 DB

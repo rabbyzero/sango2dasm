@@ -8818,8 +8818,7 @@ MapZoneOriginYTable:
   RTS                                     ; $DFBF: 60
 ; --- Data Region ---
 ; province marker sprite tables: tile ids, attribute bytes, per-zone animation
-; flags ($40 = animated, $80 = static), and dirty-bit masks indexed by zone&7
-; ($FF fill pads the region to $DFFF).
+; flags ($40 = animated, $80 = static), and dirty-bit masks indexed by zone&7.
 ProvinceMarkerTileTable:
   .byte $00,$01,$00,$01,$08,$09,$0A,$0B   ; $DFC0: 00 01 00 01 08 09 0A 0B
 ProvinceMarkerAttrTable:
@@ -8829,5 +8828,9 @@ ProvinceMarkerZoneFlagTable:
   .byte $40,$40,$40,$80,$40,$40,$80,$40,$40,$80,$80,$80,$80,$80 ; $DFE0: 40 40 40 80 40 40 80 40 40 80 80 80 80 80 (zones 16-29)
 ProvinceMarkerAnimMaskTable:
   .byte $01,$02,$04,$08,$10,$20,$40,$80   ; $DFEE: 01 02 04 08 10 20 40 80 ; bit masks 0-7
-  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF ; $DFF6: FF FF FF FF FF FF FF FF FF FF (pad to $DFFF)
 .endproc
+;-------------------------------------------------------------------------------
+; Bank fill ($DFF6-$DFFF)
+; Unused tail of bank $1C, $FF padding to the end of the $A000-$DFFF mapping.
+;-------------------------------------------------------------------------------
+  .res $000A, $FF                         ; $DFF6: FF fill to $DFFF

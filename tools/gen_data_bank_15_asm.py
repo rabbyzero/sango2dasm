@@ -4,7 +4,7 @@
 Bank $15 is pure data: it is mapped into the $8000-$9FFF window by SwitchBank8
 and read by two consumers:
 
-  - prg_17_18_display DrawSpriteFromBank ($CEA5): A with bit 7 set selects bank $35.
+  - prg_17_18_duel_and_display DrawSpriteFromBank ($CEA5): A with bit 7 set selects bank $35.
     Y = (A & $7F) * 2 indexes the .word table at $8000; the stored pointer
     high byte is $20 above the real page (the code does SEC/SBC #$20), so
     blob address = stored word - $2000. The blob is handed to
@@ -16,7 +16,7 @@ and read by two consumers:
       OAM X    = x_off + $000C   ($000C was loaded from $04BB = X base)
     Entries whose computed Y is below $0004 are skipped. The $000A = Y /
     $000C = X polarity is fixed by the OAM byte layout (writer stores
-    b0 -> $0200,X = Y and b3 -> $0203,X = X); several prg_17_18_display comments
+    b0 -> $0200,X = Y and b3 -> $0203,X = X); several prg_17_18_duel_and_display comments
     name $04BA "X" - they are reversed.
   - prg_1f_boot State_CountryMapView ($E37C): LDY #$35 / SwitchBank8_B ($E38B),
     then B17_18_PpuCopyRaw copies 1 KB from $9A90 to PPU $2000 (the country
@@ -109,7 +109,7 @@ def build_plan(data):
 def emit_ptr_table(ptrs, blobs):
     out = ['',
            '; --- $8000-$80B7  SpriteBlobPtrTable: 92 x .word, indexed by',
-           ';     Y = (A & $7F) * 2 from DrawSpriteFromBank (prg_17_18_display $CEA5) with',
+           ';     Y = (A & $7F) * 2 from DrawSpriteFromBank (prg_17_18_duel_and_display $CEA5) with',
            ';     bit 7 of A set; stored word = blob address + $2000 (the code',
            ';     subtracts $20 from the high byte); no index bit 7 clear ever',
            ';     reaches this bank - those read bank $14 ---']
@@ -198,7 +198,7 @@ BANNER = """\
 ; do not hand-edit the rendered records.
 ;
 ; Read from two consumers:
-;   prg_17_18_display  DrawSpriteFromBank $CEA5: A with bit 7 set selects this bank as
+;   prg_17_18_duel_and_display  DrawSpriteFromBank $CEA5: A with bit 7 set selects this bank as
 ;              $35; Y = (A & $7F) * 2 indexes the pointer table at $8000 and
 ;              the code subtracts $20 from the pointer high byte, so blob
 ;              address = stored word - $2000 (indices with bit 7 clear read
@@ -221,7 +221,7 @@ BANNER = """\
 ; FIRST byte is $80 terminates the blob (a $80 in byte 1 is a legitimate tile
 ; id - the terminator is only checked in the y position). The $000A = Y /
 ; $000C = X polarity follows from the OAM byte layout the writer stores
-; (b0 -> $0200,X = Y, b3 -> $0203,X = X); some prg_17_18_display comments name $04BA
+; (b0 -> $0200,X = Y, b3 -> $0203,X = X); some prg_17_18_duel_and_display comments name $04BA
 ; "X base" - those are reversed.
 ;===============================================================================
 

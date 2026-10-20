@@ -102,15 +102,18 @@ NAME_GLYPH_STRIDE = 0x0D
 NAME_GLYPH_TILES = 4
 GLYPH_TERMINATOR = 0xFF
 
-# The family-heir reinforcement pools (bank $31 $8D74, right before the plate
+# The auto-arrival reinforcement pools (bank $31 $8D74, right before the plate
 # table): 4 little-endian word pointers whose HIGH byte is stored +$60 (the
 # reader adds it back), each to a $FF-terminated (officer id, join year) list.
-# EventReinforceGate ($A33C, prg_19_1a_event_scenes) runs each January per acting Country:
+# EventReinforceGate ($A33C, prg_19_1a_event_scenes) is sub-state 2 of the
+# monthly event dispatch, so it runs in every month for the acting Country:
 # Countries 2/3/4 (6 aliases slot 3) select pool (Country-2), and
-# OfficerReinforceScene ($AEC0) inducts the FIRST still-hidden officer whose
-# year has arrived into the Country's home Province roster (状態 <- 2, officer
-# card shown). The four lists hold exactly the 26 hidden officers that have no
-# arrival-schedule entry, grouped by family (Cao/Wei, Sun/Wu, Liu/Shu, Ma).
+# OfficerReinforceScene ($AEC0) inspects the FIRST still-hidden officer. Once
+# his year has arrived he joins the Country's home Province roster (状態 <- 2,
+# officer card shown); if the roster's 10 slots ($11-$1A) are full the scan
+# fails and retries next month. The four lists hold exactly the 26 hidden
+# officers that have no arrival-schedule entry, grouped by family
+# (Cao/Wei, Sun/Wu, Liu/Shu, Ma).
 REINFORCE_PTR_CPU = 0x8D74
 REINFORCE_POOL_COUNT = 4
 REINFORCE_POOL_COUNTRIES = (2, 3, 4, 6)
@@ -127,7 +130,7 @@ REINFORCE_COLUMNS = ('pool', 'country', 'officer_id', 'katakana', 'zh_hans',
 # each officer's 1KB CHR page id (bank $1A is the $C000-$DFFF half of the
 # $A000-$DFFF 16KB window, so the file offset is $CED6 - $C000). Pages
 # $18-$53 are the authored portrait block shared across the roster; the four
-# reinforcement-only heirs sit outside it - 13 王双 and 116 申耽 share page
+# reinforcement-only officers sit outside it - 13 王双 and 116 申耽 share page
 # $9F, 19 蒯良 and 228 凌统 share page $DB (verified by rendering: distinct
 # authored cards, one per officer). OfficerCardRender ($CE1F, prg_19_1a_event_scenes)
 # draws a 14-sprite body + 6-sprite face from the bank-$01 tables (class
@@ -174,6 +177,26 @@ HEIR_PRIORITY_BANK_BASE = 0xC000       # bank $0B maps at $C000-$DFFF
 HEIR_PRIORITY_PTR_CPU = 0xCAD8
 HEIR_PRIORITY_COUNTRY_COUNT = 7
 HEIR_PRIORITY_END = 0xFF
+
+# --- preferred Country (情報集め IntelligenceGathering) --------------------
+# `OfficerArrivalScan` ($B964, asm/banks/prg_19_1a_event_scenes.asm) walks the
+# scouted province's scheduled arrival block; on a match it looks the officer up
+# in `OfficerPreferredCountryTable` ($BA50) and, when listed, returns the pair's
+# Country id in $0473 with handoff $0470 = $07. The recruit roll in
+# prg_1b_1c_strategy_mode $AB75 compares that Country with the scouted
+# province's owner: equal -> threshold 2 of 16 (14/16 join), else $0D
+# (3/16 join). Only the scheduled path consults the table; a scheduled officer
+# the table omits keeps the rolled gold/rice/treasure result instead of a
+# recruit chance. 16 pairs, $BA50-$BA6F; the ROM scan walks 18 slots and reads
+# $BA70-$BA73 as code bytes (only hazardous for ids $A2/$AD), so this parser
+# reads exactly the 16.
+PREFERRED_COUNTRY_BANK_FILE = 'prg_19.bin'
+PREFERRED_COUNTRY_BASE = 0xA000        # bank $19 maps at $A000-$BFFF
+PREFERRED_COUNTRY_CPU = 0xBA50
+PREFERRED_COUNTRY_COUNT = 16
+COUNTRY_COUNT = 7                      # 0-6; owner 7 = no country
+PREFERRED_COUNTRY_JOIN = (14, 16)      # province owner == preferred Country
+PREFERRED_COUNTRY_MISS = (3, 16)       # any other owner
 
 # --- 計略 stratagem tier availability -------------------------------------
 # `BuildCommandList` ($D3EE, asm/banks/prg_08_09_tactical_war.asm) is what
@@ -224,9 +247,8 @@ STRATAGEM_LEVEL_ROSTERS = (
 
 StratagemAccess = namedtuple(
     'StratagemAccess',
-    'count codes source level_floor intel_count next_kind next_count '
-    'next_intelligence next_level roster_ids')
-StratagemAccess.__new__.__defaults__ = (None,) * 10
+    'count codes source level_floor intel_count roster_ids steps')
+StratagemAccess.__new__.__defaults__ = (None,) * 7
 
 # Plate tile ids are page-local ($00-$3F); page V is the 1KB CHR chunk
 # rom/chr/chr_(V//8).bin at (V%8)*$400 - the same mapping the BG display
@@ -524,8 +546,18 @@ def stratagem_roster(oid):
     return None, ()
 
 
+def _stratagem_steps(floors, count):
+    """The higher tiers レベル unlocks, cheapest first, as (レベル, slots).
+
+    Only the authored roster floors count: a level-up changes nothing for an
+    officer outside the 21 strategist ids, whose tier is fixed by 知力.
+    """
+    return tuple(sorted((floor + 1, slots) for floor, slots in floors
+                        if slots > count))
+
+
 def stratagem_access(oid, officer_level, intelligence):
-    """The stratagems this commander can select, and the next step up.
+    """The stratagems this commander can select, plus every later unlock.
 
     `officer_level` is the decoded 1-based レベル field; the ROM compares the
     stored byte, so every floor here is one below it. The answer is the same
@@ -534,39 +566,31 @@ def stratagem_access(oid, officer_level, intelligence):
     stored = officer_level - 1
     intel_count = stratagem_intelligence_count(intelligence)
     roster_ids, floors = stratagem_roster(oid)
-    for index, (floor, slots) in enumerate(floors):
-        if stored < floor:
-            continue
-        next_kind, next_count, next_level = None, None, None
-        if index:
-            next_kind, next_count = 'level', floors[index - 1][1]
-            next_level = floors[index - 1][0] + 1
-        return StratagemAccess(count=slots, codes=tuple(range(slots)),
-                               source='level', level_floor=floor + 1,
-                               intel_count=intel_count, next_kind=next_kind,
-                               next_count=next_count, next_level=next_level,
-                               roster_ids=roster_ids)
-    ladder = STRATAGEM_INTELLIGENCE_LADDER
-    index = max(i for i, (floor, _) in enumerate(ladder)
-                if intelligence >= floor)
-    next_kind, next_count, next_int, next_level = None, None, None, None
-    if index + 1 < len(ladder):
-        next_kind, next_int, next_count = ('intelligence',
-                                          ladder[index + 1][0],
-                                          ladder[index + 1][1])
-    elif floors:
-        next_kind, next_level, next_count = ('level', floors[-1][0] + 1,
-                                            floors[-1][1])
+    for floor, slots in floors:
+        if stored >= floor:
+            return StratagemAccess(count=slots, codes=tuple(range(slots)),
+                                   source='level', level_floor=floor + 1,
+                                   intel_count=intel_count,
+                                   roster_ids=roster_ids,
+                                   steps=_stratagem_steps(floors, slots))
     return StratagemAccess(count=intel_count, codes=tuple(range(intel_count)),
                            source='intelligence', intel_count=intel_count,
-                           next_kind=next_kind, next_count=next_count,
-                           next_intelligence=next_int, next_level=next_level,
-                           roster_ids=roster_ids)
+                           roster_ids=roster_ids,
+                           steps=_stratagem_steps(floors, intel_count))
 
 
-def stratagem_names(codes):
-    """'火計 FireAttack' for each code, comma-joined."""
-    return ', '.join('%s %s' % STRATAGEM_NAMES[code] for code in codes)
+def stratagem_codes(codes, plus=False):
+    """'$00 火計 FireAttack' for each code, two spaces apart."""
+    return '  '.join('%s$%02X %s %s'
+                     % ('+' if plus else '', code, STRATAGEM_NAMES[code][0],
+                        STRATAGEM_NAMES[code][1])
+                     for code in codes)
+
+
+def _code_rows(codes, plus=False, per_line=2):
+    """The name list chunked into rows that fit the detail pane unwrapped."""
+    return ['  ' + stratagem_codes(codes[start:start + per_line], plus=plus)
+            for start in range(0, len(codes), per_line)]
 
 
 def stratagem_ladder_lines(by_id=None):
@@ -595,49 +619,34 @@ def stratagem_ladder_lines(by_id=None):
 
 
 def stratagem_access_lines(off):
-    """The pane text for one officer: usable count, the deciding gate, next step."""
+    """The pane text: what is usable now, then each tier that adds more."""
     acc = off.stratagem_access()
-    ladder = STRATAGEM_INTELLIGENCE_LADDER
-    locked = tuple(code for code in range(STRATAGEM_COUNT)
-                   if code not in acc.codes)
-    lines = ['計略 menu: %d of %d slots ($00-$%02X)'
-             % (acc.count, STRATAGEM_COUNT, acc.count - 1)]
     if acc.source == 'level':
-        lines.append('  boosted: レベル %d (stored %d) clears stored floor %d '
-                     'of the %d-id strategist roster, so 知力 %d (%d slots) '
-                     'is not consulted'
-                     % (off.officer_level, off.officer_level - 1,
-                        acc.level_floor - 1, len(acc.roster_ids),
-                        off.intelligence, acc.intel_count))
+        why = ('roster レベル %d boost; 知力 %d alone gives %d'
+               % (off.officer_level, off.intelligence, acc.intel_count))
     else:
-        index = max(i for i, (floor, slots) in enumerate(ladder)
-                    if off.intelligence >= floor)
-        if index:
-            lines.append('  知力 %d >= $%02X (%d)'
-                         % (off.intelligence, ladder[index][0], ladder[index][0]))
-        else:
-            lines.append('  知力 %d < $%02X (%d): the bottom rung'
-                         % (off.intelligence, ladder[1][0], ladder[1][0]))
+        why = '知力 %d' % off.intelligence
         if acc.roster_ids:
-            entry_floor, entry_slots = stratagem_roster(off.id)[1][-1]
-            lines.append('  also in the strategist roster (entry stored レベル '
-                         '%d = レベル %d -> %d slots)'
-                         % (entry_floor, entry_floor + 1, entry_slots))
-    if acc.next_kind == 'intelligence':
-        lines.append('  next: 知力 >= $%02X (%d) -> %d slots'
-                     % (acc.next_intelligence, acc.next_intelligence,
-                        acc.next_count))
-    elif acc.next_kind == 'level':
-        lines.append('  next: レベル %d -> %d slots'
-                     % (acc.next_level, acc.next_count))
-    else:
-        lines.append('  next: %s'
-                     % ('none - all %d stratagems are open' % STRATAGEM_COUNT
-                        if acc.count == STRATAGEM_COUNT else
-                        'none - the top of his own tier list'))
-    lines.append('  usable %s' % stratagem_names(acc.codes))
-    if locked:
-        lines.append('  locked %s' % stratagem_names(locked))
+            floor, slots = stratagem_roster(off.id)[1][-1]
+            why += '; at レベル %d the roster would give %d' % (floor + 1, slots)
+    lines = ['now %d of %d ($00-$%02X) - %s'
+             % (acc.count, STRATAGEM_COUNT, acc.count - 1, why)]
+    lines.extend(_code_rows(acc.codes))
+    previous = acc.count
+    for index, (level, slots) in enumerate(acc.steps):
+        label = 'next' if index == 0 else 'then'
+        unlock = range(previous, slots)
+        if len(unlock) == 1:
+            lines.append('%s レベル %d -> %d slots: %s'
+                         % (label, level, slots,
+                            stratagem_codes(unlock, plus=True)))
+        else:
+            lines.append('%s レベル %d -> %d slots' % (label, level, slots))
+            lines.extend(_code_rows(unlock, plus=True))
+        previous = slots
+    if not acc.steps and acc.count == STRATAGEM_COUNT:
+        lines.append('no higher tier - all %d stratagems are open'
+                     % STRATAGEM_COUNT)
     return lines
 
 
@@ -669,6 +678,8 @@ class Officer:
         self.death_year = None
         self.roster_province = None
         self.roster_slot = None
+        self.preferred_country = None    # 情報集め recruit target, from $BA50
+        self.reinforce_country = None    # auto-arrival pool Country, if any
         self.glyph = None            # the 13-byte kanji plate, when the ROM bank
         self.chr_page = None         # is available, plus its 1KB CHR font page
         self.label = ''              # (read-only, see NAME_GLYPH_*)
@@ -714,16 +725,28 @@ class Officer:
         return self.officer_status_bits == 1
 
     def placement(self):
-        """Where the seed puts him: a roster slot, an arrival year, or neither."""
+        """Where the seed puts him: roster, scheduled arrival, or auto arrival."""
         if self.roster_province is not None:
             governor = ' (太守 governor)' if self.roster_slot == 0 else ''
             return 'province %d slot %d%s' % (self.roster_province,
                                               self.roster_slot, governor)
         if self.schedule_province_id is not None and self.appear_year is not None:
-            return 'arrives %d in province %d' % (self.appear_year,
+            text = 'arrives %d in province %d' % (self.appear_year,
                                                   self.schedule_province_id)
+            if self.preferred_country is not None:
+                text += (' - preferred Country %d (情報集め recruit there: '
+                         '%d/%d when its owner is Country %d, else %d/%d)'
+                         % (self.preferred_country,
+                            PREFERRED_COUNTRY_JOIN[0], PREFERRED_COUNTRY_JOIN[1],
+                            self.preferred_country,
+                            PREFERRED_COUNTRY_MISS[0], PREFERRED_COUNTRY_MISS[1]))
+            return text
         if self.schedule_province_id is not None or self.appear_year is not None:
             return 'incomplete arrival entry'
+        if self.reinforce_country is not None:
+            return ('auto-arrival Country %d (monthly pool check once his join '
+                    'year arrives; needs a free home-province roster slot)'
+                    % self.reinforce_country)
         return 'unscheduled (hidden, found by the free-officer scans)'
 
     # --- 計略 tier -------------------------------------------------------
@@ -956,6 +979,7 @@ class Model:
         self.portrait_chunks = {}    # portrait page id -> 1KB of CHR, likewise
         self.heir_priority = []      # (Country id, [officer ids]) from bank $0B
         self.reinforce_pools = []    # (Country id, [(officer id, join year)])
+        self.preferred_countries = {}   # officer id -> preferred Country id
         self.loaded = False          # rom/chr was found beside the glyph bank
 
     # --- loading ---------------------------------------------------------
@@ -963,7 +987,7 @@ class Model:
     def load(cls, officer_csv, province_csv=None, death_csv=None,
              labels_inc=None, glyph_bank=None, chr_dir=None,
              reinforce_csv=None, card_bank=None, portrait_page_bank=None,
-             heir_bank=None):
+             heir_bank=None, preferred_bank=None):
         m = cls()
         m.paths['officer'] = officer_csv
         header, rows = _read_csv(officer_csv)
@@ -1137,6 +1161,23 @@ class Model:
                         cur += 1
                     m.heir_priority.append((ci, ids))
 
+        if preferred_bank and os.path.exists(preferred_bank):
+            with open(preferred_bank, 'rb') as f:
+                bank = f.read()
+            base = PREFERRED_COUNTRY_CPU - PREFERRED_COUNTRY_BASE
+            if len(bank) >= base + PREFERRED_COUNTRY_COUNT * 2:
+                m.paths['preferred'] = preferred_bank
+                for index in range(PREFERRED_COUNTRY_COUNT):
+                    oid = bank[base + index * 2]
+                    m.preferred_countries[oid] = bank[base + index * 2 + 1]
+                for off in m.officers:
+                    off.preferred_country = m.preferred_countries.get(off.id)
+
+        for country, pairs in m.reinforce_pools:
+            for oid, _year in pairs:
+                if oid in m._by_id:
+                    m._by_id[oid].reinforce_country = country
+
         m.loaded = True
         m._snapshot_baseline()
         return m
@@ -1204,6 +1245,11 @@ class Model:
     def has_heirs(self):
         """True when the AI successor priority lists were read from bank $0B."""
         return 'heir' in self.paths
+
+    @property
+    def has_preferred(self):
+        """True when the 情報集め preferred-Country table was read from bank $19."""
+        return 'preferred' in self.paths
 
     def heir_successor_lists(self, oid):
         """(country, position, ids) for every priority list containing oid."""
@@ -1413,10 +1459,11 @@ class Model:
     def reinforce_entry(self, oid):
         """(Country id, join year) when the officer sits in a pool, else None.
 
-        The pool scan inducts the FIRST still-hidden officer whose year has
-        arrived, in list order - the year is a gate, not a guaranteed date
-        (earlier heirs that joined first shift nothing; a rostered officer is
-        simply skipped by the status==hidden test).
+        The pool scan stops at the FIRST still-hidden officer in list order: if
+        his year has arrived he joins, otherwise the month's check ends. The
+        year is a gate, not a guaranteed date; a full home-Province roster (10
+        slots) makes the scan retry next month. A rostered officer is skipped by
+        the status==hidden test, so the scan advances to the next pair.
         """
         for country, pairs in self.reinforce_pools:
             for pair_id, year in pairs:
@@ -1425,11 +1472,11 @@ class Model:
         return None
 
     def set_reinforce_year(self, oid, year):
-        """Change one heir's reinforcement join year, in place.
+        """Change one officer's reinforcement join year, in place.
 
         Membership and list order live in docs/officer_reinforcement.csv
         too, but only the year has a single-officer editing command; moving
-        an heir between countries is a CSV edit (the row order is the stored
+        an officer between countries is a CSV edit (the row order is the stored
         list order).
         """
         if not self.has_reinforce:
@@ -1439,7 +1486,7 @@ class Model:
         entry = self.reinforce_entry(oid)
         if entry is None:
             raise FieldError('officer %d is not in any reinforcement pool '
-                             '(bank $31 $8D74) - to make him an heir, add a '
+                             '(bank $31 $8D74) - to add him to a pool, add a '
                              'row to docs/officer_reinforcement.csv' % oid)
         try:
             year = int(str(year), 0)      # $hex and 0xhex
@@ -1675,10 +1722,11 @@ class Model:
                        if o.is_hidden and o.appear_year is None]
         if len(unscheduled) != STOCK_UNSCHEDULED_HIDDEN:
             out.append('%d hidden officers have no arrival entry (stock %d) - '
-                       'the stock 26 are the family heirs that join Countries '
+                       'the stock 26 are the pool officers that join Countries '
                        '2/3/4/6 through the reinforcement pools at bank $31 '
-                       '$8D74 (one per January, EventReinforceGate $A33C / '
-                       'OfficerReinforceScene $AEC0)'
+                       '$8D74 (checked every month at EventReinforceGate '
+                       '$A33C / OfficerReinforceScene $AEC0; one at most per '
+                       'month, retried if the home Province roster is full)'
                        % (len(unscheduled), STOCK_UNSCHEDULED_HIDDEN))
         if self.has_rosters:
             total = sum(len(p.roster) for p in self.provinces)
@@ -2064,6 +2112,8 @@ def cell_text(model, off, key):
             return 'arrives %d @%d' % (off.appear_year, off.schedule_province_id)
         if off.schedule_province_id is not None:
             return 'arrival entry incomplete'
+        if off.reinforce_country is not None:
+            return 'auto-join Country %d' % off.reinforce_country
         return '-'
     value = getattr(off, key, '')
     return '' if value is None else str(value)
@@ -2156,6 +2206,7 @@ def default_paths(root):
         'card_bank': os.path.join(root, 'rom', 'prg', 'prg_01.bin'),
         'portrait_page_bank': os.path.join(root, 'rom', 'prg', 'prg_1a.bin'),
         'heir_bank': os.path.join(root, 'rom', 'prg', 'prg_0b.bin'),
+        'preferred_bank': os.path.join(root, 'rom', 'prg', 'prg_19.bin'),
         'chr_dir': os.path.join(root, 'rom', 'chr'),
     }
 
@@ -2175,7 +2226,8 @@ def load_default(root, require_officer=True):
                       reinforce_csv=paths['reinforce'],
                       card_bank=paths['card_bank'],
                       portrait_page_bank=paths['portrait_page_bank'],
-                      heir_bank=paths['heir_bank'])
+                      heir_bank=paths['heir_bank'],
+                      preferred_bank=paths['preferred_bank'])
 
 
 if __name__ == '__main__':

@@ -3340,7 +3340,7 @@ RandomTable:                            ; $B5E5: 256-byte permutation of $00-$FF
 ; @GetTileTerrain - province terrain lookup for map coords ($0020,$0021),
 ; bounded by @EvalStepCost to X < $1F and Y < $14 (X 0-30, Y 0-19). Computes
 ; quadrant = (x >= 16) | ((y >= 16) << 1) and reads the terrain zone id from the
-; map zone table at ($00A8), which DataRecordLoader ($DF15, prg_17_18_display.asm) fills
+; map zone table at ($00A8), which DataRecordLoader ($DF15, prg_17_18_duel_and_display.asm) fills
 ; from the battlefield province $050E (4 quadrant zone ids per province).
 ; The zone selects both the 16x16 crop pointer (TerrainMapPtrTable) and the PRG
 ; bank holding it (TileBankTable, switched into the $8000 window via
@@ -7804,7 +7804,7 @@ scroll_dir_bits        = $0508  ; pending scroll direction bits (7=E,6=W,5=N,4=S
 ; rendered by B19_1A_OfficerCardRender (bank pair $39). NOT a war-result
 ; scene - the real war-result setup is WarResultSceneInit $D66E (arms
 ; war_scene_id $0500 = 7), which runs inside the war-scene machine under
-; NmiState3_WarScene. The csel_param_a input is the title-menu selection
+; NmiState3_TacticalMap. The csel_param_a input is the title-menu selection
 ; ($0543, written by ClearOverlayMenu bank $0A): 0 = 1P new game, nonzero
 ; (2P) routes the pick through the confirm flow and sets $6F44 = 1, the
 ; flag SwapPlayerPointers reads to swap the player pointers.

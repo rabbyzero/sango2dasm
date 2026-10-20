@@ -26,7 +26,7 @@ sango2dasm/
 │       ├── data_03_terrain.asm                       # Terrain DATA bank (reg $23, prov 8-13): annotated .byte hex
 │       ├── data_04_terrain.asm                       # Terrain DATA bank (reg $24, prov 16-23): annotated .byte hex
 │       ├── data_05_terrain.asm                       # Terrain DATA bank (reg $25, prov 14-15,24-29): annotated .byte hex
-│       ├── data_06_placement_and_scroll.asm                       # DATA bank (reg $26): war unit-placement pools + strategy scroll graphics
+│       ├── data_06_placement_and_scroll.asm                       # DATA bank (reg $26): war unit-placement pools + ending-scroll panel graphics
 │       ├── data_10_seed.asm                       # Seed DATA bank (reg $30): annotated .byte records
 │       └── data_11_officer.asm                       # Seed DATA bank (reg $31): annotated .byte records
 ├── include/
@@ -473,8 +473,8 @@ what the generator renders.
 `prg_08_09_tactical_war` war AI placement (`GetOrderedDestination` $A1E5,
 `@SetupDefenderRoster` $B2E4, `@SetupAttackerRoster` $B343), `prg_0c_0d_tactical_commands`
 army-deploy (`@BuildOfficerList` $C3DC/$C42B, `@CheckBoundsForPosition`
-$C455/$C495) and `prg_17_18_display` strategy scroll screens
-(`StrategyCommandDispatch` $D693, `ScrollPanel_LoadRow` $DC13,
+$C455/$C495) and `prg_17_18_duel_and_display`'s event-message / ending scroll scene
+(`EventMessageSceneDispatch` $D693, `ScrollPanel_LoadRow` $DC13,
 `RenderDispatchSprite` $DBF3).
 
 **Placement geometry ($8000-$95E5).** Four parallel 30-entry `.word` tables
@@ -494,12 +494,14 @@ advancing its cursor by 2 into `unit_coord_y/x` ($0614/$0600).
 command may select. Pool rows skip 15 (observed $01-$0E then $10-$14), the same
 row-15 quirk the terrain codec carries.
 
-**Strategy scroll graphics ($95E6-$9FBB).** Three 392-byte tile blocks = 14 rows
-x 28 tiles, one per scroll phase ($0541 = 1/2/3, the three `ScrollPanel_LoadRow`
-call sites), streamed to PPU `$2082` - nametable $2000 rows 4-17, columns 2-29;
+**Event-message / ending scroll graphics ($95E6-$9FBB).** Three 392-byte tile
+blocks = 14 rows x 28 tiles, one per ending panel (scene phase $0541 = 1/2/3, the
+three `ScrollPanel_LoadRow` call sites), streamed to PPU `$2082` - nametable $2000
+rows 4-17, columns 2-29;
 the attributes for that area come from the *local* `ScrollPanel_RowTemplate_*`
 records in bank $17, not from this bank. Then three OAM sprite-blob tables (21 /
-4 / 6 entries, 1-based) in the shared `[y_off,tile,attr,x]` + `$80` terminator
+4 / 6 entries, 1-based) armed by scene phases 0 / 1 / 2 (`EventMessageScene_ChronPanel`,
+`_HeroRisePanel`, `_HeroNamePanel`), in the shared `[y_off,tile,attr,x]` + `$80` terminator
 format consumed by `B1F_SpriteOamWriterSimple` ($F1AD), with writer bases X $10 /
 Y $1F forced by `RenderDispatchSprite`. `SpriteBlobIndexTable` ($D755, bank $17) that
 selects blob indexes 9-21 is a pass *sequence*, not a bank or command lookup.

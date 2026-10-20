@@ -1,13 +1,20 @@
-# Family-heir reinforcement pools (bank $31 $8D74)
+# Auto-arrival reinforcement pools (bank $31 $8D74)
 
-Each January `EventReinforceGate` (`$A33C`, prg_19_1a_event_scenes) picks
-the acting Country's pool - Countries 2/3/4, with 6 aliasing
-slot 3; Countries 0/1/5 have none - and
-`OfficerReinforceScene` (`$AEC0`) inducts the FIRST still-
-hidden officer whose year has arrived into the Country's
-home Province roster (状態 <- 2, officer card shown). The
-byte stored is `year - 100` (`@ReinforceScan` $AF12 compares
-it straight against $6F00).
+Every month `EventReinforceGate` (`$A33C`, prg_19_1a_event_scenes,
+sub-state 2 of the monthly event dispatch) picks the acting
+Country's pool - Countries 2/3/4, with 6 aliasing slot 3;
+Countries 0/1/5 have none - and `OfficerReinforceScene`
+(`$AEC0`) inspects the FIRST still-hidden officer in list
+order. Once his year has arrived he joins the Country's
+home Province roster (状態 <- 2, officer card shown); if his
+year has not arrived, the month's check ends. The byte
+stored is `year - 100` (`@ReinforceScan` $AF12 compares it
+straight against $6F00, which ticks each January, so January
+of that year is the first possible pass). A home Province
+roster holds 10 officers ($11-$1A); when all 10 slots are
+full the insertion fails and the same officer is retried
+next month - the arrival slips a month at a time, not a
+whole year. At most one officer joins per Country per month.
 
 These are exactly the 26 hidden officers with no arrival-
 schedule entry, grouped by family. Editing surface:

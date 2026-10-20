@@ -55,9 +55,15 @@ Proves, in order:
      windows and the four strategist-id rosters are re-derived over every
      id / レベル / 知力 combination, the code order is the handler table, the
      stock census is 233 知力 tiers plus 4 roster boosts, and both front-ends
-     print the same verdict.
+     print the same verdict;
+ 11. arrival provenance: the 16 `OfficerPreferredCountryTable` ($BA50) pairs
+     are parsed from bank $19, every preferred officer is hidden and scheduled,
+     his placement reports the 14/16-vs-3/16 情報集め join odds, no other
+     scheduled officer gets that line, the 26 reinforcement-pool officers
+     report their auto-arrival Country, and standalone mode degrades cleanly.
 
-Sections 1-8 and 10 need no display; section 9 prints `skipped` without one.
+Sections 1-8, 10 and 11 need no display; section 9 prints `skipped` without
+one.
 """
 import argparse
 import ast
@@ -219,7 +225,7 @@ def test_codec_matches_rom():
     check('every officer has an authored portrait page',
           all(o.portrait_page is not None and o.portrait_chr is not None
               for o in m.officers))
-    check('the four reinforcement heirs share two late pages',
+    check('the four reinforcement-only officers share two late pages',
           m.officer(13).portrait_page == m.officer(116).portrait_page == 0x9F
           and m.officer(19).portrait_page == m.officer(228).portrait_page == 0xDB
           and m.officer(13).portrait_pixels(0)
@@ -261,9 +267,9 @@ def test_codec_matches_rom():
     check('heir_successor_lists finds the listed heirs',
           m.heir_successor_lists(180) == [(6, 0, [180, 176, 181, 179])]
           and m.heir_successor_lists(131) == [])
-    # The family-heir reinforcement pools (bank $31 $8D74): EventReinforceGate
-    # $A33C picks the acting Country's pool each January, and
-    # OfficerReinforceScene $AEC0 inducts the first still-hidden officer whose
+    # The auto-arrival reinforcement pools (bank $31 $8D74): EventReinforceGate
+    # $A33C is sub-state 2 of the monthly event dispatch, and
+    # OfficerReinforceScene $AEC0 inspects the first still-hidden officer whose
     # year has arrived - these are where the unscheduled 26 go.
     check('the reinforcement pools parse from bank $31 $8D74',
           len(m.reinforce_pools) == 4
@@ -276,7 +282,7 @@ def test_codec_matches_rom():
     check('pool entries carry a sane join year',
           all(150 <= year <= 255
               for _, pairs in m.reinforce_pools for _, year in pairs))
-    check('reinforce_entry finds the family heirs',
+    check('reinforce_entry finds the pool officers',
           m.reinforce_entry(180) == (6, 193)
           and m.reinforce_entry(93) == (3, 192)
           and m.reinforce_entry(0) is None)
@@ -599,12 +605,12 @@ def test_generator():
     check('an over-full arrival block stops the render (no silent truncation)',
           err is not None and 'province 0' in err, err)
 
-    def add_heir(rows):
+    def add_pool_entry(rows):
         rows.append({'pool': '3', 'country': '6', 'officer_id': '1',
                      'katakana': 'x', 'zh_hans': 'x', 'table_byte': '100',
                      'join_year': '200'})
 
-    err = render_error(0x11, 'officer_reinforcement.csv', add_heir)
+    err = render_error(0x11, 'officer_reinforcement.csv', add_pool_entry)
     check('an over-full pool stops the render (26 pairs fill $8D74-$8DB3)',
           err is not None and 'overflow' in err, err)
 
@@ -845,7 +851,7 @@ def test_front_ends():
                                 os.path.join(tmp, 'officer_data.csv')])
             except SystemExit as exc:
                 got = exc.code
-        check('cli reinforce on a non-heir exits 1', got == 1, 'got %s' % got)
+        check('cli reinforce on a non-pool officer exits 1', got == 1, 'got %s' % got)
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout), \
                 contextlib.redirect_stderr(io.StringIO()):
@@ -879,18 +885,18 @@ def test_front_ends():
         with contextlib.redirect_stdout(marker):
             cli.main(['show', '13', '--repo', ROOT, '--csv',
                       os.path.join(tmp, 'officer_data.csv')])
-        check('cli show renders the late-heir page $9F card',
+        check('cli show renders the late-arrival page $9F card',
               'portrait  $CED6[13] -> page $9F' in marker.getvalue(),
               marker.getvalue()[:200])
-        heirs = io.StringIO()
-        with contextlib.redirect_stdout(heirs):
-            cli.main(['heirs', '--repo', ROOT, '--csv',
+        successors = io.StringIO()
+        with contextlib.redirect_stdout(successors):
+            cli.main(['successors', '--repo', ROOT, '--csv',
                       os.path.join(tmp, 'officer_data.csv')])
-        check('cli heirs prints all seven country lists',
+        check('cli successors prints all seven country lists',
               'Country 2: 曹丕 > 曹叡 > 曹彰 > 曹植 > 曹熊 > 曹仁'
-              in heirs.getvalue()
-              and heirs.getvalue().count('Country ') == 7,
-              heirs.getvalue()[:200])
+              in successors.getvalue()
+              and successors.getvalue().count('Country ') == 7,
+              successors.getvalue()[:200])
     finally:
         shutil.rmtree(tmp)
 
@@ -1034,7 +1040,7 @@ def test_gui(args):
                   for x in range(0, app.portrait_images[0].width(), 4)))
         app.tree.selection_set('13')
         app._on_select()
-        check('the late-heir page $9F card renders too',
+        check('the late-arrival page $9F card renders too',
               len(app.portrait_images) == 4
               and 'page $9F' in app.portrait_var.get(),
               app.portrait_var.get())
@@ -1074,17 +1080,17 @@ def test_gui(args):
               bool(shown), [str(w) for w in app.winfo_children()])
         for w in popups:
             w.destroy()
-        # The heir row: officer 180 馬超 sits in Country 6's pool (193).
+        # The auto-arrival row: officer 180 馬超 sits in Country 6's pool (193).
         app.tree.selection_set('180')
         app._on_select()
-        check('the heir row shows the pool and join year',
-              'Country 6' in app.heir_info.get()
-              and app.heir_year.get() == '193',
-              (app.heir_info.get(), app.heir_year.get()))
-        app.heir_year.delete(0, 'end')
-        app.heir_year.insert(0, '210')
-        app.set_heir_year()
-        check('the heir year edit lands in the model',
+        check('the auto-arrival row shows the pool and join year',
+              'Country 6' in app.auto_arrival_info.get()
+              and app.auto_arrival_year.get() == '193',
+              (app.auto_arrival_info.get(), app.auto_arrival_year.get()))
+        app.auto_arrival_year.delete(0, 'end')
+        app.auto_arrival_year.insert(0, '210')
+        app.set_auto_arrival_year()
+        check('the auto-arrival year edit lands in the model',
               app.model.reinforce_entry(180) == (6, 210),
               app.model.reinforce_entry(180))
         app.undo_edit()
@@ -1093,10 +1099,10 @@ def test_gui(args):
               and not app.model.changes())
         app.tree.selection_set('0')
         app._on_select()
-        check('a non-heir shows no heir spinbox',
-              'not an heir' in app.heir_info.get()
-              and str(app.heir_year.cget('state')) == 'disabled',
-              (app.heir_info.get(), app.heir_year.cget('state')))
+        check('an officer outside the pools shows no auto-arrival spinbox',
+              'not in a pool' in app.auto_arrival_info.get()
+              and str(app.auto_arrival_year.cget('state')) == 'disabled',
+              (app.auto_arrival_info.get(), app.auto_arrival_year.cget('state')))
         # A withdrawn window has no allocation, so drive the pane pinning the
         # way the canvas <Configure> would and measure the requested widths.
         app._on_detail_configure(_Event(gui.DETAIL_W))
@@ -1324,14 +1330,169 @@ def test_stratagem_tier():
         shutil.rmtree(tmp)
     text = out.getvalue()
     check('the CLI prints the same verdict for 姜维',
-          code == 0 and '計略 menu: 12 of 16 slots ($00-$0B)' in text
-          and 'locked 水攻 FloodAttack' in text,
-          [line for line in text.splitlines() if 'menu' in line])
+          code == 0 and 'now 12 of 16 ($00-$0B)' in text
+          and 'next レベル 5 -> 14 slots' in text
+          and '+$0C 水攻 FloodAttack' in text,
+          [line for line in text.splitlines() if line.startswith('now')])
+    # The pane shows the usable list, then only the tiers a level-up reaches.
+    # Codes beyond the officer's own steps must not appear at all.
+    def codes_in(line):
+        found = []
+        for token in line.split():
+            token = token.lstrip('+(').rstrip(')')
+            if token.startswith('$') and len(token) == 3:
+                found.append(int(token[1:], 16))
+        return found
+
+    bad = []
+    for off in load_stock().officers:
+        acc = off.stratagem_access()
+        allowed = set(acc.codes)
+        previous = acc.count
+        for level, slots in acc.steps:
+            if not 1 <= level <= 8:
+                bad.append('%d: level %d' % (off.id, level))
+            if slots <= previous:
+                bad.append('%d: step %d after %d' % (off.id, slots, previous))
+            allowed.update(range(previous, slots))
+            previous = slots
+        for line in off.stratagem_lines():
+            if line.startswith('locked'):
+                bad.append('%d: locked line' % off.id)
+            beyond = [code for code in codes_in(line) if code not in allowed]
+            if beyond:
+                bad.append('%d: %s' % (off.id, beyond))
+    check('only available and level-up codes are shown', not bad, bad[:3])
+    bad = ['%d: %s' % (off.id, line) for off in load_stock().officers
+           for line in off.stratagem_lines()
+           if '->' in line and 'レベル' not in line]
+    check('every potential unlock is a レベル step', not bad, bad[:2])
+    bad = ['%d' % off.id for off in load_stock().officers
+           if not model.stratagem_roster(off.id)[0]
+           and off.stratagem_access().steps]
+    check('a non-rostered officer has no level-up steps', not bad, bad[:3])
+    zhuge = load_stock().by_id[0x6D].stratagem_lines()
+    zhuge_text = '\n'.join(zhuge)
+    check('诸葛亮 shows the レベル ladder above his 10 知力 slots',
+          'now 10 of 16 ($00-$09)' in zhuge[0]
+          and 'next レベル 4 -> 12 slots' in zhuge_text
+          and '+$0A 連環 ChainLink  +$0B 十面埋伏 TenfoldAmbush' in zhuge_text
+          and 'then レベル 7 -> 16 slots: +$0F 奇門遁甲 MysticalStasis'
+          in zhuge_text,
+          [line for line in zhuge if line.startswith(('next', 'then'))])
+    capped = next(off for off in load_stock().officers
+                  if not model.stratagem_roster(off.id)[0]
+                  and off.intelligence >= 0x55)
+    capped_lines = capped.stratagem_lines()
+    capped_codes = [code for line in capped_lines for code in codes_in(line)]
+    check('a non-rostered officer sees no unreachable tier',
+          not any(line.startswith(('next ', 'then ', 'locked'))
+                  for line in capped_lines)
+          and max(capped_codes) < capped.stratagem_access().count,
+          capped_lines[-2:])
+    ceiling = load_stock().by_id[0x37].stratagem_lines()
+    ceiling_codes = [code for line in ceiling for code in codes_in(line)]
+    check('a roster ceiling hides the tiers above it (姜维 top 14)',
+          max(ceiling_codes) == 0x0D
+          and not any(line.startswith('locked') for line in ceiling),
+          ceiling[-2:])
     lines = model.stratagem_ladder_lines(load_stock().by_id)
     check('the ladder table names both gates and all 21 ids',
           lines[1].startswith('  知力 $00-$27')
           and sum(line.count('$') for line in lines[7:]) >= 21,
           lines[7:9])
+
+
+# --- 11 arrival provenance -------------------------------------------------
+# Evidence: OfficerPreferredCountryTable ($BA50, prg_19_1a_event_scenes) holds
+# 16 (officer id, Country) pairs and is read only by OfficerArrivalScan's
+# scheduled path; the roll at prg_1b_1c_strategy_mode $AB75 compares the scouted
+# province's owner Country and uses threshold 2 (14/16 join) on a match, $0D
+# (3/16) otherwise. The reinforcement pools (bank $31 $8D74) carry the
+# auto-arrival Country.
+def test_arrival_provenance():
+    section('11. arrival provenance: 情報集め preferred Country + auto arrival')
+    m = load_stock()
+    expected = {
+        0x6D: 4, 0x70: 4, 0x56: 2, 0x37: 4, 0xB7: 4, 0x63: 2, 0x6B: 3,
+        0x2F: 3, 0xA1: 2, 0xEA: 3, 0xEB: 3, 0xD5: 3, 0x90: 4, 0x39: 2,
+        0xA5: 2, 0x9C: 2,
+    }
+    check('the $BA50 table parses its 16 pairs',
+          m.has_preferred and m.preferred_countries == expected,
+          sorted(m.preferred_countries.items()))
+    check('every preferred officer is hidden and scheduled',
+          all(m.by_id[oid].is_hidden
+              and m.by_id[oid].schedule_province_id is not None
+              and m.by_id[oid].appear_year is not None for oid in expected),
+          [oid for oid in expected if not m.by_id[oid].is_hidden])
+    zhuge = m.by_id[0x6D].placement()
+    check('a preferred officer reports the 情報集め odds',
+          'preferred Country 4' in zhuge and '14/16' in zhuge
+          and '3/16' in zhuge, zhuge)
+    plain = next(off for off in m.officers
+                 if off.schedule_province_id is not None
+                 and off.preferred_country is None)
+    check('a scheduled officer outside $BA50 has no recruit line',
+          '情報集め' not in plain.placement(), plain.placement())
+    pool = [off for off in m.officers if off.reinforce_country is not None]
+    check('the 26 auto-arrival officers report their Country',
+          len(pool) == 26
+          and all('auto-arrival Country %d' % off.reinforce_country
+                  in off.placement()
+                  and 'monthly' in off.placement()
+                  and 'January' not in off.placement()
+                  and model.cell_text(m, off, 'placement')
+                  == 'auto-join Country %d' % off.reinforce_country
+                  for off in pool),
+          [(off.id, off.reinforce_country) for off in pool[:3]])
+    with open(os.path.join(ROOT, 'rom', 'prg', 'prg_19.bin'), 'rb') as f:
+        bank = f.read()
+
+    def at(cpu, size):
+        return bank[cpu - 0xA000:cpu - 0xA000 + size]
+
+    # $A29C+4 is the MonthlyEventDispatch table's sub-state 2 =
+    # EventReinforceGate. EventDisasterRoute ($A338) advances to it in
+    # non-disaster months, and the drought/flood handlers ($A755/$AA06) resume
+    # there when their scene ends. EventReinforceGate tests $6F03 (Country) and
+    # never $6F01 (month), so the pool is checked every month.
+    check('the pool gate is monthly, not a January-only handler',
+          at(0xA2A0, 2) == b'\x3C\xA3'
+          and at(0xA338, 4) == b'\xEE\x01\x04\x60'
+          and at(0xA755, 5) == b'\xA9\x02\x8D\x01\x04'
+          and at(0xAA06, 5) == b'\xA9\x02\x8D\x01\x04'
+          and b'\xAD\x01\x6F' not in at(0xA33C, 0x27),
+          [at(0xA2A0, 2).hex(), at(0xA338, 4).hex(),
+           at(0xA755, 5).hex(), at(0xAA06, 5).hex()])
+    # @ReinforceScan compares the join year at $AF12, then counts the home
+    # Province roster $11-$1A (10 slots): all occupied -> fail with no state
+    # change, so the same officer is reconsidered on the next monthly pass.
+    check('a full 10-slot home roster defers the join to the next month',
+          at(0xAF10, 5) == b'\xB1\x10\xCD\x00\x6F'
+          and at(0xAF32, 2) == b'\xC0\x1B'
+          and at(0xAF36, 4) == b'\xE0\x0A\xF0\xDF'
+          and at(0xAF19, 4) == b'\xA9\x03\x8D\x01',
+          [at(0xAF10, 5).hex(), at(0xAF32, 2).hex(),
+           at(0xAF36, 4).hex(), at(0xAF19, 4).hex()])
+    stale = []
+    old = ('auto-arrives each January', 'each January `EventReinforceGate`',
+           'runs each January per acting Country')
+    for rel in ('editor/README_officer.md', 'docs/officer_reinforcement.md',
+                'editor/officer_cli.py', 'tools/officer_model.py',
+                'tools/extract_reinforcement_pools.py',
+                'tools/gen_data_bank_asm.py',
+                'asm/banks/data_11_officer.asm'):
+        with open(os.path.join(ROOT, rel), encoding='utf-8') as f:
+            text = f.read()
+        stale += [(rel, phrase) for phrase in old if phrase in text]
+    check('the old January-only wording is gone', not stale, stale)
+    bare = model.Model.load(os.path.join(ROOT, 'docs', 'officer_data.csv'))
+    check('standalone mode degrades to the plain arrival line',
+          not bare.has_preferred
+          and '情報集め' not in bare.by_id[0x6D].placement()
+          and bare.by_id[0x6D].reinforce_country is None,
+          bare.by_id[0x6D].placement())
 
 
 def main():
@@ -1352,6 +1513,7 @@ def main():
     test_standalone()
     test_gui(args)
     test_stratagem_tier()
+    test_arrival_provenance()
     print('\n' + '=' * 72)
     if FAILED:
         print('FAILED: %d check(s)\n  - %s' % (len(FAILED),

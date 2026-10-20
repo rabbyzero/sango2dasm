@@ -172,9 +172,9 @@ B1F_PpuAttrTileWrite      = $EFC0   ; PPU attribute tile write
 B1F_PpuAttrTileWriteAlt   = $F028   ; PPU attribute tile write (alt)
 
 ;-------------------------------------------------------------------------------
-; 1M: Namco Sound Register Access
+; 1M: Field-map scroll step change detect
 ;-------------------------------------------------------------------------------
-B1F_NamcoSoundRegRead     = $F077   ; Namco-163 sound register read
+B1F_MapScrollStepChangeDetect     = $F077   ; $009C vs $009D; $FF into the changed axis cache forces a field-map rebuild
 
 ;-------------------------------------------------------------------------------
 ; 1N: Sprite OAM Writers
@@ -239,7 +239,7 @@ B1F_MetaTileData          = $F477   ; Metatile data / sound+music data
 B1F_NmiDispatchTable      = $F87B   ; NMI game state dispatch table (9 entries)
 B1F_NmiEpilogue           = $F88D   ; Restore PRG banks, tick counters, RTI
 B1F_NmiState2_StrategyMap = $F8B5   ; NMI state 2: strategy map screen frame
-B1F_NmiState3_WarScene    = $F8FE   ; NMI state 3: war scene (Tactical Mode map) frame
+B1F_NmiState3_TacticalMap = $F8FE   ; NMI state 3: Tactical Mode field map frame
 B1F_NmiState4_Battle      = $F96A   ; NMI state 4: Battle Mode screen frame (bank $0E VBlank hook)
 B1F_NmiState5_Duel        = $F9A0   ; NMI state 5: Duel Mode frame; runs Duel Mode dispatcher (DuelModeDispatch, bank $17/$18)
 B1F_NmiState6_TitleScreen = $F9E4   ; NMI state 6: title screen frame (title overlay menu, bank $0A)
@@ -302,12 +302,12 @@ B17_18_PpuCopyRaw         = $A003   ; PpuCopyRaw_Entry: Raw 1KB PPU data copy
 B17_18_PpuWriteTileOffset = $A006   ; PpuWriteTileOffset_Entry: PPU tile data write with offset
 B17_18_DisplayScrollLoop  = $A009   ; DisplayScrollLoop_Entry: Display scroll and render loop
 B17_18_DisplayAndChrSetup = $A00C   ; DisplayAndChrSetup_Entry: Display coordinate check + CHR setup
-B17_18_BattleEffects      = $A00F   ; BattleEffects_Entry: Battle visual effects
-B17_18_BattleDispatch     = $A012   ; BattleDispatch_Entry: Battle dispatch
+B17_18_TacticalMapScrollRefresh = $A00F   ; TacticalMapScrollRefresh_Entry: field-map terrain band + palette rebuild on camera change
+B17_18_FieldMapCropResolve     = $A012   ; FieldMapCropResolve_Entry: terrain crop pointer + $8000 bank resolve
 B17_18_OverlayWindow      = $A015   ; OverlayWindow_Entry: Overlay/window rendering
 B17_18_SetupAdvisorTiles  = $A018   ; SetupAdvisorTiles_Entry: Setup advisor/council tiles
 B17_18_DuelModeDispatch   = $A01B   ; DuelModeDispatch_Entry: Duel mode main dispatcher
-B17_18_StrategyCommandDispatch = $A01E ; StrategyCommandDispatch_Entry: Strategy command dispatcher
+B17_18_EventMessageSceneDispatch = $A01E ; EventMessageSceneDispatch_Entry: dated-message / ending scroll scene dispatch (bank $1F NmiState8)
 B17_18_AnimationDispatch  = $A021   ; AnimationDispatch_Entry: Animation dispatch
 B17_18_StrategyModeDisplay = $A024   ; StrategyModeDisplay_Entry: Strategy Mode display
 B17_18_DataRecordLoader   = $A027   ; DataRecordLoader_Entry: Data record loader
@@ -331,19 +331,19 @@ B17_18_CopyTileRowHoriz   = $A545
 B17_18_CopyTileRowVert    = $A5A5
 B17_18_BankPtrLookup      = $A604
 B17_18_BankPtrLookupAlt   = $A610
-B17_18_BattleAttrAndHelpers = $A89A
+B17_18_FieldMapAttrHelpers = $A89A
 B17_18_ComputeAttributeByte = $A8D3
 B17_18_DispatchTileRowHoriz = $A8FD
 B17_18_DispatchTileRowVert = $A91E
 B17_18_InitTileGridHoriz  = $A93F
 B17_18_InitTileGridVert   = $A961
 B17_18_CalcTileGridOrigin = $AB26
-B17_18_BattleOverlayRender = $AB94
-B17_18_WriteBattleAttribute = $AC80
-B17_18_BattleOverlayCopy  = $AD69
+B17_18_FieldMapOverlayRender = $AB94
+B17_18_WriteFieldMapAttribute = $AC80
+B17_18_FieldMapOverlayCopy  = $AD69
 B17_18_SetScrollWorkOffset4 = $AD9F
-B17_18_LoadBattleOverlay  = $ADBC
-B17_18_LoadBattleOverlayWithOffset = $AEB5
+B17_18_LoadFieldMapOverlay  = $ADBC
+B17_18_LoadFieldMapOverlayWithOffset = $AEB5
 B17_18_LoadOverlaySecondary = $AF0C
 B17_18_PatchAttrAdjacency = $AF1B
 B17_18_PatchPrimaryAdjacency = $AF30
@@ -495,26 +495,26 @@ B17_18_DrawCompletionSprite = $D235
 B17_18_CheckPlayerIsRuler = $D262
 B17_18_SetDisplayPointer  = $D283
 B17_18_CheckButtonConfirm = $D299
-B17_18_StrategyCommand_InitOfficerScroll = $D6AA
-B17_18_StrategyCommand_ScrollIntroPanel = $D79B
-B17_18_StrategyCommand_ScrollTextPhase2 = $D83A
-B17_18_StrategyCommand_ScrollAndWait = $D8C9
-B17_18_StrategyCommand_FinalizeCleanup = $D920
-B17_18_Finalize_Init      = $D932
-B17_18_Finalize_SetupUI   = $D950
-B17_18_Finalize_WaitConfirm = $D95A
-B17_18_Finalize_ScrollTimer = $D976
-B17_18_Finalize_PaletteCopy = $D9B4
-B17_18_Finalize_NoOp      = $D9C1
-B17_18_Finalize_ExitTransition = $D9C2
-B17_18_StrategyCommand_MainInteractive = $D9CA
-B17_18_StrategyCommand_BuildOfficerList = $D9DE
-B17_18_StrategyCommand_InitOfficerDisplay = $DA41
-B17_18_StrategyCommand_RenderOfficerEntry = $DA87
-B17_18_StrategyCommand_UpdateOfficerDisplay = $DAB6
-B17_18_StrategyCommand_ScrollOfficerList = $DAE0
-B17_18_StrategyCommand_FinalizeDisplayBuffer = $DB90
-B17_18_StrategyCommand_CheckConfirmInput = $DBDA
+B17_18_EventMessageScene_ChronPanel = $D6AA
+B17_18_EventMessageScene_HeroRisePanel = $D79B
+B17_18_EventMessageScene_HeroNamePanel = $D83A
+B17_18_EventMessageScene_UnifyScorePanel = $D8C9
+B17_18_EventMessageScene_FadeOut = $D920
+B17_18_FadeOut_Init      = $D932
+B17_18_FadeOut_SetupUI   = $D950
+B17_18_FadeOut_WaitConfirm = $D95A
+B17_18_FadeOut_ScrollTimer = $D976
+B17_18_FadeOut_PaletteCopy = $D9B4
+B17_18_FadeOut_NoOp      = $D9C1
+B17_18_FadeOut_ExitTransition = $D9C2
+B17_18_EventMessageScene_OfficerRoll = $D9CA
+B17_18_OfficerRoll_BuildList = $D9DE
+B17_18_OfficerRoll_InitDisplay = $DA41
+B17_18_OfficerRoll_RenderEntry = $DA87
+B17_18_OfficerRoll_UpdateDisplay = $DAB6
+B17_18_OfficerRoll_ScrollList = $DAE0
+B17_18_OfficerRoll_FinalizeBuffer = $DB90
+B17_18_OfficerRoll_CheckConfirmInput = $DBDA
 B17_18_RenderDispatchSprite = $DBF3
 B17_18_ScrollPanel_LoadRow = $DC13
 B17_18_ScrollPanel_PrepareRowData = $DCE1
@@ -793,7 +793,7 @@ B02_SoundStreamTailB03    = $0966   ; area ends at bank $03 offset $0966 ($8965)
 ; Banks paired with $A000 slot via SwitchBankAC_B/SwitchBankAC_A
 ; (bank at $C000 is always Y+1 when $A000 is Y)
 ;===============================================================================
-; (Bank $18 entries removed - now internal to combined prg_17_18_display.asm)
+; (Bank $18 entries removed - now internal to combined prg_17_18_duel_and_display.asm)
 
 ;===============================================================================
 ; SECTION 5: Combined Banks $0A+$0B ($A000-$DFFF)

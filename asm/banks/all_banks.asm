@@ -23,7 +23,7 @@
 .include "data_14_sprite_set_a.asm"
 .include "data_15_sprite_set_b.asm"
 .include "data_16_menu_oam.asm"
-.include "prg_17_18_display.asm"
+.include "prg_17_18_duel_and_display.asm"
 .include "prg_19_1a_event_scenes.asm"
 .include "prg_1b_1c_strategy_mode.asm"
 .include "prg_1d_1e_menu_screens.asm"

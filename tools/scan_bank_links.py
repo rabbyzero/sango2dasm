@@ -23,7 +23,7 @@ FUNC_H = os.path.join(os.path.dirname(__file__), "..", "include", "functions.h")
 
 FILES = [
     "prg_1f_boot.asm",
-    "prg_17_18_display.asm",
+    "prg_17_18_duel_and_display.asm",
     "prg_1d_1e_menu_screens.asm",
     "prg_1b_1c_strategy_mode.asm",
     "prg_19_1a_event_scenes.asm",
@@ -35,7 +35,7 @@ FILES = [
 
 SRC_FILE_TO_BANK = {
     "prg_1f_boot.asm": "$1F (fixed $E000-$FFFF)",
-    "prg_17_18_display.asm": "$17/$18 ($A000-$DFFF)",
+    "prg_17_18_duel_and_display.asm": "$17/$18 ($A000-$DFFF)",
     "prg_1d_1e_menu_screens.asm": "$1D/$1E ($A000-$DFFF)",
     "prg_1b_1c_strategy_mode.asm": "$1B/$1C ($A000-$DFFF)",
     "prg_19_1a_event_scenes.asm": "$19/$1A ($A000-$DFFF)",

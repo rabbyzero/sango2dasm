@@ -2,7 +2,7 @@
 """Render PRG bank $14 (battle-scene sprite set A) as annotated asm.
 
 Bank $14 is pure data: it is mapped into the $8000-$9FFF window by SwitchBank8
-and read by exactly one routine, DrawSpriteFromBank ($CEA5, prg_17_18_display.asm):
+and read by exactly one routine, DrawSpriteFromBank ($CEA5, prg_17_18_duel_and_display.asm):
 
   - A = sprite id; bit 7 selects the bank (clear -> $34 = this bank, set ->
     $35 = bank $15, the palette/layout mirror), bits 6-0 index a 122-entry
@@ -24,7 +24,7 @@ tile-identical attr-$40 sibling record next to them - a second palette of
 the same image that callers reach directly instead of through the writer's
 flip-flag EOR.
 
-Call-site evidence for the ids (all in prg_17_18_display.asm; bases are added to
+Call-site evidence for the ids (all in prg_17_18_duel_and_display.asm; bases are added to
 runtime values, so the ids listed are the fixed bases, not exhaustive):
 
   $00-$10   MapScroll_UpdatePosition $CEE1 backward scroll: phase 0-7 from
@@ -264,7 +264,7 @@ BANNER = """\
 ; by tools/verify_data_bank_14.py. Raw source: rom/prg/prg_14.bin (read-only) -
 ; do not hand-edit the rendered records.
 ;
-; Selected as $34 by DrawSpriteFromBank ($CEA5, prg_17_18_display): A = sprite id,
+; Selected as $34 by DrawSpriteFromBank ($CEA5, prg_17_18_duel_and_display): A = sprite id,
 ; bit 7 picks the bank (clear = $34 / this bank, set = $35 / bank $15) and
 ; bits 6-0 index the .word table at $8000 (Y = id * 2). The stored pointer
 ; high byte is used unchanged for this bank (the routine SBCs HI_OFFSET_A =
@@ -284,7 +284,7 @@ BANNER = """\
 ; writer's EOR supplies the palette bit at run time (MapScroll's forward path
 ; passes $40/$41 + player slot).
 ;
-; Caller evidence for the ids (prg_17_18_display; fixed bases - runtime adds may reach
+; Caller evidence for the ids (prg_17_18_duel_and_display; fixed bases - runtime adds may reach
 ; further ids of the same family): $00-$10 MapScroll_UpdatePosition backward
 ; scroll (phase 0-7 / ScrollSpriteTopTable $CF93 / ScrollSpriteMidTable $CF9B
 ; + player offset 0/2), $11-$21 its forward scroll (same tables + $11, flip

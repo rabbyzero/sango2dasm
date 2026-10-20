@@ -29,7 +29,7 @@ PRG_PAIR_ASM = {
     '0a_0b': 'prg_0a_0b_strategy_ai.asm',
     '0c_0d': 'prg_0c_0d_tactical_commands.asm',
     '0e_0f': 'prg_0e_0f_battle.asm',
-    '17_18': 'prg_17_18_display.asm',
+    '17_18': 'prg_17_18_duel_and_display.asm',
     '19_1a': 'prg_19_1a_event_scenes.asm',
     '1b_1c': 'prg_1b_1c_strategy_mode.asm',
     '1d_1e': 'prg_1d_1e_menu_screens.asm',

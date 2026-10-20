@@ -8,7 +8,7 @@ Bank $06 (selected as $26 into the $8000-$9FFF window) holds two things:
      $9E62) and `TacticalDefenseSideTypeTable` (bank $11 $9AB4) selectors point
      into. Those two selector tables are already documented in data_10_seed.asm and
      data_11_officer.asm; this bank is the arrangement they select.
-  2. The strategy 命令書 (OrderScroll) screen graphics: three 14-row panel tile
+  2. The dated-message / ending scroll scene graphics: three 14-row panel tile
      blocks and three tables of OAM sprite blobs.
 
 Usage:
@@ -72,12 +72,19 @@ PANEL_COLS = 28
 PANEL_SIZE = PANEL_ROWS * PANEL_COLS
 
 BLOB_TABLES = [
-    dict(cpu=0x9A7E, count=21, name='StrategyScrollPhase1Sprite',
-         title='STRATEGY SCROLL PHASE 1 SPRITE BLOBS'),
-    dict(cpu=0x9CD9, count=4, name='StrategyScrollPhase2Sprite',
-         title='STRATEGY SCROLL PHASE 2 SPRITE BLOBS'),
-    dict(cpu=0x9E75, count=6, name='StrategyScrollPhase3Sprite',
-         title='STRATEGY SCROLL PHASE 3 SPRITE BLOBS'),
+    dict(cpu=0x9A7E, count=21, name='ChronPanelSprite',
+         title='EVENT-MESSAGE SCENE CHRONICLE-PASS SPRITE BLOBS',
+         blobs=['Cloud0', 'Cloud1', 'Cloud2', 'Cloud3',
+                'GallopingHorse0', 'GallopingHorse1', 'GallopingHorse2', 'GallopingHorse3',
+                'ShootingStarTrail0', 'ShootingStarTrail1', 'ShootingStarTrail2',
+                'ShootingStarTrail3', 'ShootingStarTrail4', 'ShootingStarTrail5',
+                'ShootingStarTrail6', 'ShootingStarTrail7', 'ShootingStarTrail8',
+                'ShootingStarTrail9',
+                'ShootingStarBurst0', 'ShootingStarBurst1', 'ShootingStarBurst2']),
+    dict(cpu=0x9CD9, count=4, name='HeroRisePanelSprite',
+         title='EVENT-MESSAGE SCENE HERO-RISE-PASS SPRITE BLOBS'),
+    dict(cpu=0x9E75, count=6, name='HeroNamePanelSprite',
+         title='EVENT-MESSAGE SCENE HERO-NAME-PASS SPRITE BLOBS'),
 ]
 BLOB_RECORD_BYTES = 4             # [y_off, tile, attr, x_off]
 BLOB_TERMINATOR = 0x80
@@ -370,10 +377,11 @@ def emit_bounds_records(side, data, groups):
 
 def emit_panels(data):
     prose = [
-        '%d blocks of %d rows x %d tile bytes - the tile rows of strategy scroll phases 1-3.'
+        '%d blocks of %d rows x %d tile bytes - the tile rows of the ending panels'
+        ' (scene phases 1-3).'
         % (PANEL_COUNT, PANEL_ROWS, PANEL_COLS),
-        'The scroll machine prg_17_18_display StrategyCommandDispatch ($D693) dispatches on'
-        ' strat_scroll_param ($0541) as a PHASE index (6 handlers; phases chain with INC $0541'
+        'The scroll machine prg_17_18_duel_and_display EventMessageSceneDispatch ($D693) dispatches on'
+        ' event_scene_phase ($0541) as a PHASE index (6 handlers; phases chain with INC $0541'
         ' at $D831/$D8B8/$D90C), and ScrollPanel_LoadRow is called from exactly three of them'
         ' - $D7B7, $D847 and $D8D6 - so $0541 = 1/2/3 select blocks 1/2/3 through the local'
         ' ScrollPanel_DataPtrTable ($DCD5 = $95E6/$976E/$98F6). Phases 4-6 never read this'
@@ -388,11 +396,12 @@ def emit_panels(data):
         ' ScrollPanel_RowTemplate_Ornate/Solid/Plain ($DCDB) to $23C8, i.e. attribute rows'
         ' 1-4. Those three local records are attribute payloads, whatever',
         " ScrollPanel_PrepareRowData's comment calls them.",
-        'UNPROVEN: the CHR page set live while a panel is drawn is not identified in this'
-        ' project, so no claim is made about what these tile values depict; they are rendered'
-        ' as raw bytes.',
+        ('The CHR pages live while a panel is drawn are display record $0D bytes 4-7 ='
+         ' $02/$A5/$A6/$A7 (State_EventMessageScene $E46A -> DisplayInit $E474 ->'
+         ' MenuFontRecordLoad record 13); the IRQ CHR blocks repeat the same set. The tile'
+         ' values are rendered as raw bytes; their pictorial layout is still open.'),
     ]
-    out = banner('STRATEGY SCROLL PHASE TILE BLOCKS',
+    out = banner('EVENT-MESSAGE SCENE PANEL TILE BLOCKS',
                  '$%04X-$%04X' % (PANEL_CPU, PANEL_CPU + PANEL_COUNT * PANEL_SIZE - 1),
                  prose)
     for i in range(PANEL_COUNT):
@@ -400,7 +409,7 @@ def emit_panels(data):
         out.append('')
         out.append('; phase %d block ($0541 = %d, armed via ScrollPanel_DataPtrTable entry %d)'
                    ' - %d rows x %d tiles' % (i + 1, i + 1, i + 1, PANEL_ROWS, PANEL_COLS))
-        out.append('StrategyScrollPhase%dTileRows:' % (i + 1))
+        out.append('EventMessagePhase%dTileRows:' % (i + 1))
         for r in range(PANEL_ROWS):
             row = base + r * PANEL_COLS
             for off in (0, 16):
@@ -414,32 +423,54 @@ def emit_panels(data):
 
 BLOB_NOTES = {
     0x9A7E: [
-        '21 x .word, 1-based index -> $80-terminated OAM blobs. Sprites land at screen',
-        ' x = x_off + $10, y = y_off + $1F - 1 (OAM stores Y-1): RenderDispatchSprite ($DBF3)',
-        ' forces the writer bases itself - X $000C = $10 at $DBF3/$DBF5, Y $000A = $1F at',
-        ' $DC06/$DC08, tile bias $0003 = 0 at $DC0B/$DC0D and flip/attr EOR $0002 = 0 - so',
-        " the blob's own attr byte is used unchanged and no caller alters it.",
-        'prg_17_18_display StrategyCommand_InitOfficerScroll ($D6AA) arms ($10/$11) = $9A7E ($D6D7-$D6DD)',
-        ' and calls RenderDispatchSprite three times per pass: index dispatch_src_ptr_lo',
-        ' ($04CA, 1..8), then $04CA+4 (5..12), then dispatch_src_ptr_hi ($04CB, 9..21), the',
-        ' last skipped when that byte is negative (BMI $D6E2). $04CA comes from the scroll row',
-        " offset at $D6F7-$D702 ($04CD >> 3 & 3 + 1).",
-        'The 9..21 half is a SEQUENCE, not a lookup of a subject id: $04CB =',
-        " SpriteBlobIndexTable[$04CE >> 2] ($D71D-$D723, that table's only read site) and $04CE is",
-        ' a pass counter (cleared $D6B4, INC $D71A/$D7E4/$D874/$D8FB). Its 24 bytes - $09..$15',
-        ' with repeats, three $F0 and a closing $FE - are therefore the blob played at each',
-        ' pass, where bit7 ($F0) means "draw no sprite this pass" and $FE is the end sentinel',
-        " tested at $D708. Despite its name SpriteBlobIndexTable holds no PRG bank numbers.",
+        ('21 x .word, 1-based index -> $80-terminated OAM blobs. Sprites land at screen'
+         ' x = x_off + $10, y = y_off + $1F - 1 (OAM stores Y-1): RenderDispatchSprite'
+         ' ($DBF3) forces X $000C = $10 at $DBF3/$DBF5, Y $000A = $1F at $DC06/$DC08, tile'
+         ' bias $0003 = 0 at $DC0B/$DC0D and attr EOR $0002 = 0, so each blob\'s own attr'
+         ' byte reaches OAM unchanged.'),
+        ('Caller: NmiState8_EventMessage ($FA53) calls the bank-pair entry'
+         ' B17_18_EventMessageSceneDispatch at $FA85; the target EventMessageSceneDispatch'
+         ' ($D693) switches bank $06 in at $D695 (LDY #$26) and dispatches event_scene_phase'
+         ' ($0541) through the 6-entry table at $D69E. Phase 0,'
+         ' EventMessageScene_ChronPanel ($D6AA), arms ($10/$11) = $9A7E at'
+         ' $D6D7-$D6DD and calls RenderDispatchSprite three times per pass: $04CB first when'
+         ' it is non-negative ($D6DF-$D6E4), then $04CA ($D6E7-$D6EA), then $04CA+4'
+         ' ($D6ED-$D6F4).'),
+        ('Index roles: $04CA = (($04CD >> 3) & 3) + 1 ($D6F7-$D702) cycles 1-4, and $04CA+4'
+         ' therefore cycles 5-8. $04CB = SpriteBlobIndexTable[$04CE >> 2] ($D71D-$D723, the'
+         ' table\'s only read site); $04CE is the pass counter (cleared at $D6B4, incremented'
+         ' at $D71A). The 24 bytes at $D755-$D76C are $09-$0C, $F0 x3, $0D-$15, then'
+         ' $15,$15,$14,$14,$13,$13 and $FE: 1-4 and 5-8 cycle together every pass while 9-21'
+         ' play as a scripted overlay, $F0 (negative) drawing nothing and $FE ending at'
+         ' $D708.'),
+        ('Message: phase 0 opens the chronicle window at $D6C2-$D6CD - stream $D9 when'
+         ' war_result_phase ($042E) = $FF, stream $D8 otherwise. The records are in bank $13:'
+         ' MenuStream_posD8_DefeatEpilogue $98E5 (63 B) reads "In <year>/<month> <name> was'
+         ' crushed by the army of <name>; thus the clan of <name> vanished from the'
+         ' continent"; MenuStream_posD9_DeathEpilogue $9924 (72 B) reads "In <year>/<month>'
+         ' <name> left this world with ambitions half-fulfilled; thus the clan of <name>'
+         ' vanished from the continent". ScenarioHandoffPrep @HandoffLeaderStore ($C3DB-$C41A)'
+         ' fills $042E/$042F/$0432 and enters this scene with $0541 = 0; the later phases use'
+         ' the sibling tables $9CD9 and $9E75 and open $DC/$DD, then $DE.'),
+        ('Scene and CHR: State_EventMessageScene ($E46A) selects display record $0D'
+         ' (DisplayInit $E474 -> MenuFontRecordLoad -> record 13 at bank $01 $96DC). Record'
+         ' bytes 0-3 are sprite CHR pages $A7/$A8/$A9/$00 for PPU $0000-$0FFF: chr_14 window'
+         ' 7 = tiles $00-$3F, chr_15 window 0 = $40-$7F, chr_15 window 1 = $80-$BF; the IRQ'
+         ' CHR blocks $BE-$DD repeat the set. The blob tiles match the windows: 1-4 use'
+         ' $01-$34, 5-8 use $40-$72, 9-21 use $73-$99.'),
+        ('Rendered through those pages: 1-4 are four frames of a drifting cloud band in the'
+         ' upper right, 5-8 four frames of a galloping horse at mid left, 9-18 the trail'
+         ' frames of a shooting star, 19-21 its growing and fading burst.'),
     ],
     0x9CD9: [
-        '4 x .word, 1-based index. prg_17_18_display StrategyCommand_ScrollIntroPanel ($D795) arms',
+        '4 x .word, 1-based index. prg_17_18_duel_and_display EventMessageScene_HeroRisePanel ($D795) arms',
         ' ($10/$11) = $9CD9 at $D7E7-$D7ED and calls RenderDispatchSprite with',
         ' dispatch_src_ptr_lo ($04CA) = 1..4, one blob per pass of that phase. All four blobs',
         ' hold exactly 25 records: one 25-sprite layout re-emitted four times with only the',
         ' tile bytes differing.',
     ],
     0x9E75: [
-        '6 x .word, 1-based index. prg_17_18_display StrategyCommand_ScrollTextPhase2 ($D82A) arms',
+        '6 x .word, 1-based index. prg_17_18_duel_and_display EventMessageScene_HeroNamePanel ($D82A) arms',
         ' ($10/$11) = $9E75 at $D877-$D87D and calls RenderDispatchSprite twice per pass, with',
         ' $04CA (1..3) and $04CA+3 (4..6), so two blobs layer per pass. $04CA is clamped to 3',
         ' at $D897, so the index space really is 1..6.',
@@ -449,6 +480,10 @@ BLOB_NOTES = {
 
 def emit_blob_table(data, spec, note):
     cpu, count, name = spec['cpu'], spec['count'], spec['name']
+    blobs = spec.get('blobs') or ['Blob%d' % i for i in range(count)]
+    if len(blobs) != count:
+        raise SystemExit('%s: %d semantic names for %d blobs'
+                         % (name, len(blobs), count))
     all_recs = []
     for i in range(count):
         recs, _term = decode_blob(data, cpu16(data, cpu + 2 * i))
@@ -465,7 +500,7 @@ def emit_blob_table(data, spec, note):
     out.append('%sPtrTable:' % name)
     for i in range(count):
         p = cpu16(data, cpu + 2 * i)
-        out.append(word_line(cpu + 2 * i, p, '%s_Blob%d' % (name, i),
+        out.append(word_line(cpu + 2 * i, p, '%s_%s' % (name, blobs[i]),
                              'index %d -> blob $%04X' % (i + 1, p)))
     end = None
     for i in range(count):
@@ -477,7 +512,7 @@ def emit_blob_table(data, spec, note):
         out.append('; blob index %d (@$%04X): %d [y,tile,attr,x] records,'
                    ' $%02X terminator @ $%04X' % (i + 1, p, len(recs),
                                                   BLOB_TERMINATOR, term))
-        out.append('%s_Blob%d:' % (name, i))
+        out.append('%s_%s:' % (name, blobs[i]))
         for off in range(0, len(bs), 16):
             chunk = bs[off:off + 16]
             note = ('terminator $%02X' % BLOB_TERMINATOR
@@ -557,12 +592,12 @@ def header(pools, bounds):
         ('$936A-$94D5', '%d x  4 B' % n_atk, '[row_min,col_min,row_max,col_max]'),
         ('$94D6-$9511', '30 x .word', 'defense-side city bounds rectangle bases'),
         ('$9512-$95E5', '%d x  4 B' % n_def, ''),
-        ('$95E6-$9A7D', '3 x 392 B', 'strategy scroll phase 1-3 tile rows (14 x 28)'),
-        ('$9A7E-$9AA7', '21 x .word', 'strategy scroll phase 1 sprite blobs'),
+        ('$95E6-$9A7D', '3 x 392 B', 'ending panel tile rows, scene phases 1-3 (14 x 28)'),
+        ('$9A7E-$9AA7', '21 x .word', 'chronicle-pass sprite blobs (phase 0 arms $9A7E)'),
         ('$9AA8-$9CD8', '21 blobs', ''),
-        ('$9CD9-$9CE0', '4 x .word', 'strategy scroll phase 2 sprite blobs'),
+        ('$9CD9-$9CE0', '4 x .word', 'hero-rise-pass sprite blobs (phase 1 arms $9CD9)'),
         ('$9CE1-$9E74', '4 blobs', ''),
-        ('$9E75-$9E80', '6 x .word', 'strategy scroll phase 3 sprite blobs'),
+        ('$9E75-$9E80', '6 x .word', 'hero-name-pass sprite blobs (phase 2 arms $9E75)'),
         ('$9E81-$9FBA', '6 blobs', ''),
         ('$9FBB-$9FFF', '69 B', 'unused $FF filler'),
     ]
@@ -579,16 +614,16 @@ def header(pools, bounds):
         '; Two very different payloads share the bank:',
         ';   $8000-$95E5  the Tactical (war) layer\'s unit placement geometry - the records',
         ';        that the attack/defense "side type" selectors point into.',
-        ';   $95E6-$9FBB  graphics for the strategy scroll screen machine in prg_17_18_display',
-        ';        (StrategyCommandDispatch $D693): tile rows and OAM sprite blobs.',
+        ';   $95E6-$9FBB  graphics for the dated-message / ending scroll machine in prg_17_18_duel_and_display',
+        ';        (EventMessageSceneDispatch $D693): tile rows and OAM sprite blobs.',
         ';',
         '; Selected as $26 ($26 & $1F = $06) from eight sites in three consumer banks:',
         ';   prg_08_09_tactical_war  GetOrderedDestination $A1E5, @SetupDefenderRoster $B2E4,',
         ';              @SetupAttackerRoster $B343     - war AI unit placement',
         ';   prg_0c_0d_tactical_commands  @BuildOfficerList $C3DC/$C42B and @CheckBoundsForPosition',
         ';              $C455/$C495 (ArmyDeployDispatch)  - army-deploy command',
-        ';   prg_17_18_display  StrategyCommandDispatch $D693, ScrollPanel_LoadRow $DC13 and',
-        ';              RenderDispatchSprite $DBF3     - strategy scroll screens',
+        ';   prg_17_18_duel_and_display  EventMessageSceneDispatch $D693, ScrollPanel_LoadRow $DC13 and',
+        ';              RenderDispatchSprite $DBF3     - dated-message / ending scroll scene',
         ';',
         '; Layout (window addresses; file offset = addr - $8000):',
     ] + lines + [

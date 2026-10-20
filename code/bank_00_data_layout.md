@@ -5,7 +5,8 @@ PRG bank `$00`, one of the banks reachable only through the `$8000-$9FFF`
 window). It holds **32 of the game's 120 terrain quadrant crops** - 16x16 cells,
 one byte per cell - that the tactical/war layer assembles into each province's
 **32 x 20** tactical map to answer "what terrain is under map coord (x,y)?". The
-same bytes double as Battle Mode's scene/overlay source (§7).
+same bytes are re-read through the alias tables of the field-map renderer in
+banks `$17+$18` (§7).
 No code lives here (see [bank_switch_map.md](bank_switch_map.md) §5.2).
 
 The 120 crops are exactly **30 provinces x 4 quadrants**, so bank `$00`
@@ -62,7 +63,7 @@ default and offers `--model engine` for the literal lookup.
 
 ## 2. Province -> 4 quadrant zones (`($A8)` provider)
 
-`DataRecordLoader` (`$DF15`, prg_17_18_display.asm) is the routine that installs the
+`DataRecordLoader` (`$DF15`, prg_17_18_duel_and_display.asm) is the routine that installs the
 `($A8)` table step 2 reads:
 
 ```
@@ -88,7 +89,7 @@ So zone ids are packed per province in the order **TL, BL, TR, BR** - the two
 left quadrants then the two right quadrants, i.e. column-major, which is also how
 the authoring ribbon packs them (§4). The disassembly still carries the stub-era
 label `PermutationTable`, a misnomer - it is the province -> quadrant zone table
-(rename to `ProvinceTerrainZoneTable` pending: `asm/banks/prg_17_18_display.asm` does not
+(rename to `ProvinceTerrainZoneTable` pending: `asm/banks/prg_17_18_duel_and_display.asm` does not
 assemble standalone yet, so a rename cannot be byte-verified).
 
 Evidence that this grouping is right (`python tools/dump_bank_00_terrain.py
@@ -219,7 +220,7 @@ One byte per map cell, row-major, 16 bytes per row:
   Its graphics side of that contract is now resolved: the same byte indexes
   `MetaTileData` (`$F477`, bank `$1F`, 512 B = 128 entries x 4) and the 4 bytes
   are the nametable pair-rows TL,TR,BL,BR of one **16x16 px** cell.
-  `CalcTileAddrHoriz` (`prg_17_18_display.asm:1125`) computes `base + byte*4`
+  `CalcTileAddrHoriz` (`prg_17_18_duel_and_display.asm:1125`) computes `base + byte*4`
   (`ASL/ROL/ASL/ROL/ADC $0002($77)/ADC $0003($F4)`) and `CopyTileRowHoriz`
   (`:1139`) writes 2 of the 4 per PPU row, picking the pair from a row bit. The
   resulting nametable bytes are drawn with display record 1's CHR pages
@@ -256,7 +257,7 @@ one is the raw byte:
 
 1. **Shapes.** The byte indexes `MetaTileData` (`$F477`, bank `$1F`, 512 B = 128
    entries x 4). The 4 bytes are the nametable pair-rows TL,TR,BL,BR of one
-   **16x16 px** cell: `CalcTileAddrHoriz` (`prg_17_18_display.asm:1125`) computes
+   **16x16 px** cell: `CalcTileAddrHoriz` (`prg_17_18_duel_and_display.asm:1125`) computes
    `base + byte*4` (`ASL/ROL/ASL/ROL/ADC $0002($77)/ADC $0003($F4)`) and
    `CopyTileRowHoriz` (`:1139`) writes 2 of the 4 per PPU row, choosing the pair
    from a row bit. Patterns come from display record 1 (`88 89 8A 88`, i.e.
@@ -335,27 +336,34 @@ Move type 0 reproduces the manual's 平軍 row exactly in both tables, which is
 what pins ids 0-5. Types 1/2 swap the River/Mountain costs, matching 水軍
 (cheap on 川: 3 vs 6) and 山軍 (cheap on 山: 3 vs 6).
 
-## 7. Second consumer: Battle Mode (banks `$17+$18`)
+## 7. Second consumer: the Tactical Mode field map (banks `$17+$18`)
 
-The very same bytes are re-read by the Battle Mode scene loader. `BattleResolve`
+The very same bytes are re-read by the field-map renderer in banks `$17+$18`. `FieldMapCropResolveIndexed`
 (`$A61F`) and `LoadOverlayPrimary`/`LoadOverlaySecondary` (`$AEF0`/`$AF0C`,
-prg_17_18_display.asm) look up two more pointer tables and select the bank with
-`B1F_SwitchBank8_B` (`$A63E`/`$AF08`). Comparing the ROM tables
+prg_17_18_duel_and_display.asm) look up two more pointer tables and select the bank with
+`B1F_SwitchBank8_B` (`$A63E`/`$AF08`). Their callers are the scene render rows reached
+from `NmiState3_TacticalMap` and bank `$0C`'s war queues; banks `$0E+$0F` never map
+this pair, so none of it runs in Battle Mode. Comparing the ROM tables
 (`python tools/dump_bank_00_terrain.py --check-alias`):
 
 | Bank `$17` table | CPU | Relation to the bank `$08` tables |
 |---|---|---|
-| `BattleTilePtrTable` | `$A642` | identical to `TerrainMapPtrTable`, all 120 entries |
-| `BattleOverlayPtrTable` | `$A732` | `== TerrainMapPtrTable - $40`, all 120 entries |
-| `BattleBankTable` | `$A822` | identical to `TileBankTable`, all 120 entries |
+| `FieldMapCropPtrTable` | `$A642` | identical to `TerrainMapPtrTable`, all 120 entries |
+| `FieldMapOverlayPtrTable` | `$A732` | `== TerrainMapPtrTable - $40`, all 120 entries |
+| `FieldMapCropBankTable` | `$A822` | identical to `TileBankTable`, all 120 entries |
 
-So a Battle Mode scene *is* a terrain zone crop: the scene tile stream starts at
+So a field-map scene *is* a terrain zone crop: the scene tile stream starts at
 the zone's 16x16 grid, and the overlay stream starts 64 bytes earlier (the
-`$0000-$003F` attribute head for index 0). `BattleResolve` sets `$0002 = $77` and
+`$0000-$003F` attribute head for index 0). `FieldMapCropResolveIndexed` sets `$0002 = $77` and
 `$0003 = $F4`, which are **not** an RLE marker pair but the low/high bytes of the
 `MetaTileData` base address `$F477` that `CalcTileAddrHoriz` adds `byte*4` to
 (§5a) - the crop bytes are walked and expanded through that table, not copied to
 the PPU verbatim. The full stream format is out of scope here.
+
+In the asm `FieldMapCropPtrTable` is emitted in two pieces: `.word` rows from `$A642`
+to `$A681`, then `.byte` low/high pairs from `$A682` under the separate label
+`FieldMapCropPtrTableTail`. That label names the tail of the same 120-entry table, not a
+second object, and no code reads it.
 
 ## 8. Tool
 
@@ -371,7 +379,7 @@ python tools/dump_bank_00_terrain.py --verify-asm       # tables: asm == prg_08.
 python tools/dump_bank_00_terrain.py --check-geometry   # 15 + 5 content rows, §1
 python tools/dump_bank_00_terrain.py --check-provinces  # province/quadrant model, §2
 python tools/dump_bank_00_terrain.py --check-layout     # ribbon model, §4
-python tools/dump_bank_00_terrain.py --check-alias      # Battle Mode alias, §7
+python tools/dump_bank_00_terrain.py --check-alias      # field-map alias, §7
 python tools/dump_bank_00_terrain.py --bank 3 --no-png  # provinces 8-13 from bank $03
 ```
 

@@ -7,7 +7,7 @@
 ; do not hand-edit the rendered records.
 ;
 ; Read from two consumers:
-;   prg_17_18_display  DrawSpriteFromBank $CEA5: A with bit 7 set selects this bank as
+;   prg_17_18_duel_and_display  DrawSpriteFromBank $CEA5: A with bit 7 set selects this bank as
 ;              $35; Y = (A & $7F) * 2 indexes the pointer table at $8000 and
 ;              the code subtracts $20 from the pointer high byte, so blob
 ;              address = stored word - $2000 (indices with bit 7 clear read
@@ -30,14 +30,14 @@
 ; FIRST byte is $80 terminates the blob (a $80 in byte 1 is a legitimate tile
 ; id - the terminator is only checked in the y position). The $000A = Y /
 ; $000C = X polarity follows from the OAM byte layout the writer stores
-; (b0 -> $0200,X = Y, b3 -> $0203,X = X); some prg_17_18_display comments name $04BA
+; (b0 -> $0200,X = Y, b3 -> $0203,X = X); some prg_17_18_duel_and_display comments name $04BA
 ; "X base" - those are reversed.
 ;===============================================================================
 
 .segment "CODE_BANK15"
 
 ; --- $8000-$80B7  SpriteBlobPtrTable: 92 x .word, indexed by
-;     Y = (A & $7F) * 2 from DrawSpriteFromBank (prg_17_18_display $CEA5) with
+;     Y = (A & $7F) * 2 from DrawSpriteFromBank (prg_17_18_duel_and_display $CEA5) with
 ;     bit 7 of A set; stored word = blob address + $2000 (the code
 ;     subtracts $20 from the high byte); no index bit 7 clear ever
 ;     reaches this bank - those read bank $14 ---

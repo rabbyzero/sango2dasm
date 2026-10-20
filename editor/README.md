@@ -174,7 +174,7 @@ RGB cell, and that the mode degrades to disabled when `rom/` is not present — 
 standalone CSV-only copy of the editor still runs.
 
 Colour is not a guess. Each crop is preceded by a 64-byte **NES attribute head**
-(`BattleOverlayPtrTable == TerrainMapPtrTable - $40`), and the game's own indexing
+(`FieldMapOverlayPtrTable == TerrainMapPtrTable - $40`), and the game's own indexing
 (`prg_0c_0d_tactical_commands.asm:7543`) is reused verbatim: byte `((x & $0E) >> 1) | ((y & $0E) << 2)`
 over the 16×16 crop, 2-bit field `((y & 1) * 2 + (x & 1))`. Read that way the head
 is exactly the authored terrain palette — across all 30 provinces it selects

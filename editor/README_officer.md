@@ -186,6 +186,17 @@ A rostered officer has no arrival entry (`OfficerArrivalScan` `$B964`,
 the change list. Setting 状態 directly is refused in the direction that would
 break the cross-bank gate — that is deliberate, not a missing feature.
 
+The 状態 line at the top of the pane spells out where a hidden officer will come
+from. A scheduled officer whose id is in `OfficerPreferredCountryTable` gets his
+preferred Country and the 情報集め join odds, e.g. 諸葛亮:
+`arrives 194 in province 21 - preferred Country 4 (情報集め recruit there: 14/16
+when its owner is Country 4, else 3/16)`. A reinforcement-pool officer gets his
+Country instead: `auto-arrival Country 2 (monthly pool check once his join
+year arrives; needs a free home-province roster slot)`,
+and the list's 配置 column shows `auto-join Country 2` for him. Both come from
+read-only ROM tables, so the CSV-only standalone mode falls back to the plain
+`arrives YEAR in province P` line.
+
 ## How hidden officers appear
 
 Three independent mechanisms read 状態 1, and the editor surfaces all three:
@@ -193,18 +204,18 @@ Three independent mechanisms read 状態 1, and the editor surfaces all three:
 | Mechanism | Where | Who |
 |---|---|---|
 | Arrival schedule | bank `$31` `$8B1C` (this editor's 出現 columns) | 154 officers; once the year is reached, scouting the block's province finds them |
-| Preferred-country gate | `OfficerPreferredCountryTable` `$BA50` (prg_19_1a_event_scenes) | 16 strategists among those 154; when the scouting province's owner matches, they join on a 14/16 roll instead of 3/16 |
-| Reinforcement pools | bank `$31` `$8D74` (`docs/officer_reinforcement.csv`) | the 26 heirs with **no** arrival entry: each January `EventReinforceGate` (`$A33C`) picks Countries 2/3/4/6's (id, year) list and `OfficerReinforceScene` (`$AEC0`) inducts the first still-hidden officer whose year has arrived into the Country's home Province roster |
+| Preferred-country gate | `OfficerPreferredCountryTable` `$BA50` (prg_19_1a_event_scenes) | 16 officers among those 154; only the scheduled path consults the table, and after the find the roll compares the scouting province's owner with the preferred Country: match → 14/16 join, otherwise 3/16 |
+| Reinforcement pools | bank `$31` `$8D74` (`docs/officer_reinforcement.csv`) | the 26 auto-arrival officers with **no** schedule entry: in every month's event dispatch `EventReinforceGate` (`$A33C`) picks Countries 2/3/4/6's (id, year) list and `OfficerReinforceScene` (`$AEC0`) inspects the first still-hidden officer; once his year has arrived he joins the Country's home Province roster (10 slots) if a slot is free, otherwise the check retries next month |
 
 The pools are as editable as every other table: `docs/officer_reinforcement.csv`
-(one row per heir in stored list order, `tools/extract_reinforcement_pools.py`
+(one row per officer in stored list order, `tools/extract_reinforcement_pools.py`
 writes it) is re-rendered into `data_11_officer.asm` by `make databanks-csv`. The GUI's
-placement pane has a 継承 heir row (pool + join year, `Set` applies), the CLI has
-`reinforce ID YEAR`, and moving an heir between countries or re-ordering a pool
+placement pane has a 自動出現 auto arrival row (pool + join year, `Set` applies), the CLI has
+`reinforce ID YEAR`, and moving an officer between countries or re-ordering a pool
 is a CSV edit — the row order *is* the stored list order, which the pool scan
-walks pairwise. The stock grouping is 曹操/曹丕 heirs → Country 2, 孫堅/孫権
-heirs → Country 3, 劉備 heirs → Country 4, 馬騰 heirs → Country 6. The region is
-exactly full at 26 pairs (pointers + lists = `$40` bytes), so adding an heir
+walks pairwise. The stock grouping is the 曹操/曹丕 family → Country 2, the 孫堅/孫権
+family → Country 3, the 劉備 family → Country 4, the 馬騰 family → Country 6. The region is
+exactly full at 26 pairs (pointers + lists = `$40` bytes), so adding an officer
 requires dropping one.
 
 ## Renaming
@@ -250,13 +261,13 @@ gold `$27`); pixel 0 is transparent and the paper tone behind it is the
 viewer's, as with the plates.
 
 The pane shows **all four expressions side by side** — normal (strategy card),
-angry (duel pursuer, `prg_17_18_display` `$BAF7`), sad (war defeat, `prg_08_09_tactical_war`
+angry (duel pursuer, `prg_17_18_duel_and_display` `$BAF7`), sad (war defeat, `prg_08_09_tactical_war`
 `$D691`), happy (war victory, `$D6BA`); offsets 0/1 are both the normal face.
 The talking frames (`$9D64`) only swap the mouth tile every 8 frames, so they
 are not shown.
 
 **All 237 officers have authored portraits.** Pages `$18-$53` form the shared
-authored block; the four reinforcement-only heirs sit outside it — 13 王双 and
+authored block; the four reinforcement-only officers sit outside it — 13 王双 and
 116 申耽 share page `$9F`, 19 蒯良 and 228 凌统 share page `$DB` (verified by
 rendering: each pair shares the page but the class bases differ, so each
 officer's card is distinct). Everything here is read-only authored data: the
@@ -265,14 +276,14 @@ page table and the OAM blobs have no CSV twin and no editing surface.
 ## AI ruler successor priority
 
 When a country's ruler dies, `AppointSuccessor` (`$CA68`, bank `$0B`) walks
-that country's heir priority list — `HeirPriorityListPtrs` (`$CAD8`), 7 word
+that country's successor priority list — `HeirPriorityListPtrs` (`$CAD8`), 7 word
 pointers (Country 0-6) each to a `$FF`-terminated officer-id list — and the
 **first listed officer governing one of the country's provinces** (roster slot
 `$11`, the 太守) becomes the new ruler. If none qualifies, the fallback scans
 the country's governors for the highest 人徳 Virtue. The 配置 Placement group's
 **AI継承 Successor priority** line shows, for the selected officer, each list
 that contains him and his position; the **Show text** button opens all seven
-lists (also `officer_cli.py heirs`). This is read-only authored data — no CSV
+lists (also `officer_cli.py successors`). This is read-only authored data — no CSV
 twin and no editing surface.
 
 ## 計略 Stratagem tier
@@ -298,8 +309,11 @@ need stored レベル 5/6, above the stock maximum (董卓, stored 4), so in the
 data the ceiling is 12 slots — reached by 姜维, 陆逊, 诸葛恪 and 钟会 — and the
 rest is `OfficerLevelUp` (`$C691`, bank `$0C/$0D`) territory.
 
-The **計略 Stratagem tier** line shows the count, which gate decided it and what
-the next step up costs; **Show text** adds the usable and locked names plus the
+The **計略 Stratagem tier** pane lists what is usable now (code, kana, English),
+then each higher レベル that adds more — `next` / `then` lines naming the exact
+stratagems gained. Only the rostered strategists have a レベル tier, so nobody
+else gets a potential line, and tiers that stay out of reach (a non-rostered id,
+or above a roster's top) are not listed at all. **Show text** adds the
 whole ladder table. `officer_cli.py show <id>` prints the same lines, and
 `tools/check_officer_pipeline.py` section 10 re-derives the gate over every
 id / レベル / 知力 combination. Read-only: it is arithmetic over 知力, レベル and
@@ -378,7 +392,7 @@ python3 editor/officer_cli.py schedule ID PROVINCE YEAR [--write]
 python3 editor/officer_cli.py schedule ID --clear [--write]
 python3 editor/officer_cli.py roster add ID PROVINCE [--slot N] [--write]
 python3 editor/officer_cli.py roster remove|governor ID [--write]
-python3 editor/officer_cli.py reinforce ID YEAR [--write]   # an heir's join year
+python3 editor/officer_cli.py reinforce ID YEAR [--write]   # an officer's join year
 python3 editor/officer_cli.py check              # exit 1 on any problem
 python3 editor/officer_cli.py diff OTHER_CSV     # field-level diff
 python3 editor/officer_cli.py write-asm          # save + render + verify

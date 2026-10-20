@@ -248,7 +248,7 @@ of each state proc:
 | State proc (`$007A`) | Stores `$0078` | VBlank handler that runs | Screen it shows |
 |---|---|---|---|
 | `$E0DA` `State_StrategyMapLaunch` (1) | 2 | `NmiState2_StrategyMap` `$F8B5` - strategy map | `$8000` |
-| `$E18B` `State_WarSceneLaunch` (3) | 3 | `NmiState3_WarScene` `$F8FE` | (arms display rec 1 = `$8800`) |
+| `$E18B` `State_WarSceneLaunch` (3) | 3 | `NmiState3_TacticalMap` `$F8FE` - Tactical Mode field map | (arms display rec 1 = `$8800`) |
 | `$E22F` `State_StrategyMode` (5) | 4 | `NmiState4_Battle` `$F96A` | - |
 | `$E2E8` `State_DuelSceneLaunch` (7) | 5 | `NmiState5_Duel` `$F9A0` -> `DuelModeDispatch` | `$8400` |
 | `$E37C` `State_CountryMapView` (9) | 6 | `NmiState6_TitleScreen` `$F9E4` | bank `$15` `$9A90` -> `$2000` (title logo) |
@@ -265,7 +265,7 @@ Callers - every writer found in the ROM, not just the obvious path:
 
 | Screen | Call chain |
 |---|---|
-| `$8000` | `addr_game_state = 1` <- `ClearOverlayWait` `$DB0C` (prg_0a_0b_strategy_ai: clear overlay done -> `CopySramToWork`, frame state `$0400 = $0D` / `$0401 = 3`, player country `$6F03` via `PlayerPtrTable`) · `WarPostProcess` `$BBAA` (prg_08_09_tactical_war: tactical war layer finished, also sets frame state `$0400 = $0D`) · `CountrySelect_Finalize` `$D8FF` (prg_08_09_tactical_war) · `StrategyCommand_InitOfficerScroll` `$D74E` (prg_17_18_display: A pressed while `sram_scroll_pending $6F43` is set) -> state proc `$E0DA` `State_StrategyMapLaunch` -> `PpuCopyRaw`. The proc itself separates the families: it writes the `$6F8B` request mailbox with `$FF` (turn complete) only when the caller has not staged a scene handoff at `$0400 = $0D` - `ClearOverlayWait` and `WarPostProcess` do stage it, `CountrySelect_Finalize` and `StrategyCommand_InitOfficerScroll` do not. Either way the screen is re-uploaded on every return to the map. |
+| `$8000` | `addr_game_state = 1` <- `ClearOverlayWait` `$DB0C` (prg_0a_0b_strategy_ai: clear overlay done -> `CopySramToWork`, frame state `$0400 = $0D` / `$0401 = 3`, player country `$6F03` via `PlayerPtrTable`) · `WarPostProcess` `$BBAA` (prg_08_09_tactical_war: tactical war layer finished, also sets frame state `$0400 = $0D`) · `CountrySelect_Finalize` `$D8FF` (prg_08_09_tactical_war) · `EventMessageScene_ChronPanel` `$D74E` (prg_17_18_duel_and_display: A pressed while `sram_scroll_pending $6F43` is set) -> state proc `$E0DA` `State_StrategyMapLaunch` -> `PpuCopyRaw`. The proc itself separates the families: it writes the `$6F8B` request mailbox with `$FF` (turn complete) only when the caller has not staged a scene handoff at `$0400 = $0D` - `ClearOverlayWait` and `WarPostProcess` do stage it, `CountrySelect_Finalize` and `EventMessageScene_ChronPanel` do not. Either way the screen is re-uploaded on every return to the map. |
 | `$8400` | `addr_game_state = 7` <- `SideEventPanelSetup` `$CD66` (prg_0e_0f_battle: Battle Mode phase 5 side-event panel; it disables NMI and stores through the `$007A` slot, which that bank aliases as `btl_flash_counter`) - the **only** writer of 7 -> state proc `$E2E8` -> `PpuCopyRaw`. |
 | `$8800` | `NmiState2_StrategyMap` `$F8EF` (`LDY #$3B` = banks `$1B+$1C`, `JSR $A000`; the label there read `B19_1A_OverlayStripRender_Entry`, wrong for that bank pair - fixed) -> `StrategyFrameUpdate` `$A00C` -> frame state `$0E` = `CallSceneRenderer` `$A06D` -> `B1D_1E_SceneRenderer` `$A039` -> `SceneRenderer` `$BC71` callbacks 0 then 1 (x16 frames) -> `ScenePageCopy`. Frame state `$0400 = $0E` is written by exactly one site in the ROM: `MapRulerIntroCancelCheck` `$A172` (Select during the ruler intro / camera-focus phase). Display record 1 comes from the state-3 proc, entered by `WarSceneLaunch` `$B5E3`, `Spoils_ExitFade` `$C356`, `ArmyDeploySceneTrigger` `$CA4C` and `BattleResultFlashTrigger` `$A403`. |
 
@@ -278,7 +278,7 @@ glyphs: upper + lower tile).
 
 Access mechanics, per loader:
 
-* `PpuCopyRaw` (`$A212`, `prg_17_18_display.asm`): sets `PPUADDR` from `$0001`/`$0000`,
+* `PpuCopyRaw` (`$A212`, `prg_17_18_duel_and_display.asm`): sets `PPUADDR` from `$0001`/`$0000`,
   then loops `LDA ($0A),Y : STA $2007` with a 16-bit counter `$000C/$000D` up to
   `$0400` - exactly one screen. The caller in `prg_1f_boot.asm` does
   `LDY #$30 / JSR SwitchBank8_B`, writes the source pointer into

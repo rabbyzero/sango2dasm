@@ -167,10 +167,12 @@ REINFORCE_ENTRY_STRIDE = 2           # [0] Officer id, [1] year - 100
 REINFORCE_YEAR_OFFSET = 100          # display year = byte + 100
 REINFORCE_PAIRS_PER_ROW = 4
 REINFORCE_BYTES = 0x8DB4 - REINFORCE_CPU       # 64
-# EventReinforceGate ($A33C, prg_19_1a_event_scenes) runs each January per acting Country
-# and picks pool (Country - 2); Country 6 aliases slot 3, and Countries 0/1/5
-# have no pool. OfficerReinforceScene ($AEC0) then inducts the first
-# still-hidden officer whose year has arrived into the Country's home Province.
+# EventReinforceGate ($A33C, prg_19_1a_event_scenes) is sub-state 2 of the
+# monthly event dispatch, so it runs in every month for the acting Country and
+# picks pool (Country - 2); Country 6 aliases slot 3, and Countries 0/1/5
+# have no pool. OfficerReinforceScene ($AEC0) then inspects the first
+# still-hidden officer: if his year has arrived he joins the Country's home
+# Province roster when a slot is free, else the scan retries next month.
 REINFORCE_POOL_COUNTRIES = (2, 3, 4, 6)
 
 # Bank $11 $8DB4-$99BC: Officer name-glyph records, 13 bytes per Officer id:
@@ -1014,13 +1016,17 @@ def emit_reinforce_pools(out, data, officers, pools_csv=None):
     out.append(';     3. entry[1] > $6F00 (reign year not reached) -> also no candidate;')
     out.append(';        entry[1] <= $6F00 -> append the Officer to the province roster')
     out.append(';        ($00 + $11..) and set his status to 2 = rostered ($AF4E-$AF52).')
+    out.append(';     4. all ten roster slots $11-$1A occupied -> also no candidate')
+    out.append(';        ($AF36 CPX #$0A / BEQ $AF19); the next monthly pass retries.')
     out.append('; Content (decoded names): the pools group Officers by family -')
     out.append('; list 0 曹氏/夏侯氏/司马氏, list 1 周瑜+孙氏+诸葛恪, list 2')
     out.append('; 关氏/张苞/刘封/诸葛瞻, list 3 马氏. EventReinforceGate ($A33C,')
-    out.append('; prg_19_1a_event_scenes) picks pool (Country-2) for the acting Country each')
-    out.append('; January (Country 6 aliases slot 3; Countries 0/1/5 have none),')
-    out.append('; and OfficerReinforceScene ($AEC0) inducts the first still-hidden')
-    out.append('; Officer whose year has arrived into the Country\'s home Province.')
+    out.append('; prg_19_1a_event_scenes; sub-state 2 of the monthly dispatch) picks')
+    out.append('; pool (Country-2) for the acting Country every month (Country 6 aliases')
+    out.append('; slot 3; Countries 0/1/5 have none), and OfficerReinforceScene ($AEC0)')
+    out.append('; inspects the first still-hidden Officer: once his year has arrived he')
+    out.append('; joins the Country\'s home Province roster if a slot is free; a full')
+    out.append('; 10-slot roster retries next month.')
     out.append('; Editing surface: docs/officer_reinforcement.csv.')
     out.append('; ' + '=' * 78)
     out.append('ReinforceCandidatePtrTable:')
@@ -1085,7 +1091,7 @@ def emit_officer_name_glyphs(out, data, officers):
     out.append('; bias live in the readers, not here):')
     out.append(';   OfficerNameSpritePost prg_1d_1e_menu_screens $AB38 - officer-card name sprites;')
     out.append(';   ProvinceDataWindowFrame $ABD7 -> RenderSubState $B1B1 - province')
-    out.append(';     window ruler/governor names; prg_17_18_display $B1EE ->')
+    out.append(';     window ruler/governor names; prg_17_18_duel_and_display $B1EE ->')
     out.append(';     ExpandMetatileToSprites $CFDB - 4 rows x 6 tiles metatile;')
     out.append(';   RecalcExchangeStats prg_0c_0d_tactical_commands $CC29 -> @GetRulerValue $CC86 -')
     out.append(';     exchange-screen ruler name (index = ruler base value, not id);')
@@ -1559,7 +1565,7 @@ SCREEN_SPECS = [
         '    country $6F03 looked up in PlayerPtrTable',
         '  WarPostProcess $BBAA (prg_08_09_tactical_war)        - tactical war layer finished',
         '  CountrySelect_Finalize $D8FF (prg_08_09_tactical_war) - country select finalized',
-        '  StrategyCommand_InitOfficerScroll $D74E (prg_17_18_display) - on A while',
+        '  EventMessageScene_ChronPanel $D74E (prg_17_18_duel_and_display) - on A while',
         '    sram_scroll_pending $6F43 is set (A with $6F43 = 0 resets via B1F_Reset)',
         '  WarPostProcess also stores frame state $0400 = $0D (post-war officer',
         '  status scene, $0401 = 0); CountrySelect_Finalize jumps to CountrySelectSlotReset.',
@@ -1567,7 +1573,7 @@ SCREEN_SPECS = [
         'Loader: prg_1f_boot State_StrategyMapLaunch ($E0DA) - LDY #$30 / JSR',
         '  SwitchBank8_B ($E0E9), ($000A/$000B) <- $8000 ($E0EC-$E0F3), PPU addr',
         '  $0000/$0001 <- $2000, then LDY #$37 / JSR B17_18_PpuCopyRaw ($E113).',
-        '  PpuCopyRaw ($A212, prg_17_18_display.asm) streams exactly $400 bytes',
+        '  PpuCopyRaw ($A212, prg_17_18_duel_and_display.asm) streams exactly $400 bytes',
         '  ($000C/$000D counter) from ($000A) to PPUDATA, so this block is one whole',
         '  screen at $2000.',
         'CHR (render-verified): display mode $00 (DisplayInit #$00 at $E0E4 ->',
@@ -1607,7 +1613,7 @@ SCREEN_SPECS = [
         'Role: Tactical Mode (war scene) terrain. Display record 1 is armed by the',
         '  game-state-3 proc State_WarSceneLaunch ($E193) - "war" is this project\'s',
         '  name for the tactical layer - and game state 3 is stored by',
-        '  WarSceneLaunch $B5E3 (prg_1b_1c_strategy_mode), Spoils_ExitFade $C356 (prg_17_18_display),',
+        '  WarSceneLaunch $B5E3 (prg_1b_1c_strategy_mode), Spoils_ExitFade $C356 (prg_17_18_duel_and_display),',
         '  ArmyDeploySceneTrigger $CA4C (prg_19_1a_event_scenes) and BattleResultFlashTrigger',
         '  $A403 (prg_0e_0f_battle).',
         'Loader: prg_1d_1e_menu_screens SceneRenderer ($BC71) callback 1 ScenePageCopy ($BC9B) -',

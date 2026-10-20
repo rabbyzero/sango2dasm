@@ -25,7 +25,7 @@ data describes. `@EvalStepCost` bounds queries at X < $1F and Y < $14, so column
 31 is never read (`--width 31` for that view).
 
 The 120 zones are exactly 30 provinces x 4 quadrants. `DataRecordLoader` ($DF15,
-prg_17_18_display.asm) installs the `($00A8)` table: `PermutationTable` ($DF86, bank $18)
+prg_17_18_duel_and_display.asm) installs the `($00A8)` table: `PermutationTable` ($DF86, bank $18)
 holds 30 groups of 4 zone ids, indexed by the battlefield province `$050E`, and
 the group is copied to ZP `$00AA-$00AD`. Each group is {base, base+2, base+1,
 base+3}, so zone order inside a province is TL, BL, TR, BR.
@@ -46,7 +46,7 @@ Usage:
     python tools/dump_bank_00_terrain.py --check-geometry     # 15 + 5 row split
     python tools/dump_bank_00_terrain.py --check-provinces    # province/quadrant model
     python tools/dump_bank_00_terrain.py --check-layout       # zone ribbon packing
-    python tools/dump_bank_00_terrain.py --check-alias        # Battle Mode pointer alias
+    python tools/dump_bank_00_terrain.py --check-alias        # field-map pointer alias
 
 Terrain ids are the *clamped* values the engine uses (>= 6 collapses to 2); the
 labels come from the stratagem feasibility handlers ($ACAE-$AE20) and the
@@ -91,13 +91,13 @@ GAP_ROWS_TOP = (15,)           # ribbon gap rows inside a TL/TR crop window
 GAP_ROWS_BOTTOM = (5, 6, 7, 8)  # ribbon gap rows inside a BL/BR crop window
 BLOCKED = 0x80                 # tile >= $80 -> terrain 0 without a table lookup
 
-# Second consumer of the same bytes: Battle Mode (prg_17_18_display.asm), whose scene
-# tile / overlay loaders keep copies of the zone pointer table.
-BATTLE_BANK = 0x17
-BATTLE_WINDOW = 0xA000
-BATTLE_TILE_CPU = 0xA642       # BattleTilePtrTable
-BATTLE_OVERLAY_CPU = 0xA732    # BattleOverlayPtrTable
-BATTLE_BANKTAB_CPU = 0xA822    # BattleBankTable
+# Second consumer of the same bytes: the Tactical Mode field map (prg_17_18_duel_and_display.asm),
+# whose crop tile / overlay loaders keep copies of the zone pointer table.
+FIELDMAP_BANK = 0x17
+FIELDMAP_WINDOW = 0xA000
+FIELDMAP_TILE_CPU = 0xA642       # FieldMapCropPtrTable
+FIELDMAP_OVERLAY_CPU = 0xA732    # FieldMapOverlayPtrTable
+FIELDMAP_BANKTAB_CPU = 0xA822    # FieldMapCropBankTable
 OVERLAY_PHASE = 0x40           # overlay ptr == terrain ptr - $40
 
 # Clamped terrain id -> (name, RGB). 0/3/4/5 are asserted by the AiFeasible_*
@@ -507,31 +507,31 @@ def check_layout(data, map_ptrs, zones):
 
 
 def check_alias():
-    """Battle Mode's pointer tables vs the terrain tables."""
+    """The field map's pointer tables vs the terrain tables."""
     _, map_ptrs, bank_table = load_tables()
-    code = read_bank(BATTLE_BANK)
+    code = read_bank(FIELDMAP_BANK)
     n = MAP_PTR_COUNT * 2
     tile = struct.unpack('<%dH' % MAP_PTR_COUNT,
-                         code[BATTLE_TILE_CPU - BATTLE_WINDOW:
-                              BATTLE_TILE_CPU - BATTLE_WINDOW + n])
+                         code[FIELDMAP_TILE_CPU - FIELDMAP_WINDOW:
+                              FIELDMAP_TILE_CPU - FIELDMAP_WINDOW + n])
     overlay = struct.unpack('<%dH' % MAP_PTR_COUNT,
-                            code[BATTLE_OVERLAY_CPU - BATTLE_WINDOW:
-                                 BATTLE_OVERLAY_CPU - BATTLE_WINDOW + n])
-    battle_banks = code[BATTLE_BANKTAB_CPU - BATTLE_WINDOW:
-                        BATTLE_BANKTAB_CPU - BATTLE_WINDOW + BANK_TABLE_LEN]
+                            code[FIELDMAP_OVERLAY_CPU - FIELDMAP_WINDOW:
+                                 FIELDMAP_OVERLAY_CPU - FIELDMAP_WINDOW + n])
+    fieldmap_banks = code[FIELDMAP_BANKTAB_CPU - FIELDMAP_WINDOW:
+                          FIELDMAP_BANKTAB_CPU - FIELDMAP_WINDOW + BANK_TABLE_LEN]
     ok = True
     same = list(tile) == map_ptrs
     ok = ok and same
-    print('  BattleTilePtrTable    == TerrainMapPtrTable       : %s' % same)
+    print('  %-24s == TerrainMapPtrTable      : %s' % ("FieldMapCropPtrTable", same))
     phase = [i for i in range(MAP_PTR_COUNT)
              if overlay[i] != map_ptrs[i] - OVERLAY_PHASE]
     ok = ok and not phase
-    print('  BattleOverlayPtrTable == TerrainMapPtrTable - $%02X  : %s%s'
-          % (OVERLAY_PHASE, not phase,
+    print('  %-24s == TerrainMapPtrTable - $%02X : %s%s'
+          % ("FieldMapOverlayPtrTable", OVERLAY_PHASE, not phase,
              '' if not phase else ' (idx %s)' % phase[:6]))
-    same_banks = list(battle_banks) == list(bank_table)
+    same_banks = list(fieldmap_banks) == list(bank_table)
     ok = ok and same_banks
-    print('  BattleBankTable       == TileBankTable            : %s' % same_banks)
+    print('  %-24s == TileBankTable            : %s' % ("FieldMapCropBankTable", same_banks))
     return ok
 
 
@@ -592,7 +592,7 @@ def main():
         print('crop geometry (tile $00 = ribbon gap rows, 120 crops):')
         return 0 if check_geometry() else 1
     if args.check_alias:
-        print('Battle Mode alias (bank $%02X):' % BATTLE_BANK)
+        print('Field-map alias (bank $%02X):' % FIELDMAP_BANK)
         return 0 if check_alias() else 1
 
     _, map_ptrs, bank_table = load_tables()

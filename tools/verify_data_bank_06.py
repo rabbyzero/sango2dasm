@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Verify asm/banks/data_06_placement_and_scroll.asm reproduces rom/prg/prg_06.bin byte-for-byte.
 
-Bank $06 (war-scene unit placement geometry + 命令書 OrderScroll graphics) is
+Bank $06 (war-scene unit placement geometry + event-message / ending scroll
+graphics) is
 rendered by tools/gen_data_bank_06_asm.py. This harness assembles the bank on
 its own (its own linker config, $8000-$9FFF window) and compares the result with
 the stock ROM. Any difference is reported in decoded terms - region, label,
@@ -40,9 +41,10 @@ REGIONS = [
     (0x8C52, 0x932E, 'defense-side unit placement pools (base $8C52 table + records)'),
     (0x932E, 0x94D6, 'attack-side city bounds rectangles (base $932E table + records)'),
     (0x94D6, 0x95E6, 'defense-side city bounds rectangles (base $94D6 table + records)'),
-    (0x95E6, 0x9A7E, 'OrderScroll panel tile blocks'),
-    (0x9A7E, 0x9E75, 'OrderScroll sprite blob tables + blobs'),
-    (0x9E75, 0x9FBB, 'OrderScroll text-phase blob table + blobs'),
+    (0x95E6, 0x9A7E, 'event-message scene panel tile blocks (phases 1-3)'),
+    (0x9A7E, 0x9CD9, 'event-message scene sprite blob table + blobs (chronicle pass)'),
+    (0x9CD9, 0x9E75, 'event-message scene sprite blob table + blobs (hero-rise pass)'),
+    (0x9E75, 0x9FBB, 'event-message scene sprite blob table + blobs (hero-name pass)'),
     (0x9FBB, 0xA000, 'unused $FF filler'),
 ]
 
@@ -93,10 +95,11 @@ def describe(addr):
 def nearest_label(text, addr):
     """The label owning a differing byte, from the file's address stream."""
     owner = None
+    label = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*):')
     for raw in text.splitlines():
-        if raw.startswith(('Tactical', 'OrderScroll', 'Bank06', '  .')):
-            if not raw.startswith('  .'):
-                owner = raw.split(':')[0]
+        m = label.match(raw)
+        if m:
+            owner = m.group(1)
         if ('$%04X' % addr) in raw:
             return (owner or '?'), raw.strip()[:90]
     return (owner or '?'), '(line not found)'

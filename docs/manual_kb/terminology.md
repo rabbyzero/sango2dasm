@@ -32,7 +32,7 @@ Conventions:
 | 城 | shiro | City (province on the strategy map) / Castle (castle command menu, castle in Tactical/Battle Mode) |
 | 町 | machi | Town |
 | 空白地 | kuuhakuchi | UnclaimedLand |
-| 命令書 | meireisho | OrderScroll (command points) |
+| 命令書 | meireisho | OrderScroll (command points) — cell `$6F05`, code family in banks $19/$1A, $1B/$1C, $1D/$1E. Legacy mis-use: the same English name was carried by the dated-message / ending scroll machine in banks $17/$18 (old `StrategyCommand_*`, now `EventMessageScene_*`), which never touches 命令書 |
 | レベル | reberu | Level (difficulty 1–3; officer level) |
 | 記録する | kiroku | SaveGame |
 | 記録をよむ | — | LoadGame |
@@ -48,7 +48,7 @@ The four modes nest; they are not peers:
 - **Tactical Mode** (戦術モード) — the field/army movement layer, the "war"
   scene of this codebase: game states 3 and 4 (`State_WarSceneLaunch` $E18B /
   `State_WarAiTurnFrame` $E221, whose AI runs from bank $08+$09
-  `AiTurnProcess`).
+  `AiTurnProcess`); the state-3 frames run `NmiState3_TacticalMap` $F8FE.
 - **Battle Mode** (戦闘モード) — a sub-scenario of Tactical Mode (bank $0E+$0F
   phase machine, reached from the war layer when armies engage).
 - **Duel Mode** (一騎討ちモード) — a sub-scenario of Battle Mode: game state 7

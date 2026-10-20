@@ -14,7 +14,7 @@ Related documents — the four AI layers of the nested mode hierarchy
   (`AiTurnProcess`, prg_08_09_tactical_war); this file covers the strategy-layer AI.
 - `code/battle_ai_decision_tree.md` — the **Battle Mode** side director
   (prg_0e_0f_battle).
-- `code/duel_ai_decision_tree.md` — the **one-on-one duel** AI (prg_17_18_display).
+- `code/duel_ai_decision_tree.md` — the **one-on-one duel** AI (prg_17_18_duel_and_display).
 - `code/cpu_ram_map.md` — WRAM `$6Fxx` semantic map (updated with the 0a_0b
   aliases pinned during this review).
 - `memory/project_tech_stack/strategy-layer-request-mailbox-protocol.md` —

@@ -6,7 +6,7 @@
 ; four consumer banks. Window addresses below are CPU-side; file offset = addr - $8000.
 ;
 ;   $8000            Strategy Mode shared BG ATTRIBUTE stream (palette bytes).
-;                    Read by prg_17_18_display StrategyModeDisplay -> SetupDisplayPtrs.
+;                    Read by prg_17_18_duel_and_display StrategyModeDisplay -> SetupDisplayPtrs.
 ;   $8440 $8570      7 x Strategy Mode BG TILE streams, 304 B ($130) each, via
 ;   $86A0 $87D0      SetupDisplayPtrs::StrategyModeTilePtrTable (7 entries).
 ;   $8900 $8A30 $8B60
@@ -20,7 +20,7 @@
 ;                    $9716/$9763/$9770/$9791/$97CE. Read by prg_0a_0b_strategy_ai
 ;                    DrawSelectionSprites/WriteSingleSprite and StateSpriteAnim.
 ;   $97EF            Strategy animation frame pointer table: 15 x 16-bit -> OAM
-;                    blobs at $980D+. Read by prg_17_18_display AnimSeq_PlayFrames ->
+;                    blobs at $980D+. Read by prg_17_18_duel_and_display AnimSeq_PlayFrames ->
 ;                    SpriteFromTable (frame indices come from StratAnim_FrameTable).
 ;
 ;   $99A0            Officer class-base table: one byte per officer id (values
@@ -624,7 +624,7 @@ Bank01OfficerClassBase:
 ;   Body: one ~14-sprite figure per class (4 distinct sets). Face: one 6-sprite
 ;   set per slot; the slot offset ($00A4 & 7) picks the expression -
 ;   0/1 = normal, 2 = angry, 3 = sad, 4 = happy (call sites: normal = officer
-;   detail/roster views, angry = duel pursuer prg_17_18_display $BAF7, sad = war-defeat
+;   detail/roster views, angry = duel pursuer prg_17_18_duel_and_display $BAF7, sad = war-defeat
 ;   scene prg_08_09_tactical_war $D691, happy = war-victory scene prg_08_09_tactical_war $D6BA). Talking
 ;   frames repeat the same upper-face tiles with the mouth tile swapped; the
 ;   renderer alternates face/talking every 8 frames. Read by prg_19_1a_event_scenes

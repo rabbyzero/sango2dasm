@@ -24,7 +24,7 @@ MonthlyEventDispatch_Entry:  ; (dispatch callback target)
   JMP MonthlyEventDispatch                   ; $A009: 4C 96 A2
 OfficerStatusScene_Entry:  ; (dispatch callback target)
   JMP OfficerStatusScene                  ; $A00C: 4C 81 AD
-StratagemCutscene_Entry:  ; (NmiState3_WarScene per-frame call)
+StratagemCutscene_Entry:  ; (NmiState3_TacticalMap per-frame call)
   JMP StratagemCutscene                   ; $A00F: 4C D6 CF  ; war-map stratagem cutscene
 OfficerCardAnimStep_Entry:  ; (BankedCallbackTrampoline target)
   JMP OfficerCardAnimStep                 ; $A012: 4C D7 B2
@@ -6911,7 +6911,7 @@ RequestAckReturn:
 ;   $000A = strip screen X base ($A7 strategy card, $A5 battle strip)
 ;   $00A4 = card slot offset 0-4 within the Officer's class group; the low
 ;           3 bits select the face expression: 0/1 = normal, 2 = angry
-;           (duel pursuer, prg_17_18_display $BAF7), 3 = sad (war defeat, prg_08_09_tactical_war
+;           (duel pursuer, prg_17_18_duel_and_display $BAF7), 3 = sad (war defeat, prg_08_09_tactical_war
 ;           $D691), 4 = happy (war victory, prg_08_09_tactical_war $D6BA)
 ;   $04BC = one-shot strip row param (Y base); cleared after the body draw
 ;   $007C = OAM sprite cursor (advanced by the writer)
@@ -7064,7 +7064,7 @@ RequestAckReturn:
 ; $CFD6-$D7FE: StratagemCutscene
 ; War-map stratagem cutscene: the animated presentation played while a selected
 ; stratagem executes on the tactical screen. Called every NMI frame from
-; NmiState3_WarScene (prg_1f_boot $F945, banks $19/$1A mapped via Y=$39);
+; NmiState3_TacticalMap (prg_1f_boot $F945, banks $19/$1A mapped via Y=$39);
 ; self-gating on $04C8 (stratagem_result_latch in 0c_0d):
 ;   $04C8 = 0      -> idle, returns immediately.
 ;   $04C8 = 1..$7F -> trigger, armed only by 0c_0d StratagemState_Confirm

@@ -51,7 +51,7 @@
 ;       country $6F03 looked up in PlayerPtrTable
 ;     WarPostProcess $BBAA (prg_08_09_tactical_war)        - tactical war layer finished
 ;     CountrySelect_Finalize $D8FF (prg_08_09_tactical_war) - country select finalized
-;     StrategyCommand_InitOfficerScroll $D74E (prg_17_18_display) - on A while
+;     EventMessageScene_ChronPanel $D74E (prg_17_18_duel_and_display) - on A while
 ;       sram_scroll_pending $6F43 is set (A with $6F43 = 0 resets via B1F_Reset)
 ;     WarPostProcess also stores frame state $0400 = $0D (post-war officer
 ;     status scene, $0401 = 0); CountrySelect_Finalize jumps to CountrySelectSlotReset.
@@ -59,7 +59,7 @@
 ;   Loader: prg_1f_boot State_StrategyMapLaunch ($E0DA) - LDY #$30 / JSR
 ;     SwitchBank8_B ($E0E9), ($000A/$000B) <- $8000 ($E0EC-$E0F3), PPU addr
 ;     $0000/$0001 <- $2000, then LDY #$37 / JSR B17_18_PpuCopyRaw ($E113).
-;     PpuCopyRaw ($A212, prg_17_18_display.asm) streams exactly $400 bytes
+;     PpuCopyRaw ($A212, prg_17_18_duel_and_display.asm) streams exactly $400 bytes
 ;     ($000C/$000D counter) from ($000A) to PPUDATA, so this block is one whole
 ;     screen at $2000.
 ;   CHR (render-verified): display mode $00 (DisplayInit #$00 at $E0E4 ->
@@ -183,7 +183,7 @@ DuelBaseScreenAttr:
 ;   Role: Tactical Mode (war scene) terrain. Display record 1 is armed by the
 ;     game-state-3 proc State_WarSceneLaunch ($E193) - "war" is this project's
 ;     name for the tactical layer - and game state 3 is stored by
-;     WarSceneLaunch $B5E3 (prg_1b_1c_strategy_mode), Spoils_ExitFade $C356 (prg_17_18_display),
+;     WarSceneLaunch $B5E3 (prg_1b_1c_strategy_mode), Spoils_ExitFade $C356 (prg_17_18_duel_and_display),
 ;     ArmyDeploySceneTrigger $CA4C (prg_19_1a_event_scenes) and BattleResultFlashTrigger
 ;     $A403 (prg_0e_0f_battle).
 ;   Loader: prg_1d_1e_menu_screens SceneRenderer ($BC71) callback 1 ScenePageCopy ($BC9B) -

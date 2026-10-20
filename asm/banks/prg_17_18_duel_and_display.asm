@@ -5,6 +5,69 @@
 ;
 ; Bank $17 at $A000-$BFFF, Bank $18 at $C000-$DFFF
 ; Loaded together via SwitchBankAC_A/B. Y=$37
+;
+; MODULE SUMMARY: Duel Mode engine plus the shared PPU display kernel
+;
+; Five bank $1F NMI states call into this pair: NmiState5_Duel runs
+; DuelModeDispatch ($B100, entry $A01B), NmiState8_EventMessage runs
+; EventMessageSceneDispatch ($D693, entry $A01E), Strategy Mode runs
+; StrategyModeDisplay ($A02A, entry $A024), and bank $0A's title machine
+; runs AnimationDispatch ($DE25, entry $A021); bank $0C's war queues call
+; FieldMapCropResolve ($A61C, entry $A012).
+; Duel Mode is the largest body of code - $B100-$CDFD is 7,421 B (45%) of
+; one state machine: challenge, command round, the AI decision thresholds,
+; strike and pursue resolution, the 降参/説得/罵倒 tactic outcomes and the
+; 牽制/攻撃/捨て身 attack cutscenes that follow them. The PPU render kernel
+; and field-map crop-overlay plumbing ($A02A-$B100) is 4,310 B (26%), the
+; event-message / ending scroll machine ($D693-$DE25) 1,938 B (12%).
+;
+; Major functional areas:
+;   $A000-$A029  Jump table (14 dispatch entries)
+;   $A02A-$A2FF  PPU display kernel: StrategyModeDisplay, SetupDisplayPtrs,
+;                the RLE / raw / tile-offset PPU writers and their source and
+;                tile pointer advances
+;   $A2FF-$A61C  Screen scroll and scene tile render: DisplayScrollLoop,
+;                DisplayAndChrSetup, SceneRenderDispatch,
+;                RenderSceneHoriz/Vert, CopyTileRowHoriz/Vert, BankPtrLookup
+;   $A61C-$AB53  Field-map crop resolve and advisor tiles: FieldMapCropResolve, attribute
+;                byte and tile-grid helpers, SetupAdvisorTiles,
+;                CalcTileGridOrigin
+;   $AB53-$B100  Field-map refresh and crop load: TacticalMapScrollRefresh,
+;                the crop overlay renderers FieldMapOverlayRender/Copy,
+;                WriteFieldMapAttribute, LoadFieldMapOverlay, the adjacency patch
+;                and build maps
+;   $B100-$B34F  Duel scene setup: DuelModeDispatch, DuelScene_* (officers,
+;                name tile, portrait, rider sprites, equipment speed, challenge)
+;   $B34F-$B5C8  Duel command round: DuelCommandDispatch, DuelCmd_RoundSetup,
+;                RenderStats, CommandMenu, CommandRoute, TacticConfirm,
+;                TacticSelect
+;   $B5C8-$B8C7  Duel AI: DuelAiDispatch, the surrender / desperate / strike /
+;                tactic checks, morale calc and the per-command thresholds
+;   $B8C7-$BC16  Strike and pursue resolution: DuelStrikeResolve, DuelStrike_*,
+;                DuelPursue_* (window slide, escape roll, death handoff)
+;   $BC16-$BCE9  Duel data card overlay: Duel_SwapActive, DuelDataToggle*
+;   $BCE9-$C21C  Tactic outcomes: Surrender_*, Persuade_*, InsultResolve_Exec,
+;                TacticDialog_* (appeal and reply panels, officer cards)
+;   $C21C-$C498  Duel exit and spoils: MapFade_* (returns to the war scene),
+;                Spoils_* (fallen side, loot roll, weapon and armor grant),
+;                PaletteTransition
+;   $C498-$CC87  Attack cutscenes: FeintScene_*, StrikeScene_*,
+;                DesperateScene_*, StrikeSlide_* (scroll, animate, finalize)
+;   $CC87-$CDFD  Duel window slide in and out: DuelMenuSlideIn_*,
+;                DuelMenuSlideOut_*
+;   $CDFD-$D299  Sprite and tile buffer build: BuildPPUTileBuffer,
+;                DrawSpriteFromBank, MapScroll_UpdatePosition,
+;                ExpandMetatileToSprites, FinalizeSpriteBuffer,
+;                ReadMenuSelection, SetupMenuPtr, DuelCmd_FillStatTiles,
+;                DrawCompletionSprite, CheckPlayerIsRuler, SetDisplayPointer
+;   $D299-$D693  CheckButtonConfirm display-queue poll
+;   $D693-$DE25  Event-message / ending scroll: EventMessageSceneDispatch
+;                phases 0-5 (chronicle panel, hero-rise, hero-name,
+;                unification-score panels, OfficerRoll_* hall of fame,
+;                FadeOut_* epilogue) plus ScrollPanel_LoadRow and
+;                ScrollPanel_PrepareRowData
+;   $DE25-$E000  Title and scene animation: AnimationDispatch, AnimSeq_*,
+;                SpriteFromTable, DataRecordLoader
 ;===============================================================================
 
 .include "6502_registers.h"
@@ -49,11 +112,11 @@ addr_scroll_x_hi    = $008F                     ; Scroll X high (nametable bit)
 addr_scroll_y       = $0090                     ; Scroll Y position
 addr_scroll_y_hi    = $0091                     ; Scroll Y high
 
-; --- Input State ---
-addr_input_prev_x   = $0094                     ; Input prev X change flag
-addr_input_prev_y   = $0095                     ; Input prev Y change flag
-addr_ctrl_state_x   = $009C                     ; Controller state X
-addr_ctrl_state_y   = $009D                     ; Controller state Y
+; --- Field-map scroll state ---
+map_row_cache       = $0094                     ; Palette-row cache; $FF forces a palette reload
+map_col_cache       = $0095                     ; Scene-column cache; $FF forces an overlay reload
+map_dir_flags       = $009C                     ; Last field-map scroll step (7=E, 6=W, 4=N, 5=S)
+map_dir_prev        = $009D                     ; Previous-frame copy, snapshotted by the state-3 handler
 
 ; --- CHR Banks ---
 addr_chr_bank_0     = $00AE                     ; CHR bank 0 ($8000)
@@ -71,26 +134,26 @@ addr_trampoline_saved_bank = $0058              ; Trampoline saved bank
 
 ; --- Game State RAM ($04xx) ---
 ; Shared state variables used across main game dispatch procs.
-; Strategy command dispatch work ($0400-$0411)
-strategy_work_ptr_lo         = $0400  ; Strategy command dispatch work pointer lo
-strategy_work_ptr_hi         = $0401  ; Strategy command dispatch work pointer hi
-; $0402 - local to StrategyCommand_InitOfficerScroll (work_offset)
+; Event-message scene work cells ($0400-$0411)
+scene_work_ptr_lo            = $0400  ; Handoff staging cell (map return target copied in at $D73E)
+scene_work_ptr_hi            = $0401  ; Paired cell, phase-4 list/sub-state counter
+; $0402 - local to EventMessageScene_ChronPanel (work_offset)
 scroll_ptr_lo                = $0408  ; Scroll position index into officer list
 scroll_ptr_hi                = $0409  ; Scroll vertical position
-; $040A - local to StrategyCommand_RenderOfficerEntry (scroll_done_flag)
-strategy_cursor_lo           = $040C  ; Strategy command dispatch cursor/index lo
-strategy_cursor_hi           = $040D  ; Strategy command dispatch cursor/index hi
-; $040E-$040F - local to StrategyCommand_ScrollOfficerList (scroll_src_ptr)
-strategy_officer_list_lo     = $0410  ; Officer ID list for strategy command dispatch
-strategy_officer_list_hi     = $0411  ; Officer ID list hi (usually unused)
+; $040A - local to OfficerRoll_RenderEntry (scroll_done_flag)
+card_handshake_lo            = $040C  ; Officer-card renderer handshake lo; phase 4 keeps its entry index here
+card_handshake_hi            = $040D  ; Officer-card renderer handshake hi; $FF = card render finished
+; $040E-$040F - local to OfficerRoll_ScrollList (scroll_src_ptr)
+card_officer_ids_lo          = $0410  ; Officer id(s) handed to the card renderer: phase-4 list base, DuelData_Init single id
+card_officer_ids_hi          = $0411  ; List slot 1 = the Ruler id written by OfficerRoll_BuildList
 ; Officer/Selection ($0424-$0435)
 menu_cursor_col      = $0424  ; Troop assignment progress counter lo
 menu_cursor_page      = $0425  ; Troop assignment progress counter hi
 selected_officer_id          = $042C  ; Active/selected officer ID
 ; $042D - local to DuelStrike_ApplyGauge (officer_id_ext)
-war_result_phase          = $042E  ; War result phase (shared with strategy command dispatch)
+war_result_phase          = $042E  ; Chronicle variant: $FF = death card $D9, else defeat card $D8
 ; $042F-$0431 - local to DuelPursue_ApplyStrike (damage_amount, damage_applied)
-dispatch_timer               = $0435  ; Dispatch timer / countdown
+unification_score            = $0435  ; Unification score low byte, written by the ending scene; read once, at the phase-3 roll gate $D905
 menu_blink_timer             = $046C  ; Menu selection blink timer
 ; Map/Scroll pointers ($0470-$0473)
 anim_ppu_ptr_lo              = $0470  ; Animation PPU pointer lo
@@ -131,7 +194,7 @@ event_overlay_flag           = $04C3  ; Event overlay / battle formation flag
 ui_state                     = $04C4  ; UI state flag
 name_tile_ptr_lo             = $04C5  ; Name tile pointer lo
 name_tile_ptr_hi             = $04C6  ; Name tile pointer hi
-; Strategy command dispatch state ($04C9-$04D5)
+; Event-message scene dispatch state ($04C9-$04D5)
 dispatch_step                = $04C9  ; Dispatch step / phase counter
 dispatch_src_ptr_lo          = $04CA  ; Dispatch source pointer lo
 dispatch_src_ptr_hi          = $04CB  ; Dispatch source pointer hi
@@ -184,11 +247,11 @@ player0_officer_hi           = $0515  ; Player 0 officer ID hi / battle side arr
 player1_officer_lo           = $0516  ; Player 1 officer ID / pointer lo
 player1_officer_hi           = $0517  ; Player 1 officer ID hi / battle config
 
-; --- Strategy Display / Scroll Work ($0541-$0544) ---
-strat_scroll_param             = $0541  ; Strategy scroll / display parameter
-strat_display_ptr_lo           = $0542  ; Display buffer pointer lo
-strat_display_ptr_hi           = $0543  ; Display buffer pointer hi
-strat_scroll_index             = $0544  ; Scroll index / wrap parameter
+; --- Event-Message / Ending Scroll State ($0541-$0544) ---
+event_scene_phase            = $0541  ; Scene phase 0-5; the caller's entry value picks it (0 = chronicle panel, 1-3 = the ending tier stored by UnificationEndingDispatch $C61A)
+event_sub_state              = $0542  ; Sub-state index within the officer roll and the epilogue
+event_disp_page              = $0543  ; Panel page / row cursor; the epilogue reuses it as the closing text-card window id $F2
+event_scroll_index           = $0544  ; Sprite-buffer count and wrap parameter for the roll
 
 .segment "CODE_BANK17"
 
@@ -212,12 +275,12 @@ DisplayScrollLoop_Entry:
 DisplayAndChrSetup_Entry:
 ; DisplayAndChrSetup_Entry ($A00C):
   JMP DisplayAndChrSetup                                           ; $A00C: 4C 87 A3
-BattleEffects_Entry:
-; BattleEffects_Entry ($A00F):
-  JMP BattleEffects                                           ; $A00F: 4C 53 AB
-BattleDispatch_Entry:
-; BattleDispatch_Entry ($A012):
-  JMP BattleDispatch                                           ; $A012: 4C 1C A6
+TacticalMapScrollRefresh_Entry:
+; TacticalMapScrollRefresh_Entry ($A00F):
+  JMP TacticalMapScrollRefresh                                           ; $A00F: 4C 53 AB
+FieldMapCropResolve_Entry:
+; FieldMapCropResolve_Entry ($A012):
+  JMP FieldMapCropResolve                                      ; $A012: 4C 1C A6
 OverlayWindow_Entry:
 ; OverlayWindow_Entry ($A015):
   JMP OverlayWindow                                           ; $A015: 4C F0 AE
@@ -227,9 +290,9 @@ SetupAdvisorTiles_Entry:
 DuelModeDispatch_Entry:
 ; DuelModeDispatch_Entry ($A01B):
   JMP DuelModeDispatch                                           ; $A01B: 4C 00 B1
-StrategyCommandDispatch_Entry:
-; StrategyCommandDispatch_Entry ($A01E):
-  JMP StrategyCommandDispatch                                    ; $A01E: 4C 93 D6
+EventMessageSceneDispatch_Entry:
+; EventMessageSceneDispatch_Entry ($A01E):
+  JMP EventMessageSceneDispatch                       ; $A01E: 4C 93 D6
 AnimationDispatch_Entry:
 ; AnimationDispatch_Entry ($A021):
   JMP AnimationDispatch                                    ; $A021: 4C 25 DE
@@ -273,7 +336,7 @@ StrategyModeDisplay:
   attr_ptr_lo   = $000C
   attr_ptr_hi   = $000D
 SetupDisplayPtrs:
-  LDA strat_scroll_index                                     ; $A04A: AD 44 05
+  LDA event_scroll_index                              ; $A04A: AD 44 05
   ASL A                                               ; $A04D: 0A
   TAY                                                 ; $A04E: A8
   LDA StrategyModeTilePtrTable,Y                          ; $A04F: B9 6B A0
@@ -848,11 +911,13 @@ DisplayUpdateScroll:
 .endproc
 ;===============================================================================
 ; $A3BC: SceneRenderDispatch
-; Entry05 dispatcher. Routes to horizontal or vertical rendering path
-; based on bit 5 of controller state $009C.
+; Entry05 dispatcher, reached from the Y-coordinate change branch of
+; DisplayAndChrSetup. Picks the vertical path variant from bit 5 of the last
+; field-map scroll step ($009C: bit 5 = the view moved south).
 ;-------------------------------------------------------------------------------
-; Inputs:  $009C = controller/button state
-; Output:  dispatches to RenderSceneVert::SetupRenderVert (bit 5 clear) or RenderSceneVert::AdjustYAndRender (set)
+; Inputs:  $009C = last field-map scroll step
+; Output:  RenderSceneVert::AdjustYAndRender when it moved south, else
+;          RenderSceneVert::SetupRenderVert
 ;===============================================================================
 .proc SceneRenderDispatch
 SceneRenderDispatch:
@@ -867,7 +932,7 @@ SceneRenderDispatch:
 ; $A3C9: RenderSceneHoriz
 ; Main scene rendering loop for horizontal layout. Processes a 16x16 metatile
 ; grid. For each metatile: computes VRAM address via CopyTileRowHoriz::CalcTileAddrHoriz, copies
-; tile data via CopyTileRowHoriz::CopyTileRowHoriz, then calls BattleAttrAndHelpers for attribute
+; tile data via CopyTileRowHoriz::CopyTileRowHoriz, then calls FieldMapAttrHelpers for attribute
 ; tables. Sets NMI control bit $80 on completion.
 ;-------------------------------------------------------------------------------
 ; Three entry points:
@@ -912,7 +977,7 @@ CopyScrollRegs:
 @skip:
   JSR BankPtrLookup                                           ; $A3E7: 20 04 A6
   STY ptr_0019_hi                                         ; $A3EA: 8C 1A 00
-  JSR BattleResolve                                           ; $A3ED: 20 1F A6
+  JSR FieldMapCropResolveIndexed                              ; $A3ED: 20 1F A6
   LDA ptr_0019_hi                                         ; $A3F0: AD 1A 00
   CLC                                                 ; $A3F3: 18
   ADC #$02                                            ; $A3F4: 69 02
@@ -947,7 +1012,7 @@ CopyScrollRegs:
   AND #$0F                                            ; $A432: 29 0F
   PHA                                                 ; $A434: 48
   LDA work_0010                                         ; $A435: AD 10 00
-  JSR BattleResolve                                           ; $A438: 20 1F A6
+  JSR FieldMapCropResolveIndexed                              ; $A438: 20 1F A6
   INC row_count                                         ; $A43B: EE 07 00
   INC ptr_0019_lo                                         ; $A43E: EE 19 00
   PLA                                                 ; $A441: 68
@@ -961,7 +1026,7 @@ CopyScrollRegs:
   STA param_byte1                                         ; $A451: 8D 00 00
   LDA #$01                                            ; $A454: A9 01
   STA param_byte2                                         ; $A456: 8D 01 00
-  JSR BattleAttrAndHelpers                                           ; $A459: 20 9A A8
+  JSR FieldMapAttrHelpers                                            ; $A459: 20 9A A8
   LDA a:$007E                                         ; $A45C: AD 7E 00
   ORA #$80                                            ; $A45F: 09 80
   STA a:$007E                                         ; $A461: 8D 7E 00
@@ -1029,7 +1094,7 @@ SetupRenderVert:
 @skip:
   JSR BankPtrLookup                                           ; $A4A4: 20 04 A6
   STY work_001a                                         ; $A4A7: 8C 1A 00
-  JSR BattleResolve                                           ; $A4AA: 20 1F A6
+  JSR FieldMapCropResolveIndexed                              ; $A4AA: 20 1F A6
   LDY work_001a                                         ; $A4AD: AC 1A 00
   INY                                                 ; $A4B0: C8
   LDA (var_00a8),Y                                         ; $A4B1: B1 A8
@@ -1059,7 +1124,7 @@ SetupRenderVert:
   CMP #$0F                                            ; $A4E7: C9 0F
   BNE @skip_2                                           ; $A4E9: D0 11
   LDA work_0010                                         ; $A4EB: AD 10 00
-  JSR BattleResolve                                           ; $A4EE: 20 1F A6
+  JSR FieldMapCropResolveIndexed                              ; $A4EE: 20 1F A6
   DEC col_counter_hi                                         ; $A4F1: CE 05 00
   LDA col_counter_hi                                         ; $A4F4: AD 05 00
   AND #$F0                                            ; $A4F7: 29 F0
@@ -1073,7 +1138,7 @@ SetupRenderVert:
   STA param_byte1                                         ; $A508: 8D 00 00
   LDA #$01                                            ; $A50B: A9 01
   STA param_byte2                                         ; $A50D: 8D 01 00
-  JSR BattleAttrAndHelpers                                           ; $A510: 20 9A A8
+  JSR FieldMapAttrHelpers                                            ; $A510: 20 9A A8
   LDA a:$007E                                         ; $A513: AD 7E 00
   ORA #$40                                            ; $A516: 09 40
   STA a:$007E                                         ; $A518: 8D 7E 00
@@ -1299,26 +1364,38 @@ BankPtrLookupAlt:
 .endproc
 
 ;===============================================================================
-; $A61C: BattleDispatch
-; BattleDispatch_Entry: Battle dispatch (bank switch + pointer lookup)
+; $A61C: FieldMapCropResolve
+; FieldMapCropResolve_Entry: terrain crop resolver for the field-map renderer
+;-------------------------------------------------------------------------------
+; ($0000) holds a crop zone id on entry. Resolves ($0000-$0001) to that zone's
+; 16x16 crop, sets ($0002-$0003) = $F477 = MetaTileData (the base
+; CalcTileAddrHoriz indexes with byte*4, so crop bytes are expanded rather than
+; copied), and switches the zone's data bank into $8000 via FieldMapCropBankTable.
+; The three tables re-emit the bank $08 terrain tables verbatim:
+; FieldMapCropPtrTable == TerrainMapPtrTable $B7CB, FieldMapCropBankTable ==
+; TileBankTable $B8BB, FieldMapOverlayPtrTable == TerrainMapPtrTable - $40
+; (code/bank_00_data_layout.md section 7).
+;-------------------------------------------------------------------------------
+; Callers: the field-map render rows in this bank ($A3ED, $A438, $A4AA, $A4EE)
+; and bank $0C's war queues through the trampoline ($D72E, $DB6D).
 ;===============================================================================
-.proc BattleDispatch
+.proc FieldMapCropResolve
   param_byte1     = $0000
   ppu_addr_hi     = $0001
   tile_attr_byte      = $0002
   param_0003      = $0003
-BattleDispatch:
+FieldMapCropResolve:
   LDA param_byte1                                         ; $A61C: AD 00 00
 ;-------------------------------------------------------------------------------
-; Sub-entry: Battle resolve (pointer lookup + bank switch)
+; Sub-entry: crop resolve from A (pointer lookup + bank switch)
 ;-------------------------------------------------------------------------------
-BattleResolve:
+FieldMapCropResolveIndexed:
   PHA                                                 ; $A61F: 48
   ASL A                                               ; $A620: 0A
   TAY                                                 ; $A621: A8
-  LDA BattleTilePtrTable,Y                            ; $A622: B9 42 A6
+  LDA FieldMapCropPtrTable,Y                          ; $A622: B9 42 A6
   STA param_byte1                                         ; $A625: 8D 00 00
-  LDA BattleTilePtrTable+1,Y                          ; $A628: B9 43 A6
+  LDA FieldMapCropPtrTable+1,Y                        ; $A628: B9 43 A6
   STA param_byte2                                         ; $A62B: 8D 01 00
   LDA #$77                                            ; $A62E: A9 77
   STA rle_marker                                         ; $A630: 8D 02 00
@@ -1326,17 +1403,18 @@ BattleResolve:
   STA param_0003                                         ; $A635: 8D 03 00
   PLA                                                 ; $A638: 68
   TAY                                                 ; $A639: A8
-  LDA BattleBankTable,Y                               ; $A63A: B9 22 A8
+  LDA FieldMapCropBankTable,Y                         ; $A63A: B9 22 A8
   TAY                                                 ; $A63D: A8
   JSR B1F_SwitchBank8_B                               ; $A63E: 20 5F F2
   RTS                                                 ; $A641: 60
 
 ;-------------------------------------------------------------------------------
-; $A642: BattleTilePtrTable
-; Battle scene tile pointer table (32 entries)
-; Used by BattleDispatch / BattleResolve for pointer lookup
+; $A642: FieldMapCropPtrTable
+; Field-map crop zone id -> 16x16 crop address: 120 entries through $A731, equal
+; to bank $08's TerrainMapPtrTable $B7CB. Read by FieldMapCropResolveIndexed and the two
+; overlay pointer loaders. The emit splits at $A682 and continues as .byte pairs.
 ;-------------------------------------------------------------------------------
-BattleTilePtrTable:
+FieldMapCropPtrTable:
   ; Bank $20 — indices 0-31
   .word $8040,$8170,$8200,$8330,$83C0,$84F0,$8580,$86B0; $A642: 40 80 70 81 00 82 30 83 C0 83 F0 84 80 85 B0 86
   .word $8740,$8870,$8900,$8A30,$8AC0,$8BF0,$8C80,$8DB0; $A652: 40 87 70 88 00 89 30 8A C0 8A F0 8B 80 8C B0 8D
@@ -1344,11 +1422,11 @@ BattleTilePtrTable:
   .word $9540,$9670,$9700,$9830,$98C0,$99F0,$9A80,$9BB0; $A672: 40 95 70 96 00 97 30 98 C0 98 F0 99 80 9A B0 9B
 
 ;-------------------------------------------------------------------------------
-; $A682: BattleAttrTable
-; Battle scene attribute data (176 bytes)
-; Interleaved attribute address pairs and pointer patterns
+; $A682: FieldMapCropPtrTableTail
+; FieldMapCropPtrTable entries 32-119 emitted as .byte low/high pairs; the label is
+; a second name for that table's tail and no code reads it.
 ;-------------------------------------------------------------------------------
-BattleAttrTable:
+FieldMapCropPtrTableTail:
   ; Bank $23 — indices 32-55
   .byte $A6,$89,$D6,$8A,$66,$8B,$96,$8C,$26,$8D,$56,$8E,$E6,$8E,$16,$90; $A682: A6 89 D6 8A 66 8B 96 8C 26 8D 56 8E E6 8E 16 90
   .byte $A6,$90,$D6,$91,$66,$92,$96,$93,$26,$94,$56,$95,$E6,$95,$16,$97; $A692: A6 90 D6 91 66 92 96 93 26 94 56 95 E6 95 16 97
@@ -1365,11 +1443,11 @@ BattleAttrTable:
   .byte $40,$8E,$70,$8F,$00,$90,$30,$91,$C0,$91,$F0,$92,$80,$93,$B0,$94; $A722: 40 8E 70 8F 00 90 30 91 C0 91 F0 92 80 93 B0 94
 
 ;-------------------------------------------------------------------------------
-; $A732: BattleOverlayPtrTable
-; Battle overlay window pointer table (120 entries)
+; $A732: FieldMapOverlayPtrTable
+; Field-map overlay window pointer table (120 entries)
 ; Used by LoadOverlayPrimary and LoadOverlaySecondary for overlay dispatch
 ;-------------------------------------------------------------------------------
-BattleOverlayPtrTable:
+FieldMapOverlayPtrTable:
   ; Bank $20 — indices 0-31
   .word $8000,$8130,$81C0,$82F0,$8380,$84B0,$8540,$8670; $A732: 00 80 30 81 C0 81 F0 82 80 83 B0 84 40 85 70 86
   .word $8700,$8830,$88C0,$89F0,$8A80,$8BB0,$8C40,$8D70; $A742: 00 87 30 88 C0 88 F0 89 80 8A B0 8B 40 8C 70 8D
@@ -1391,11 +1469,11 @@ BattleOverlayPtrTable:
   .word $8E00,$8F30,$8FC0,$90F0,$9180,$92B0,$9340,$9470; $A812: 00 8E 30 8F C0 8F F0 90 80 91 B0 92 40 93 70 94
 
 ;-------------------------------------------------------------------------------
-; $A822: BattleBankTable
-; Battle/overlay dispatch bank number table (120 entries)
+; $A822: FieldMapCropBankTable
+; Field-map crop/overlay dispatch bank number table (120 entries)
 ; Maps dispatch index to PRG bank number for B1F_SwitchBank8_B
 ;-------------------------------------------------------------------------------
-BattleBankTable:
+FieldMapCropBankTable:
   .byte $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20; $A822: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
   .byte $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20; $A832: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
   .byte $23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23; $A842: 23 23 23 23 23 23 23 23 23 23 23 23 23 23 23 23
@@ -1407,16 +1485,16 @@ BattleBankTable:
 .endproc
 
 ;===============================================================================
-; $A89A: BattleAttrAndHelpers
-; Battle attribute setup + helper subroutines
+; $A89A: FieldMapAttrHelpers
+; Field-map attribute setup + helper subroutines
 ;===============================================================================
-.proc BattleAttrAndHelpers
+.proc FieldMapAttrHelpers
   param_byte1     = $0000
   scene_coord_ptr     = $000C
   work_ptr_hi     = $000D
   coord_ptr_lo     = $000E
   coord_ptr_hi     = $000F
-BattleAttrAndHelpers:
+FieldMapAttrHelpers:
   LDY #$00                                            ; $A89A: A0 00
   LDA attr_ptr_hi                                         ; $A89C: AD 0D 00
   LDX #$20                                            ; $A89F: A2 20
@@ -1877,19 +1955,27 @@ CalcTileGridOrigin:
 .endproc
 
 ;===============================================================================
-; $AB53: BattleEffects
-; BattleEffects_Entry: Battle visual effects (animations, palette, sprites)
+; $AB53: TacticalMapScrollRefresh
+; TacticalMapScrollRefresh_Entry: re-renders the field-map terrain band when the
+; camera crosses a terrain-crop boundary, and reloads the palette and CHR when it
+; crosses a crop row.
 ;-------------------------------------------------------------------------------
-; Checks if the battle scene column or palette row has changed. If the scene
-; column changed, dispatches to overlay reload (DispatchOverlayMode). If only the palette
-; changed, dispatches to palette update (DispatchPaletteSetup).
+; Each axis is compared with its cached index and only the changed one is rebuilt:
+;   scene column ($008E - 6) >> 3 vs $0095 -> DispatchOverlayMode (terrain tiles)
+;   palette row  $0090 >> 4          vs $0094 -> DispatchPaletteSetup (palette + CHR)
+; After a reload the cache is overwritten with the current index, so a stationary
+; camera rebuilds nothing.
 ;-------------------------------------------------------------------------------
-; Inputs:  $008E-$0091 = scene coordinates (X lo/hi, Y lo/hi)
-;          $0094 = cached palette index, $0095 = cached scene column
-;          $009C = render mode flags (bit 7 = animated, bit 4 = palette mode)
+; Sole caller: bank $1F NmiState3_TacticalMap ($F93A) under the tactical-turn and
+; unwrapped-view guard $F923. Banks $0E+$0F (Battle Mode) never map this pair.
+;-------------------------------------------------------------------------------
+; Inputs:  $008E-$0091 = field-map camera (X lo/hi, Y lo/hi)
+;          $0094 = cached palette row, $0095 = cached scene column; $009C = last
+;          scroll step. MapScrollStepChangeDetect $F077 writes $FF into $0094/$0095 when
+;          $009C changes, so a direction reversal also forces a rebuild.
 ;===============================================================================
-.proc BattleEffects
-BattleEffects:
+.proc TacticalMapScrollRefresh
+TacticalMapScrollRefresh:
   ; Compute scene column index = ($008E - 6) >> 3 and compare to cached $0095.
   LDA a:$008E                                         ; $AB53: AD 8E 00
   SEC                                                 ; $AB56: 38
@@ -1917,22 +2003,22 @@ BattleEffects:
   RTS                                                 ; $AB7A: 60
 ;-------------------------------------------------------------------------------
 ; Sub-entry: DispatchOverlayMode
-; Dispatch overlay render based on bit 7 of $009C.
-;   bit 7 set   → full overlay render (BattleOverlayRender)
-;   bit 7 clear → simple overlay copy (BattleOverlayCopy)
+; Terrain rebuild path, chosen by the last X step in $009C:
+;   bit 7 set (moved east) -> full render, merging the neighbouring crop
+;   bit 7 clear            -> copy shifted one crop column back
 ;-------------------------------------------------------------------------------
 DispatchOverlayMode:
   LDA a:$009C                                         ; $AB7B: AD 9C 00
   ASL A                                               ; $AB7E: 0A
   BMI @skip_3                                         ; $AB7F: 30 03
-  JMP BattleOverlayCopy                               ; $AB81: 4C 69 AD
+  JMP FieldMapOverlayCopy                             ; $AB81: 4C 69 AD
 @skip_3:
-  JMP BattleOverlayRender                             ; $AB84: 4C 94 AB
+  JMP FieldMapOverlayRender                           ; $AB84: 4C 94 AB
 ;-------------------------------------------------------------------------------
 ; Sub-entry: DispatchPaletteSetup
-; Dispatch palette update based on bit 4 of $009C.
-;   bit 4 set   → offset palette setup (SetScrollWorkOffset4)
-;   bit 4 clear → offset palette setup with decompression (LoadBattleOverlayWithOffset)
+; Palette rebuild path, chosen by the last Y step in $009C:
+;   bit 4 set (moved north) -> re-offset the work pointers only
+;   bit 4 clear             -> re-offset and decompress the crop
 ;-------------------------------------------------------------------------------
 DispatchPaletteSetup:
   LDA a:$009C                                         ; $AB87: AD 9C 00
@@ -1940,13 +2026,16 @@ DispatchPaletteSetup:
   BEQ @skip_4                                         ; $AB8C: F0 03
   JMP SetScrollWorkOffset4                            ; $AB8E: 4C 9F AD
 @skip_4:
-  JMP LoadBattleOverlayWithOffset                                        ; $AB91: 4C B5 AE
+  JMP LoadFieldMapOverlayWithOffset                                      ; $AB91: 4C B5 AE
 .endproc
 ;===============================================================================
-; $AB94: BattleOverlayRender
-; Full overlay render: sets up 4 work pointers from scene coordinates, then
-; iterates over overlay tiles, merging primary/secondary attributes with
-; adjacency-based patching, and uploads result to PPU.
+; $AB94: FieldMapOverlayRender
+; Field-map crop overlay render: sets up 4 work pointers from scene coordinates,
+; then iterates over overlay tiles, merging primary/secondary attributes with
+; adjacency-based patching and staging the attribute rows for bank $1F's flush.
+;-------------------------------------------------------------------------------
+; Reached only from DispatchOverlayMode ($AB7B) inside TacticalMapScrollRefresh
+; ($AB53), so it runs on Tactical Mode field-map frames.
 ;-------------------------------------------------------------------------------
 ; Pointers set up:
 ;   ($000C-$000D) = ($008E, $008F)           primary overlay data
@@ -1964,7 +2053,7 @@ DispatchPaletteSetup:
 ;   $000A = primary overlay table offset
 ;   $001A = secondary overlay table offset
 ;===============================================================================
-.proc BattleOverlayRender
+.proc FieldMapOverlayRender
   param_byte1     = $0000
   ppu_addr_hi     = $0001
   tile_attr_byte      = $0002
@@ -1987,7 +2076,7 @@ DispatchPaletteSetup:
   ptr_001e_lo     = $001E
   ptr_001e_hi     = $001F
   bank_switch_ptr        = $00A8
-BattleOverlayRender:
+FieldMapOverlayRender:
   ; Set up 4 source pointers from scene coordinates.
   LDA a:$008E                                         ; $AB94: AD 8E 00
   STA attr_ptr_lo                                         ; $AB97: 8D 0C 00
@@ -2007,10 +2096,10 @@ BattleOverlayRender:
   LDA a:$0091                                         ; $ABC1: AD 91 00
   STA ptr_001e_hi                                         ; $ABC4: 8D 1F 00
 ;-------------------------------------------------------------------------------
-; Shared entry: BattleOverlayLoop
-; Also jumped to from BattleOverlayCopy after its pointer setup.
+; Shared entry: FieldMapOverlayLoop
+; Also jumped to from FieldMapOverlayCopy after its pointer setup.
 ;-------------------------------------------------------------------------------
-BattleOverlayLoop:
+FieldMapOverlayLoop:
   ; Look up primary overlay index from ($000C-$000F) via bank pointer table,
   ; then switch bank and load overlay graphics pointer into ($0000).
   JSR BankPtrLookup                                   ; $ABC7: 20 04 A6
@@ -2083,7 +2172,7 @@ BattleOverlayLoop:
   INC ptr_0019_lo                                         ; $AC3C: EE 19 00
   ; Write patched attribute to PPU buffer $018A+X, handling 2x2 block
   ; splitting at tile column 8.
-  JSR WriteBattleAttribute                            ; $AC3F: 20 80 AC
+  JSR WriteFieldMapAttribute                          ; $AC3F: 20 80 AC
   ; Advance tile index by 8 (next row in attribute table space).
   LDA col_counter_hi                                         ; $AC42: AD 05 00
   CLC                                                 ; $AC45: 18
@@ -2105,20 +2194,22 @@ BattleOverlayLoop:
   LDA row_limit                                         ; $AC62: AD 06 00
   CMP row_count                                         ; $AC65: CD 07 00
   BCC @loop_2                                         ; $AC68: 90 B9
-  ; Row complete: upload attribute data to PPU at VRAM $0188.
+  ; Row complete: stage the attribute bytes and their VRAM target through
+  ; ($0000) = $0188, then arm the NMI attribute upload.
   LDA #$88                                            ; $AC6A: A9 88
   STA param_byte1                                         ; $AC6C: 8D 00 00
   LDA #$01                                            ; $AC6F: A9 01
   STA param_byte2                                         ; $AC71: 8D 01 00
-  JSR LoadCHRCompressed                               ; $AC74: 20 D3 A8
-  ; Set bit 5 of $007E to flag battle overlay needs redraw.
+  JSR ComputeAttributeByte                            ; $AC74: 20 D3 A8
+  ; Set bit 5 of $007E: bank $1F NmiDoAttrWrite $EE98 then flushes $0188/$0189
+  ; (VRAM target) and $018A+X (data) with PpuAttrTileWrite $EFC0.
   LDA a:$007E                                         ; $AC77: AD 7E 00
   ORA #$20                                            ; $AC7A: 09 20
   STA a:$007E                                         ; $AC7C: 8D 7E 00
   RTS                                                 ; $AC7F: 60
 .endproc
 ;===============================================================================
-; $AC80: WriteBattleAttribute
+; $AC80: WriteFieldMapAttribute
 ; Write patched attribute byte to PPU buffer at $018A+X.
 ;-------------------------------------------------------------------------------
 ; Bit 7 of $009C selects the attribute-masking strategy:
@@ -2127,14 +2218,14 @@ BattleOverlayLoop:
 ; Both paths check bit 4 of $000C (left/right half) and column-8 boundary
 ; to correctly split 2x2 attribute blocks.
 ;===============================================================================
-.proc WriteBattleAttribute
+.proc WriteFieldMapAttribute
   tile_attr_byte      = $0002
   param_0003      = $0003
   current_row       = $0006
   scene_coord_ptr     = $000C
   coord_high_bits      = $000E
   var_018a        = $018A
-WriteBattleAttribute:
+WriteFieldMapAttribute:
   LDA a:$009C                                         ; $AC80: AD 9C 00
   ASL A                                               ; $AC83: 0A
   BPL @static_path                                    ; $AC84: 10 6E (bit 7 clear → static)
@@ -2262,13 +2353,15 @@ WriteBattleAttribute:
   RTS                                                 ; $AD68: 60
 .endproc
 ;===============================================================================
-; $AD69: BattleOverlayCopy
-; Simple overlay copy path (bit 7 of $009C clear).
+; $AD69: FieldMapOverlayCopy
+; Field-map crop overlay copy, taken when bit 7 of the last scroll step ($009C)
+; is clear.
 ;-------------------------------------------------------------------------------
 ; Same pointer setup as full render, but Ptr1 high byte is incremented
-; (shifted copy) instead of Ptr3. Then falls into BattleOverlayLoop.
+; (shifted copy) instead of Ptr3. Then falls into FieldMapOverlayLoop.
+; Reached only from DispatchOverlayMode ($AB7B): Tactical Mode field-map frames.
 ;===============================================================================
-.proc BattleOverlayCopy
+.proc FieldMapOverlayCopy
   scene_coord_ptr     = $000C
   work_ptr_hi     = $000D
   coord_ptr_lo     = $000E
@@ -2277,7 +2370,7 @@ WriteBattleAttribute:
   ptr_001c_hi     = $001D
   ptr_001e_lo     = $001E
   ptr_001e_hi     = $001F
-BattleOverlayCopy:
+FieldMapOverlayCopy:
   LDA a:$008E                                         ; $AD69: AD 8E 00
   STA attr_ptr_lo                                         ; $AD6C: 8D 0C 00
   LDA a:$008F                                         ; $AD6F: AD 8F 00
@@ -2295,7 +2388,7 @@ BattleOverlayCopy:
   STA ptr_001e_lo                                         ; $AD93: 8D 1E 00
   LDA a:$0091                                         ; $AD96: AD 91 00
   STA ptr_001e_hi                                         ; $AD99: 8D 1F 00
-  JMP BattleOverlayLoop                               ; $AD9C: 4C C7 AB
+  JMP FieldMapOverlayLoop                             ; $AD9C: 4C C7 AB
 .endproc
 ;===============================================================================
 ; $AD9F: SetScrollWorkOffset4
@@ -2319,17 +2412,19 @@ SetScrollWorkOffset4:
   STA ptr_000e_hi                                         ; $ADB9: 8D 0F 00
 .endproc
 ;===============================================================================
-; $ADBC: LoadBattleOverlay
-; Reads overlay index from A, switches bank, decompresses CHR data,
-; and performs adjacency-based attribute patching.
+; $ADBC: LoadFieldMapOverlay
+; Resolves the crop's overlay index, switches its data bank, then merges the
+; primary/secondary attribute bytes with adjacency patching.
+; Reached only from LoadFieldMapOverlayWithOffset ($AEB5) by tail call.
 ;-------------------------------------------------------------------------------
 ; Inputs:  A = overlay index (passed through to LoadOverlayPrimary)
-;          $008E-$0091 = scene coordinates (X lo/hi, Y lo/hi)
-; Output:  Decompressed overlay data uploaded to PPU at $0188
+;          $008E-$0091 = field-map camera (X lo/hi, Y lo/hi)
+; Output:  attribute bytes staged in RAM with their VRAM target, then $007E bit 4
+;          armed for bank $1F's attribute flush
 ; Calls:   BankPtrLookup, LoadOverlayPrimary, BuildAdjacencyMapSmall,
-;          PatchSingleAdjacency, LoadCHRCompressed
+;          PatchSingleAdjacency, ComputeAttributeByte
 ;===============================================================================
-.proc LoadBattleOverlay
+.proc LoadFieldMapOverlay
   ppu_addr_lo     = $0000
   ppu_addr_hi     = $0001
   tile_attr_byte      = $0002
@@ -2344,7 +2439,7 @@ SetScrollWorkOffset4:
   adjacency_ptr_offset       = $0018
   bank_switch_ptr        = $00A8
   attr_accumulator        = $019E
-LoadBattleOverlay:
+LoadFieldMapOverlay:
   JSR BankPtrLookup                                           ; $ADBC: 20 04 A6
   STY overlay_data_ptr                                         ; $ADBF: 8C 0A 00
   JSR LoadOverlayPrimary                                 ; $ADC2: 20 F3 AE
@@ -2406,7 +2501,8 @@ LoadBattleOverlay:
   STA ppu_addr_lo                                         ; $AE44: 8D 00 00
   LDA #$01                                            ; $AE47: A9 01
   STA ppu_addr_hi                                         ; $AE49: 8D 01 00
-  JSR LoadCHRCompressed                                  ; $AE4C: 20 D3 A8
+  JSR ComputeAttributeByte                            ; $AE4C: 20 D3 A8
+  ; Bit 4 of $007E: the alternate attribute flush, NmiDoAttrWriteAlt.
   LDA a:$007E                                         ; $AE4F: AD 7E 00
   ORA #$10                                            ; $AE52: 09 10
   STA a:$007E                                         ; $AE54: 8D 7E 00
@@ -2458,21 +2554,24 @@ MergeAttrBits:
   RTS                                                 ; $AEB4: 60
 .endproc
 ;===============================================================================
-; $AEB5: LoadBattleOverlayWithOffset
-; Adds $04 to X coordinate ($008E-$008F) and $A0 to Y coordinate ($0090-$0091)
-; to compute the overlay data pointer, then jumps to LoadBattleOverlay.
+; $AEB5: LoadFieldMapOverlayWithOffset
+; Adds $04 to X ($008E-$008F) and $A0 to Y ($0090-$0091) to compute the overlay
+; data pointer, then tail-calls LoadFieldMapOverlay.
+;-------------------------------------------------------------------------------
+; Reached only from DispatchPaletteSetup ($AB87) when the last step was not north:
+; Tactical Mode field-map frames.
 ;-------------------------------------------------------------------------------
 ; Inputs:  A = overlay index (passed through to LoadOverlayPrimary)
-;          $008E-$0091 = scene coordinates (X lo/hi, Y lo/hi)
-; Output:  ($000C-$000F) = computed work pointers, then calls LoadBattleOverlay
-; Calls:   LoadBattleOverlay (tail call)
+;          $008E-$0091 = field-map camera (X lo/hi, Y lo/hi)
+; Output:  ($000C-$000F) = computed work pointers, then calls LoadFieldMapOverlay
+; Calls:   LoadFieldMapOverlay (tail call)
 ;===============================================================================
-.proc LoadBattleOverlayWithOffset
+.proc LoadFieldMapOverlayWithOffset
   work_ptr_lo     = $000C
   work_ptr_hi     = $000D
   coord_ptr_lo     = $000E
   coord_ptr_hi     = $000F
-LoadBattleOverlayWithOffset:
+LoadFieldMapOverlayWithOffset:
   LDA a:$008E                                         ; $AEB5: AD 8E 00
   CLC                                                 ; $AEB8: 18
   ADC #$04                                            ; $AEB9: 69 04
@@ -2494,11 +2593,11 @@ LoadBattleOverlayWithOffset:
   LDA a:$0091                                         ; $AEDB: AD 91 00
   STA coord_ptr_hi                                         ; $AEDE: 8D 0F 00
   INC coord_ptr_hi                                         ; $AEE1: EE 0F 00
-  JMP LoadBattleOverlay                                           ; $AEE4: 4C BC AD
+  JMP LoadFieldMapOverlay                                         ; $AEE4: 4C BC AD
 @skip_2:
   LDA a:$0091                                         ; $AEE7: AD 91 00
   STA coord_ptr_hi                                         ; $AEEA: 8D 0F 00
-  JMP LoadBattleOverlay                                           ; $AEED: 4C BC AD
+  JMP LoadFieldMapOverlay                                         ; $AEED: 4C BC AD
 .endproc
 
 ;===============================================================================
@@ -2507,7 +2606,7 @@ LoadBattleOverlayWithOffset:
 ;-------------------------------------------------------------------------------
 ; Entry07 (OverlayWindow): reads pointer from ($0000) then falls through
 ; LoadOverlayPrimary: loads primary overlay pointer into ($0000) from
-;   BattleOverlayPtrTable, then switches CHR bank via B1F_SwitchBank8_B.
+;   FieldMapOverlayPtrTable, then switches CHR bank via B1F_SwitchBank8_B.
 ;-------------------------------------------------------------------------------
 ; Inputs:  A = overlay index
 ; Output:  ($0000) = pointer to primary overlay data, bank switched
@@ -2521,20 +2620,20 @@ LoadOverlayPrimary:
   PHA                                                 ; $AEF3: 48
   ASL A                                               ; $AEF4: 0A
   TAY                                                 ; $AEF5: A8
-  LDA BattleDispatch::BattleOverlayPtrTable,Y                         ; $AEF6: B9 32 A7
+  LDA FieldMapCropResolve::FieldMapOverlayPtrTable,Y                  ; $AEF6: B9 32 A7
   STA param_byte1                                         ; $AEF9: 8D 00 00
-  LDA BattleDispatch::BattleOverlayPtrTable+1,Y                       ; $AEFC: B9 33 A7
+  LDA FieldMapCropResolve::FieldMapOverlayPtrTable+1,Y                ; $AEFC: B9 33 A7
   STA param_byte2                                         ; $AEFF: 8D 01 00
   PLA                                                 ; $AF02: 68
   TAY                                                 ; $AF03: A8
-  LDA BattleDispatch::BattleBankTable,Y                               ; $AF04: B9 22 A8
+  LDA FieldMapCropResolve::FieldMapCropBankTable,Y                    ; $AF04: B9 22 A8
   TAY                                                 ; $AF07: A8
   JSR B1F_SwitchBank8_B                               ; $AF08: 20 5F F2
   RTS                                                 ; $AF0B: 60
 .endproc
 ;===============================================================================
 ; $AF0C: LoadOverlaySecondary
-; Load secondary overlay pointer into ($0010) from BattleOverlayPtrTable.
+; Load secondary overlay pointer into ($0010) from FieldMapOverlayPtrTable.
 ;-------------------------------------------------------------------------------
 ; Inputs:  A = overlay index
 ; Output:  ($0010) = pointer to secondary overlay data
@@ -2545,9 +2644,9 @@ LoadOverlayPrimary:
 LoadOverlaySecondary:
   ASL A                                               ; $AF0C: 0A
   TAY                                                 ; $AF0D: A8
-  LDA BattleOverlayPtrTable,Y                         ; $AF0E: B9 32 A7
+  LDA FieldMapOverlayPtrTable,Y                       ; $AF0E: B9 32 A7
   STA ptr_0010_lo                                         ; $AF11: 8D 10 00
-  LDA BattleOverlayPtrTable+1,Y                       ; $AF14: B9 33 A7
+  LDA FieldMapOverlayPtrTable+1,Y                     ; $AF14: B9 33 A7
   STA ptr_0010_hi                                         ; $AF17: 8D 11 00
   RTS                                                 ; $AF1A: 60
 .endproc
@@ -2664,7 +2763,7 @@ PatchSecondaryAdjacency:
 ;===============================================================================
 ; $AFB5: PatchSingleAdjacency
 ; Single-layer adjacency patch: checks $0680/$06A0 neighbors for $0002.
-; Used by LoadBattleOverlay (alternate overlay path). Also decrements $0017.
+; Used by LoadFieldMapOverlay (alternate overlay path). Also decrements $0017.
 ;===============================================================================
 .proc PatchSingleAdjacency
   tile_attr_byte      = $0002
@@ -3399,35 +3498,38 @@ DuelCmd_RenderStats:
 .endproc
 ;===============================================================================
 ; $B407: DuelCmd_CommandMenu
-; 7-item command menu (grid $B461, panel $2B). On A (pad $0081 bit 0) stores
-; the selection in duel_command_code and hands it to DuelCmd_CommandRoute,
-; except item 4 (戦術): only usable once the actor's round timer has expired;
-; then opens the 説得/罵倒 submenu (panel $2C, sub 4 DuelCmd_TacticConfirm),
-; otherwise stays in the menu.
+; 7-item command menu (grid DuelCommandMenuTable, panel $2B). On A (pad $0081
+; bit 0) stores the selection in duel_command_code and hands it to
+; DuelCmd_CommandRoute, except item 4 (戦術): only usable once the actor's
+; round timer has expired; then opens the 説得/罵倒 submenu (panel $2C, sub 4
+; DuelCmd_TacticConfirm), otherwise stays in the menu.
+; B1F_MenuStep2 steps the cursor over the grid; B1F_PointerTableLookup then
+; fetches the selected item's OAM Y/X base and B1F_SpriteOamWriterSimple draws
+; the cursor blob through them.
 ;===============================================================================
 .proc DuelCmd_CommandMenu
-  menu_tile_offset     = $0000
-  ppu_tile_hi     = $0001
+  cursor_data_ptr_lo   = $0000
+  cursor_data_ptr_hi   = $0001
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
   menu_index       = $0012
 DuelCmd_CommandMenu:
   JSR SetupMenuPtr                                           ; $B407: 20 66 D1
-  LDA #$61                                            ; $B40A: A9 61
+  LDA #<DuelCommandMenuTable                              ; $B40A: A9 61  ; ($0010) = menu grid
   STA ptr_0010_lo                                         ; $B40C: 8D 10 00
-  LDA #$B4                                            ; $B40F: A9 B4
+  LDA #>DuelCommandMenuTable                              ; $B40F: A9 B4
   STA ptr_0010_hi                                         ; $B411: 8D 11 00
   LDA #$00                                            ; $B414: A9 00
   STA menu_index                                         ; $B416: 8D 12 00
   JSR B1F_MenuStep2                                   ; $B419: 20 1E ED
-  LDA #$6B                                            ; $B41C: A9 6B
+  LDA #<DuelCommandCursorPosTable                         ; $B41C: A9 6B  ; ($0010) = cursor pos table
   STA ptr_0010_lo                                         ; $B41E: 8D 10 00
-  LDA #$B4                                            ; $B421: A9 B4
+  LDA #>DuelCommandCursorPosTable                         ; $B421: A9 B4
   STA ptr_0010_hi                                         ; $B423: 8D 11 00
-  LDA #$79                                            ; $B426: A9 79
-  STA menu_tile_offset                                         ; $B428: 8D 00 00
-  LDA #$B4                                            ; $B42B: A9 B4
-  STA menu_page_base                                         ; $B42D: 8D 01 00
+  LDA #<DuelCommandCursorSprite                           ; $B426: A9 79  ; ($0000) = cursor blob
+  STA cursor_data_ptr_lo                                  ; $B428: 8D 00 00
+  LDA #>DuelCommandCursorSprite                           ; $B42B: A9 B4
+  STA cursor_data_ptr_hi                                  ; $B42D: 8D 01 00
   LDA menu_index                                         ; $B430: AD 12 00
   JSR B1F_PointerTableLookup                          ; $B433: 20 F5 ED
   LDA a:$0081                                         ; $B436: AD 81 00
@@ -3450,15 +3552,16 @@ DuelCmd_CommandMenu:
   STA sub_state                                           ; $B45D: 8D A9 04
 @skip_2:
   RTS                                                 ; $B460: 60
-DuelCommandMenuData:
-; --- Menu Grid Layout (step_size=2, 2 columns x 5 pages) ---
-; 7 item IDs ($00-$06), $FF = invalid/end sentinel
-  .byte $00,$01,$02,$03,$04,$05,$06,$FF,$FF,$FF                ; $B461
-; --- Menu Sprite Pointer Table (8 word entries, indexed by item ID) ---
-  .byte $A6,$88,$A6,$C0,$B6,$88,$B6,$C0                        ; $B46B
-  .byte $C6,$88,$C6,$C0,$D6,$88                        ; $B473
-; --- Menu Sprite Control Data (5 bytes) ---
-  .byte $00,$07,$00,$00,$80                                     ; $B479
+; --- $B461: grid byte per slot, index = page*2 + column ---
+DuelCommandMenuTable:  ; 牽制 退却 / 攻撃 降参 / 戦術 データ / 捨て身, $FF = empty slot
+  .byte $00,$01,$02,$03,$04,$05,$06,$FF,$FF,$FF       ; $B461: 00 01 02 03 04 05 06 FF FF FF
+; --- $B46B: per item id 0-6: OAM Y base, then X base ---
+DuelCommandCursorPosTable:  ; Y $A6/$B6/$C6/$D6 = page, X $88 left / $C0 right column
+  .byte $A6,$88,$A6,$C0,$B6,$88,$B6,$C0               ; $B46B: A6 88 A6 C0 B6 88 B6 C0
+  .byte $C6,$88,$C6,$C0,$D6,$88                       ; $B473: C6 88 C6 C0 D6 88
+; --- $B479: cursor blob: dY, tile, attr, dX, $80 end ---
+DuelCommandCursorSprite:  ; tile $07 drawn at the item's Y/X base
+  .byte $00,$07,$00,$00,$80                           ; $B479: 00 07 00 00 80
 .endproc
 
 ;===============================================================================
@@ -3589,33 +3692,36 @@ DuelCmd_TacticConfirm:
 .endproc
 ;===============================================================================
 ; $B569: DuelCmd_TacticSelect
-; 2-item 説得/罵倒 submenu (grid $B5BB, sprites $B5BF). On A commits
+; 2-item 説得/罵倒 submenu (grid DuelTacticMenuTable, panel $2C). On A commits
 ; duel_command_code = menu_index + 7 (7 説得 / 8 罵倒) and returns to
 ; DuelCmd_CommandRoute (sub 3); on B reopens the command list (panel $2B).
+; B1F_MenuStep2 steps the cursor over the grid; B1F_PointerTableLookup then
+; fetches the selected item's OAM Y/X base and B1F_SpriteOamWriterSimple draws
+; the cursor blob through them.
 ;===============================================================================
 .proc DuelCmd_TacticSelect
-  menu_tile_offset     = $0000
-  ppu_tile_hi     = $0001
+  cursor_data_ptr_lo   = $0000
+  cursor_data_ptr_hi   = $0001
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
   menu_index       = $0012
 DuelCmd_TacticSelect:
   JSR SetupMenuPtr                                           ; $B569: 20 66 D1
-  LDA #$BB                                            ; $B56C: A9 BB
+  LDA #<DuelTacticMenuTable                             ; $B56C: A9 BB  ; ($0010) = submenu grid
   STA ptr_0010_lo                                         ; $B56E: 8D 10 00
-  LDA #$B5                                            ; $B571: A9 B5
+  LDA #>DuelTacticMenuTable                               ; $B571: A9 B5
   STA ptr_0010_hi                                         ; $B573: 8D 11 00
   LDA #$00                                            ; $B576: A9 00
   STA menu_index                                         ; $B578: 8D 12 00
   JSR B1F_MenuStep2                                   ; $B57B: 20 1E ED
-  LDA #$BF                                            ; $B57E: A9 BF
+  LDA #<DuelTacticCursorPosTable                        ; $B57E: A9 BF  ; ($0010) = cursor pos table
   STA ptr_0010_lo                                         ; $B580: 8D 10 00
-  LDA #$B5                                            ; $B583: A9 B5
+  LDA #>DuelTacticCursorPosTable                        ; $B583: A9 B5
   STA ptr_0010_hi                                         ; $B585: 8D 11 00
-  LDA #$C3                                            ; $B588: A9 C3
-  STA menu_tile_offset                                         ; $B58A: 8D 00 00
-  LDA #$B5                                            ; $B58D: A9 B5
-  STA menu_page_base                                         ; $B58F: 8D 01 00
+  LDA #<DuelTacticCursorSprite                          ; $B588: A9 C3  ; ($0000) = cursor blob
+  STA cursor_data_ptr_lo                                  ; $B58A: 8D 00 00
+  LDA #>DuelTacticCursorSprite                          ; $B58D: A9 B5
+  STA cursor_data_ptr_hi                                  ; $B58F: 8D 01 00
   LDA menu_index                                         ; $B592: AD 12 00
   JSR B1F_PointerTableLookup                          ; $B595: 20 F5 ED
   LDA a:$0081                                         ; $B598: AD 81 00
@@ -3637,13 +3743,15 @@ DuelCmd_TacticSelect:
   JMP B1F_OpenMsgWindow0                              ; $B5B7: 4C 6D F2
 @skip_2:
   RTS                                                 ; $B5BA: 60
-DuelTacticMenuData:
-; --- Summary Menu Grid Layout (2 items, 2 sentinels) ---
-  .byte $00,$01,$FF,$FF                                        ; $B5BB
-; --- Summary Sprite Pointer Table (2 word entries) ---
-  .byte $B6,$88,$B6,$C0                                        ; $B5BF
-; --- Summary Sprite Control Data (5 bytes) ---
-  .byte $00,$07,$00,$00,$80                                    ; $B5C3
+; --- $B5BB: grid byte per slot, index = page*2 + column ---
+DuelTacticMenuTable:  ; 説得 罵倒, $FF = empty slot
+  .byte $00,$01,$FF,$FF                               ; $B5BB: 00 01 FF FF
+; --- $B5BF: per item id 0-1: OAM Y base, then X base ---
+DuelTacticCursorPosTable:  ; both items Y $B6, X $88 left / $C0 right column
+  .byte $B6,$88,$B6,$C0                               ; $B5BF: B6 88 B6 C0
+; --- $B5C3: cursor blob: dY, tile, attr, dX, $80 end ---
+DuelTacticCursorSprite:  ; tile $07 drawn at the item's Y/X base
+  .byte $00,$07,$00,$00,$80                           ; $B5C3: 00 07 00 00 80
 .endproc
 
 ;===============================================================================
@@ -4721,11 +4829,11 @@ DuelDataToggleDispatch:
 DuelData_Init:
   INC sub_state                                           ; $BC47: EE A9 04
   LDA #$00                                            ; $BC4A: A9 00
-  STA strategy_cursor_lo                                           ; $BC4C: 8D 0C 04
-  STA strategy_cursor_hi                                           ; $BC4F: 8D 0D 04
+  STA card_handshake_lo                               ; $BC4C: 8D 0C 04
+  STA card_handshake_hi                               ; $BC4F: 8D 0D 04
   LDY display_ptr_hi                                           ; $BC52: AC BE 04
   LDA player_officer_id_0,Y                                         ; $BC55: B9 AD 04
-  STA strategy_officer_list_lo                                           ; $BC58: 8D 10 04
+  STA card_officer_ids_lo                             ; $BC58: 8D 10 04
   RTS                                                 ; $BC5B: 60
 .endproc
 ;===============================================================================
@@ -4747,7 +4855,7 @@ DuelData_ShowCard:
   JSR B1F_BankedCallbackTrampoline                    ; $BC6D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B19_1A_OfficerCardAnimStep_Entry              ; $BC70: 12 A0
-  LDA strategy_cursor_hi                                           ; $BC72: AD 0D 04
+  LDA card_handshake_hi                               ; $BC72: AD 0D 04
   CMP #$FF                                            ; $BC75: C9 FF
   BNE @skip                                           ; $BC77: D0 12
   LDA #$06                                            ; $BC79: A9 06
@@ -4778,7 +4886,7 @@ DuelData_HandleInput:
   JSR SetupMenuPtr                                           ; $BC92: 20 66 D1
   LDA duel_command_code                                           ; $BC95: AD BF 04
   STA active_player_slot                                           ; $BC98: 8D AA 04
-  LDA strategy_cursor_hi                                           ; $BC9B: AD 0D 04
+  LDA card_handshake_hi                               ; $BC9B: AD 0D 04
   BPL @skip                                           ; $BC9E: 10 1E
   LDA a:$0081                                         ; $BCA0: AD 81 00
   STA pad_bits_copy                                         ; $BCA3: 8D 10 00
@@ -8480,37 +8588,42 @@ MapColumnTileGfx:
   .byte $00,$47,$48,$00,$00,$00,$00,$00        ; $D683: 00 47 48 00 00 00 00 00
   .byte $4C,$4D,$4E,$00,$00,$00,$00,$00        ; $D68B: 4C 4D 4E 00 00 00 00 00
 
-;--- $D693: Strategy Command System ---
+;--- $D693: Event Message / Ending Scroll System ---
 
 ;===============================================================================
-; $D693: StrategyCommandDispatch
-; StrategyCommandDispatch_Entry: Strategy command dispatch (6-entry dispatch table)
+; $D693: EventMessageSceneDispatch
+; Per-frame phase dispatch of the dated-message / ending scroll scene entered from
+; bank $1F NmiState8_EventMessage: data bank $06 goes into the $8000 window, then
+; event_scene_phase ($0541) selects one of six handlers.
 ;===============================================================================
 ; Target0A ($D693):
-.proc StrategyCommandDispatch
-StrategyCommandDispatch:
+.proc EventMessageSceneDispatch
+EventMessageSceneDispatch:
   LDY #$26                                            ; $D693: A0 26
   JSR B1F_SwitchBank8_B                               ; $D695: 20 5F F2
-  LDA strat_scroll_param                                           ; $D698: AD 41 05
+  LDA event_scene_phase                               ; $D698: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $D69B: 20 DE EA
 
 ;===============================================================================
-; $D69E: StrategyCommand dispatch table
+; $D69E: Event-message scene phase table (event_scene_phase -> handler)
 ; --- Inline pointer table (6 entries) ---
-  .word StrategyCommand_InitOfficerScroll                                         ; $D69E: AA D6
-  .word StrategyCommand_ScrollIntroPanel                                          ; $D6A0: 9B D7
-  .word StrategyCommand_ScrollTextPhase2                                         ; $D6A2: 3A D8
-  .word StrategyCommand_ScrollAndWait                                         ; $D6A4: C9 D8
-  .word StrategyCommand_MainInteractive                                         ; $D6A6: CA D9
-  .word StrategyCommand_FinalizeCleanup                                         ; $D6A8: 20 D9
+  .word EventMessageScene_ChronPanel                                         ; $D69E: AA D6
+  .word EventMessageScene_HeroRisePanel                                          ; $D6A0: 9B D7
+  .word EventMessageScene_HeroNamePanel                                         ; $D6A2: 3A D8
+  .word EventMessageScene_UnifyScorePanel                                         ; $D6A4: C9 D8
+  .word EventMessageScene_OfficerRoll                                         ; $D6A6: CA D9
+  .word EventMessageScene_FadeOut                                         ; $D6A8: 20 D9
 .endproc
 ;===============================================================================
-; $D6AA: StrategyCommand_InitOfficerScroll
-; Strategy command state 0: Initialize officer list and scroll display
+; $D6AA: EventMessageScene_ChronPanel
+; Phase 0: the dated message panel. The first call loads the scene palette, opens
+; the chronicle text card (death $D9 / defeat $D8, chosen by war_result_phase) and
+; starts the fade; later calls play the bank $06 sprite-blob pass; A on the pass's
+; end sentinel stages the map handoff or resets to the title.
 ;===============================================================================
-.proc StrategyCommand_InitOfficerScroll
+.proc EventMessageScene_ChronPanel
   work_offset     = $0402
-StrategyCommand_InitOfficerScroll:
+EventMessageScene_ChronPanel:
   LDA dispatch_src_ptr_lo                                           ; $D6AA: AD CA 04
   BNE @skip_2                                           ; $D6AD: D0 25
   LDA #$00                                            ; $D6AF: A9 00
@@ -8581,9 +8694,9 @@ StrategyCommand_InitOfficerScroll:
   LDA #$00                                            ; $D736: A9 00
   STA sram_scroll_pending                                           ; $D738: 8D 43 6F
   LDA map_scroll_ptr_lo                                           ; $D73B: AD 72 04
-  STA strategy_work_ptr_lo                                           ; $D73E: 8D 00 04
+  STA scene_work_ptr_lo                               ; $D73E: 8D 00 04
   LDA map_scroll_ptr_hi                                           ; $D741: AD 73 04
-  STA strategy_work_ptr_hi                                           ; $D744: 8D 01 04
+  STA scene_work_ptr_hi                               ; $D744: 8D 01 04
   LDA #$00                                            ; $D747: A9 00
   STA work_offset                                           ; $D749: 8D 02 04
   LDA #$01                                            ; $D74C: A9 01
@@ -8598,25 +8711,26 @@ SpriteBlobIndexTable:
 @init_palette:
   LDY #$00                                            ; $D76D: A0 00
 @copy_loop:
-  LDA OfficerScrollPalette,Y                                         ; $D76F: B9 7B D7
+  LDA EventMessageScenePalette,Y                      ; $D76F: B9 7B D7
   STA $0100,Y                                         ; $D772: 99 00 01
   INY                                                 ; $D775: C8
   CPY #$20                                            ; $D776: C0 20
   BCC @copy_loop                                           ; $D778: 90 F5
   RTS                                                 ; $D77A: 60
-OfficerScrollPalette:
-  .byte $0F,$30,$10,$00,$0F,$27,$16,$2A,$0F,$36,$30,$16,$0F,$30,$10,$00; $D77B: Officer scroll palette data
+EventMessageScenePalette:
+  .byte $0F,$30,$10,$00,$0F,$27,$16,$2A,$0F,$36,$30,$16,$0F,$30,$10,$00; $D77B: Event-message scene palette
   .byte $0F,$30,$10,$00,$0F,$0F,$1B,$28,$0F,$36,$30,$16,$0F,$20,$27,$17; $D78B
 .endproc
 ;===============================================================================
-; $D79B: StrategyCommand_ScrollIntroPanel
-; Strategy command state 1: Scroll intro panel with fade transition
+; $D79B: EventMessageScene_HeroRisePanel
+; Phase 1: scrolls bank $06 tile block 1 up the panel, then reveals text card $DC
+; (the war's end and the hero's rise); the phase advances once that fade completes.
 ;===============================================================================
-.proc StrategyCommand_ScrollIntroPanel
+.proc EventMessageScene_HeroRisePanel
   temp_006a       = $006A
   ptr_006c_lo     = $006C
   ptr_006c_hi     = $006D
-StrategyCommand_ScrollIntroPanel:
+EventMessageScene_HeroRisePanel:
   LDA dispatch_src_ptr_lo                                           ; $D79B: AD CA 04
   BNE @skip_3                                           ; $D79E: D0 37
   LDA dispatch_step                                           ; $D7A0: AD C9 04
@@ -8687,18 +8801,19 @@ StrategyCommand_ScrollIntroPanel:
   LDA #$00                                            ; $D829: A9 00
   STA dispatch_step                                           ; $D82B: 8D C9 04
   STA dispatch_src_ptr_lo                                           ; $D82E: 8D CA 04
-  INC strat_scroll_param                                           ; $D831: EE 41 05
+  INC event_scene_phase                               ; $D831: EE 41 05
   LDA #$00                                            ; $D834: A9 00
   JSR B1F_OpenMsgWindow4                              ; $D836: 20 8B F2
 @skip_8:
   RTS                                                 ; $D839: 60
 .endproc
 ;===============================================================================
-; $D83A: StrategyCommand_ScrollTextPhase2
-; Strategy command state 2: Scroll second text panel with fade transition
+; $D83A: EventMessageScene_HeroNamePanel
+; Phase 2: scrolls bank $06 tile block 2 up the panel, then reveals text card $DD
+; (the hero named); the phase advances once that fade completes.
 ;===============================================================================
-.proc StrategyCommand_ScrollTextPhase2
-StrategyCommand_ScrollTextPhase2:
+.proc EventMessageScene_HeroNamePanel
+EventMessageScene_HeroNamePanel:
   LDA dispatch_src_ptr_lo                                           ; $D83A: AD CA 04
   BNE @skip_3                                           ; $D83D: D0 28
   LDA dispatch_step                                           ; $D83F: AD C9 04
@@ -8762,7 +8877,7 @@ StrategyCommand_ScrollTextPhase2:
 @skip_8:
   LDA a:$0087                                         ; $D8B3: AD 87 00
   BPL @skip_9                                           ; $D8B6: 10 10
-  INC strat_scroll_param                                           ; $D8B8: EE 41 05
+  INC event_scene_phase                               ; $D8B8: EE 41 05
   LDA #$00                                            ; $D8BB: A9 00
   STA dispatch_step                                           ; $D8BD: 8D C9 04
   STA dispatch_src_ptr_lo                                           ; $D8C0: 8D CA 04
@@ -8772,11 +8887,14 @@ StrategyCommand_ScrollTextPhase2:
   RTS                                                 ; $D8C8: 60
 .endproc
 ;===============================================================================
-; $D8C9: StrategyCommand_ScrollAndWait
-; Strategy command state 3: Scroll final panel, wait for timer, then branch
+; $D8C9: EventMessageScene_UnifyScorePanel
+; Phase 3: scrolls bank $06 tile block 3 up the panel, then reveals text card $DE
+; (unification level and score). Once its rows are exhausted, an unification_score
+; of $46 or more continues into the officer roll; a lower score jumps to the
+; epilogue sub-state 4.
 ;===============================================================================
-.proc StrategyCommand_ScrollAndWait
-StrategyCommand_ScrollAndWait:
+.proc EventMessageScene_UnifyScorePanel
+EventMessageScene_UnifyScorePanel:
   LDA dispatch_src_ptr_lo                                           ; $D8C9: AD CA 04
   BNE @skip_3                                           ; $D8CC: D0 28
   LDA dispatch_step                                           ; $D8CE: AD C9 04
@@ -8805,42 +8923,43 @@ StrategyCommand_ScrollAndWait:
   LDA dispatch_dst_ptr_hi                                           ; $D8FE: AD CE 04
   CMP #$03                                            ; $D901: C9 03
   BCC @skip_5                                           ; $D903: 90 0F
-  LDA dispatch_timer                                           ; $D905: AD 35 04
+  LDA unification_score                         ; $D905: AD 35 04
   CMP #$46                                            ; $D908: C9 46
   BCC @skip_6                                           ; $D90A: 90 09
-  INC strat_scroll_param                                           ; $D90C: EE 41 05
+  INC event_scene_phase                               ; $D90C: EE 41 05
   LDA #$00                                            ; $D90F: A9 00
-  STA strat_display_ptr_lo                                           ; $D911: 8D 42 05
+  STA event_sub_state                                 ; $D911: 8D 42 05
 @skip_5:
   RTS                                                 ; $D914: 60
 @skip_6:
   LDA #$05                                            ; $D915: A9 05
-  STA strat_scroll_param                                           ; $D917: 8D 41 05
+  STA event_scene_phase                               ; $D917: 8D 41 05
   LDA #$04                                            ; $D91A: A9 04
-  STA strat_display_ptr_lo                                           ; $D91C: 8D 42 05
+  STA event_sub_state                                 ; $D91C: 8D 42 05
   RTS                                                 ; $D91F: 60
 .endproc
 ;===============================================================================
-; $D920: StrategyCommand_FinalizeCleanup
-; Strategy command state 5: Finalization sub-dispatcher (6 sub-states)
+; $D920: EventMessageScene_FadeOut
+; Phase 5 - epilogue: 6 sub-states run the closing text card $F2, the panel
+; auto-scroll, the SELECT palette copy and the fade, then reset to the title.
 ;===============================================================================
-.proc StrategyCommand_FinalizeCleanup
-StrategyCommand_FinalizeCleanup:
-  LDA strat_display_ptr_lo                                           ; $D920: AD 42 05
+.proc EventMessageScene_FadeOut
+EventMessageScene_FadeOut:
+  LDA event_sub_state                                 ; $D920: AD 42 05
   JSR B1F_CallbackDispatcher                          ; $D923: 20 DE EA
 ; --- Inline pointer table (6 entries) ---
-  .word Finalize_Init                                                      ; $D926: 32 D9
-  .word Finalize_SetupUI                                                     ; $D928: 50 D9
-  .word Finalize_WaitConfirm                                                 ; $D92A: 5A D9
-  .word Finalize_ScrollTimer                                                 ; $D92C: 76 D9
-  .word Finalize_PaletteCopy                                                 ; $D92E: B4 D9
-  .word Finalize_ExitTransition                                              ; $D930: C2 D9
+  .word FadeOut_Init                                                      ; $D926: 32 D9
+  .word FadeOut_SetupUI                                                     ; $D928: 50 D9
+  .word FadeOut_WaitConfirm                                                 ; $D92A: 5A D9
+  .word FadeOut_ScrollTimer                                                 ; $D92C: 76 D9
+  .word FadeOut_PaletteCopy                                                 ; $D92E: B4 D9
+  .word FadeOut_ExitTransition                                              ; $D930: C2 D9
 .endproc
 ;===============================================================================
-; $D932: Finalize_Init
+; $D932: FadeOut_Init
 ;===============================================================================
-.proc Finalize_Init
-Finalize_Init:
+.proc FadeOut_Init
+FadeOut_Init:
   LDA #$00                                            ; $D932: A9 00
   STA $98                                             ; $D934: 85 98
   LDA #$08                                            ; $D936: A9 08
@@ -8850,46 +8969,46 @@ Finalize_Init:
   LDA #$A7                                            ; $D93E: A9 A7
   STA $BD                                             ; $D940: 85 BD
   LDA #$F2                                            ; $D942: A9 F2
-  STA strat_display_ptr_hi                                           ; $D944: 8D 43 05
-  INC strat_display_ptr_lo                                           ; $D947: EE 42 05
+  STA event_disp_page                                 ; $D944: 8D 43 05
+  INC event_sub_state                                 ; $D947: EE 42 05
   LDA #$01                                            ; $D94A: A9 01
-  STA strat_scroll_index                                           ; $D94C: 8D 44 05
+  STA event_scroll_index                              ; $D94C: 8D 44 05
   RTS                                                 ; $D94F: 60
 .endproc
 ;===============================================================================
-; $D950: Finalize_SetupUI
+; $D950: FadeOut_SetupUI
 ;===============================================================================
-.proc Finalize_SetupUI
-Finalize_SetupUI:
-  LDA strat_display_ptr_hi                                           ; $D950: AD 43 05
+.proc FadeOut_SetupUI
+FadeOut_SetupUI:
+  LDA event_disp_page                                 ; $D950: AD 43 05
   JSR B1F_OpenMsgWindow4                              ; $D953: 20 8B F2
-  INC strat_display_ptr_lo                                           ; $D956: EE 42 05
+  INC event_sub_state                                 ; $D956: EE 42 05
   RTS                                                 ; $D959: 60
 .endproc
 ;===============================================================================
-; $D95A: Finalize_WaitConfirm
+; $D95A: FadeOut_WaitConfirm
 ;===============================================================================
-.proc Finalize_WaitConfirm
-Finalize_WaitConfirm:
+.proc FadeOut_WaitConfirm
+FadeOut_WaitConfirm:
   LDA confirm_check_0                                           ; $D95A: AD 00 03
   CMP #$FF                                            ; $D95D: C9 FF
   BNE @skip                                           ; $D95F: D0 14
   LDA confirm_check_1                                           ; $D961: AD 04 03
   CMP #$FF                                            ; $D964: C9 FF
   BNE @skip                                           ; $D966: D0 0D
-  DEC strat_scroll_index                                           ; $D968: CE 44 05
+  DEC event_scroll_index                              ; $D968: CE 44 05
   BNE @skip                                           ; $D96B: D0 08
   LDA #$00                                            ; $D96D: A9 00
   STA scroll_ptr_hi                                           ; $D96F: 8D 09 04
-  INC strat_display_ptr_lo                                           ; $D972: EE 42 05
+  INC event_sub_state                                 ; $D972: EE 42 05
 @skip:
   RTS                                                 ; $D975: 60
 .endproc
 ;===============================================================================
-; $D976: Finalize_ScrollTimer
+; $D976: FadeOut_ScrollTimer
 ;===============================================================================
-.proc Finalize_ScrollTimer
-Finalize_ScrollTimer:
+.proc FadeOut_ScrollTimer
+FadeOut_ScrollTimer:
   INC a:$0098                                         ; $D976: EE 98 00
   LDA a:$0098                                         ; $D979: AD 98 00
   CMP #$F0                                            ; $D97C: C9 F0
@@ -8901,81 +9020,83 @@ Finalize_ScrollTimer:
   LDA scroll_ptr_hi                                           ; $D988: AD 09 04
   CMP #$50                                            ; $D98B: C9 50
   BCC @skip_3                                           ; $D98D: 90 24
-  DEC strat_display_ptr_lo                                           ; $D98F: CE 42 05
-  DEC strat_display_ptr_lo                                           ; $D992: CE 42 05
+  DEC event_sub_state                                 ; $D98F: CE 42 05
+  DEC event_sub_state                                 ; $D992: CE 42 05
   LDA #$60                                            ; $D995: A9 60
-  STA strat_scroll_index                                           ; $D997: 8D 44 05
-  INC strat_display_ptr_hi                                           ; $D99A: EE 43 05
-  LDA strat_display_ptr_hi                                           ; $D99D: AD 43 05
+  STA event_scroll_index                              ; $D997: 8D 44 05
+  INC event_disp_page                                 ; $D99A: EE 43 05
+  LDA event_disp_page                                 ; $D99D: AD 43 05
   CMP #$F9                                            ; $D9A0: C9 F9
   BNE @skip_2                                           ; $D9A2: D0 06
   LDA #$01                                            ; $D9A4: A9 01
-  STA strat_scroll_index                                           ; $D9A6: 8D 44 05
+  STA event_scroll_index                              ; $D9A6: 8D 44 05
   RTS                                                 ; $D9A9: 60
 @skip_2:
   CMP #$FA                                            ; $D9AA: C9 FA
   BNE @skip_3                                           ; $D9AC: D0 05
   LDA #$04                                            ; $D9AE: A9 04
-  STA strat_display_ptr_lo                                           ; $D9B0: 8D 42 05
+  STA event_sub_state                                 ; $D9B0: 8D 42 05
 @skip_3:
   RTS                                                 ; $D9B3: 60
 .endproc
 ;===============================================================================
-; $D9B4: Finalize_PaletteCopy
+; $D9B4: FadeOut_PaletteCopy
 ;===============================================================================
-.proc Finalize_PaletteCopy
-Finalize_PaletteCopy:
+.proc FadeOut_PaletteCopy
+FadeOut_PaletteCopy:
   LDA a:$0081                                         ; $D9B4: AD 81 00
   AND #$08                                            ; $D9B7: 29 08
-  BEQ Finalize_NoOp                                          ; $D9B9: F0 06
+  BEQ FadeOut_NoOp                                    ; $D9B9: F0 06
   JSR B1F_PaletteCopyBuffer                           ; $D9BB: 20 EE EC
-  INC strat_display_ptr_lo                                           ; $D9BE: EE 42 05
+  INC event_sub_state                                 ; $D9BE: EE 42 05
 .endproc
 ;===============================================================================
-; $D9C1: Finalize_NoOp
+; $D9C1: FadeOut_NoOp
 ;===============================================================================
-.proc Finalize_NoOp
-Finalize_NoOp:
+.proc FadeOut_NoOp
+FadeOut_NoOp:
   RTS                                                 ; $D9C1: 60
 .endproc
 ;===============================================================================
-; $D9C2: Finalize_ExitTransition
+; $D9C2: FadeOut_ExitTransition
 ;===============================================================================
-.proc Finalize_ExitTransition
-Finalize_ExitTransition:
+.proc FadeOut_ExitTransition
+FadeOut_ExitTransition:
   LDA a:$0087                                         ; $D9C2: AD 87 00
-  BPL Finalize_NoOp                                          ; $D9C5: 10 FA
+  BPL FadeOut_NoOp                                    ; $D9C5: 10 FA
   JMP B1F_Reset                                       ; $D9C7: 4C 00 E0
 .endproc
 ;===============================================================================
-; $D9CA: StrategyCommand_MainInteractive
-; Strategy command state 4: Main interactive sub-dispatcher (7 sub-states)
+; $D9CA: EventMessageScene_OfficerRoll
+; Phase 4 - officer roll: the hall of fame. Its 7 sub-states build the list (the
+; Ruler first, then every officer garrisoned in the 30 Provinces) and scroll the
+; bank $19/$1A officer cards and name tiles up the panel.
 ;===============================================================================
-.proc StrategyCommand_MainInteractive
-StrategyCommand_MainInteractive:
-  LDA strat_display_ptr_lo                                           ; $D9CA: AD 42 05
+.proc EventMessageScene_OfficerRoll
+EventMessageScene_OfficerRoll:
+  LDA event_sub_state                                 ; $D9CA: AD 42 05
   JSR B1F_CallbackDispatcher                          ; $D9CD: 20 DE EA
 ; --- Inline pointer table (7 entries) ---
-  .word StrategyCommand_BuildOfficerList                                           ; $D9D0: DE D9
-  .word StrategyCommand_InitOfficerDisplay                                         ; $D9D2: 41 DA
-  .word StrategyCommand_RenderOfficerEntry                                         ; $D9D4: 87 DA
-  .word StrategyCommand_UpdateOfficerDisplay                                       ; $D9D6: B6 DA
-  .word StrategyCommand_ScrollOfficerList                                          ; $D9D8: E0 DA
-  .word StrategyCommand_FinalizeDisplayBuffer                                      ; $D9DA: 90 DB
-  .word StrategyCommand_CheckConfirmInput                                          ; $D9DC: DA DB
+  .word OfficerRoll_BuildList                                           ; $D9D0: DE D9
+  .word OfficerRoll_InitDisplay                                         ; $D9D2: 41 DA
+  .word OfficerRoll_RenderEntry                                         ; $D9D4: 87 DA
+  .word OfficerRoll_UpdateDisplay                                       ; $D9D6: B6 DA
+  .word OfficerRoll_ScrollList                                          ; $D9D8: E0 DA
+  .word OfficerRoll_FinalizeBuffer                                      ; $D9DA: 90 DB
+  .word OfficerRoll_CheckConfirmInput                                          ; $D9DC: DA DB
 .endproc
 ;===============================================================================
-; $D9DE: StrategyCommand_BuildOfficerList
+; $D9DE: OfficerRoll_BuildList
 ;===============================================================================
-.proc StrategyCommand_BuildOfficerList
+.proc OfficerRoll_BuildList
   param_byte1     = $0000
-StrategyCommand_BuildOfficerList:
+OfficerRoll_BuildList:
   LDY #$30                                            ; $D9DE: A0 30
   JSR B1F_SwitchBank8_B                               ; $D9E0: 20 5F F2
   LDA #$FE                                            ; $D9E3: A9 FE
-  STA strategy_officer_list_lo                                           ; $D9E5: 8D 10 04
+  STA card_officer_ids_lo                             ; $D9E5: 8D 10 04
   LDA selected_officer_id                                           ; $D9E8: AD 2C 04
-  STA strategy_officer_list_hi                                           ; $D9EB: 8D 11 04
+  STA card_officer_ids_hi                             ; $D9EB: 8D 11 04
   LDX #$00                                            ; $D9EE: A2 00
   LDA #$02                                            ; $D9F0: A9 02
   STA $02                                             ; $D9F2: 85 02
@@ -8988,10 +9109,10 @@ StrategyCommand_BuildOfficerList:
   LDA (param_byte1),Y                                         ; $D9FB: B1 00
   CMP #$FF                                            ; $D9FD: C9 FF
   BEQ @skip                                           ; $D9FF: F0 0C
-  CMP strategy_officer_list_hi                                           ; $DA01: CD 11 04
+  CMP card_officer_ids_hi                             ; $DA01: CD 11 04
   BEQ @skip                                           ; $DA04: F0 07
   LDX $02                                             ; $DA06: A6 02
-  STA strategy_officer_list_lo,X                                         ; $DA08: 9D 10 04
+  STA card_officer_ids_lo,X                           ; $DA08: 9D 10 04
   INC $02                                             ; $DA0B: E6 02
 @skip:
   INY                                                 ; $DA0D: C8
@@ -9004,32 +9125,32 @@ StrategyCommand_BuildOfficerList:
   BCC @loop                                           ; $DA17: 90 DB
   LDA #$FE                                            ; $DA19: A9 FE
   LDX $02                                             ; $DA1B: A6 02
-  STA strategy_officer_list_lo,X                                         ; $DA1D: 9D 10 04
+  STA card_officer_ids_lo,X                           ; $DA1D: 9D 10 04
   INX                                                 ; $DA20: E8
   LDA #$FF                                            ; $DA21: A9 FF
-  STA strategy_officer_list_lo,X                                         ; $DA23: 9D 10 04
+  STA card_officer_ids_lo,X                           ; $DA23: 9D 10 04
   LDA #$00                                            ; $DA26: A9 00
-  STA strategy_cursor_lo                                           ; $DA28: 8D 0C 04
-  STA strategy_cursor_hi                                           ; $DA2B: 8D 0D 04
-  STA strategy_work_ptr_hi                                           ; $DA2E: 8D 01 04
+  STA card_handshake_lo                               ; $DA28: 8D 0C 04
+  STA card_handshake_hi                               ; $DA2B: 8D 0D 04
+  STA scene_work_ptr_hi                               ; $DA2E: 8D 01 04
   LDA #$C0                                            ; $DA31: A9 C0
-  STA strat_display_ptr_hi                                           ; $DA33: 8D 43 05
+  STA event_disp_page                                 ; $DA33: 8D 43 05
   LDA #$06                                            ; $DA36: A9 06
-  STA strat_display_ptr_lo                                           ; $DA38: 8D 42 05
+  STA event_sub_state                                 ; $DA38: 8D 42 05
   LDA #$F1                                            ; $DA3B: A9 F1
   JSR B1F_OpenMsgWindow4                              ; $DA3D: 20 8B F2
   RTS                                                 ; $DA40: 60
 .endproc
 ;===============================================================================
-; $DA41: StrategyCommand_InitOfficerDisplay
+; $DA41: OfficerRoll_InitDisplay
 ;===============================================================================
-.proc StrategyCommand_InitOfficerDisplay
-StrategyCommand_InitOfficerDisplay:
+.proc OfficerRoll_InitDisplay
+OfficerRoll_InitDisplay:
   LDY #$39                                            ; $DA41: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DA43: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B19_1A_OfficerCardAnimStep_Entry              ; $DA46: 12 A0
-  LDA strategy_cursor_hi                                           ; $DA48: AD 0D 04
+  LDA card_handshake_hi                               ; $DA48: AD 0D 04
   CMP #$FF                                            ; $DA4B: C9 FF
   BEQ @skip                                           ; $DA4D: F0 01
   RTS                                                 ; $DA4F: 60
@@ -9052,48 +9173,48 @@ StrategyCommand_InitOfficerDisplay:
   STA $70                                             ; $DA6E: 85 70
   LDA #$E1                                            ; $DA70: A9 E1
   STA $E8                                             ; $DA72: 85 E8
-  INC strat_display_ptr_lo                                           ; $DA74: EE 42 05
+  INC event_sub_state                                 ; $DA74: EE 42 05
   LDA #$03                                            ; $DA77: A9 03
-  STA strategy_work_ptr_hi                                           ; $DA79: 8D 01 04
+  STA scene_work_ptr_hi                               ; $DA79: 8D 01 04
   LDA #$20                                            ; $DA7C: A9 20
-  STA strat_display_ptr_hi                                           ; $DA7E: 8D 43 05
+  STA event_disp_page                                 ; $DA7E: 8D 43 05
   LDA #$00                                            ; $DA81: A9 00
   STA scroll_ptr_lo                                           ; $DA83: 8D 08 04
   RTS                                                 ; $DA86: 60
 .endproc
 ;===============================================================================
-; $DA87: StrategyCommand_RenderOfficerEntry
+; $DA87: OfficerRoll_RenderEntry
 ;===============================================================================
-.proc StrategyCommand_RenderOfficerEntry
+.proc OfficerRoll_RenderEntry
   scroll_done_flag     = $040A
-StrategyCommand_RenderOfficerEntry:
+OfficerRoll_RenderEntry:
   LDA #$AE                                            ; $DA87: A9 AE
   STA $0A                                             ; $DA89: 85 0A
   LDX scroll_ptr_lo                                           ; $DA8B: AE 08 04
-  LDA strategy_officer_list_lo,X                                         ; $DA8E: BD 10 04
+  LDA card_officer_ids_lo,X                           ; $DA8E: BD 10 04
   STA $00                                             ; $DA91: 85 00
   LDY #$39                                            ; $DA93: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DA95: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B19_1A_OfficerCardRender_Entry                ; $DA98: 00 A0
-  INC strat_display_ptr_lo                                           ; $DA9A: EE 42 05
+  INC event_sub_state                                 ; $DA9A: EE 42 05
   LDA #$00                                            ; $DA9D: A9 00
   STA scroll_ptr_hi                                           ; $DA9F: 8D 09 04
   STA scroll_done_flag                                           ; $DAA2: 8D 0A 04
   LDA #$00                                            ; $DAA5: A9 00
-  STA strategy_cursor_hi                                           ; $DAA7: 8D 0D 04
+  STA card_handshake_hi                               ; $DAA7: 8D 0D 04
   LDY scroll_ptr_lo                                           ; $DAAA: AC 08 04
   INY                                                 ; $DAAD: C8
-  LDA strategy_officer_list_lo,Y                                         ; $DAAE: B9 10 04
+  LDA card_officer_ids_lo,Y                           ; $DAAE: B9 10 04
   TYA                                                 ; $DAB1: 98
-  STA strategy_cursor_lo                                           ; $DAB2: 8D 0C 04
+  STA card_handshake_lo                               ; $DAB2: 8D 0C 04
   RTS                                                 ; $DAB5: 60
 .endproc
 ;===============================================================================
-; $DAB6: StrategyCommand_UpdateOfficerDisplay
+; $DAB6: OfficerRoll_UpdateDisplay
 ;===============================================================================
-.proc StrategyCommand_UpdateOfficerDisplay
-StrategyCommand_UpdateOfficerDisplay:
+.proc OfficerRoll_UpdateDisplay
+OfficerRoll_UpdateDisplay:
   LDY #$39                                            ; $DAB6: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DAB8: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -9101,28 +9222,28 @@ StrategyCommand_UpdateOfficerDisplay:
   LDA #$AE                                            ; $DABD: A9 AE
   STA $0A                                             ; $DABF: 85 0A
   LDX scroll_ptr_lo                                           ; $DAC1: AE 08 04
-  LDA strategy_officer_list_lo,X                                         ; $DAC4: BD 10 04
+  LDA card_officer_ids_lo,X                           ; $DAC4: BD 10 04
   STA $00                                             ; $DAC7: 85 00
   LDY #$39                                            ; $DAC9: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DACB: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B19_1A_OfficerCardRender_Entry                ; $DACE: 00 A0
-  LDA strategy_cursor_hi                                           ; $DAD0: AD 0D 04
+  LDA card_handshake_hi                               ; $DAD0: AD 0D 04
   CMP #$FF                                            ; $DAD3: C9 FF
   BNE @skip                                           ; $DAD5: D0 08
-  DEC strat_display_ptr_hi                                           ; $DAD7: CE 43 05
+  DEC event_disp_page                                 ; $DAD7: CE 43 05
   BNE @skip                                           ; $DADA: D0 03
-  INC strat_display_ptr_lo                                           ; $DADC: EE 42 05
+  INC event_sub_state                                 ; $DADC: EE 42 05
 @skip:
   RTS                                                 ; $DADF: 60
 .endproc
 ;===============================================================================
-; $DAE0: StrategyCommand_ScrollOfficerList
+; $DAE0: OfficerRoll_ScrollList
 ;===============================================================================
-.proc StrategyCommand_ScrollOfficerList
+.proc OfficerRoll_ScrollList
   scroll_src_ptr_lo     = $040E
   scroll_src_ptr_hi     = $040F
-StrategyCommand_ScrollOfficerList:
+OfficerRoll_ScrollList:
   LDA scroll_ptr_hi                                           ; $DAE0: AD 09 04
   CMP #$40                                            ; $DAE3: C9 40
   BNE @skip                                           ; $DAE5: D0 0A
@@ -9146,7 +9267,7 @@ StrategyCommand_ScrollOfficerList:
   SBC scroll_ptr_hi                                           ; $DB07: ED 09 04
   STA $0A                                             ; $DB0A: 85 0A
   LDX scroll_ptr_lo                                           ; $DB0C: AE 08 04
-  JSR StrategyCommand_RenderOfficerName                              ; $DB0F: 20 50 DB
+  JSR OfficerRoll_RenderName                          ; $DB0F: 20 50 DB
   LDA #$FC                                            ; $DB12: A9 FC
   SEC                                                 ; $DB14: 38
   SBC scroll_ptr_hi                                           ; $DB15: ED 09 04
@@ -9157,8 +9278,8 @@ StrategyCommand_ScrollOfficerList:
   STA $0A                                             ; $DB1E: 85 0A
   LDX scroll_ptr_lo                                           ; $DB20: AE 08 04
   INX                                                 ; $DB23: E8
-  JSR StrategyCommand_RenderOfficerName                              ; $DB24: 20 50 DB
-  JMP StrategyCommand_AdvanceScrollPosition                         ; $DB27: 4C 5D DB
+  JSR OfficerRoll_RenderName                          ; $DB24: 20 50 DB
+  JMP OfficerRoll_AdvanceScroll                       ; $DB27: 4C 5D DB
 @skip_4:
   LDA #$FC                                            ; $DB2A: A9 FC
   SEC                                                 ; $DB2C: 38
@@ -9170,24 +9291,24 @@ StrategyCommand_ScrollOfficerList:
   STA $0A                                             ; $DB36: 85 0A
   LDX scroll_ptr_lo                                           ; $DB38: AE 08 04
   INX                                                 ; $DB3B: E8
-  JSR StrategyCommand_RenderOfficerName                              ; $DB3C: 20 50 DB
+  JSR OfficerRoll_RenderName                          ; $DB3C: 20 50 DB
   LDA #$AC                                            ; $DB3F: A9 AC
   SEC                                                 ; $DB41: 38
   SBC scroll_ptr_hi                                           ; $DB42: ED 09 04
   STA $0A                                             ; $DB45: 85 0A
   LDX scroll_ptr_lo                                           ; $DB47: AE 08 04
-  JSR StrategyCommand_RenderOfficerName                              ; $DB4A: 20 50 DB
-  JMP StrategyCommand_AdvanceScrollPosition                         ; $DB4D: 4C 5D DB
+  JSR OfficerRoll_RenderName                          ; $DB4A: 20 50 DB
+  JMP OfficerRoll_AdvanceScroll                       ; $DB4D: 4C 5D DB
 ;-------------------------------------------------------------------------------
-; StrategyCommand_RenderOfficerName
-;   Renders the name tile for the officer at index X in strategy_officer_list.
+; OfficerRoll_RenderName
+;   Renders the name tile for the officer at index X in card_officer_ids.
 ;   Loads the officer ID from the list, stores it as parameter, and invokes
 ;   the banked rendering routine at $A000 via BankedCallbackTrampoline.
 ;   In:  X = officer list index
 ;   Uses: $00 (officer ID), Y = $39 (render parameter)
 ;-------------------------------------------------------------------------------
-StrategyCommand_RenderOfficerName:
-  LDA strategy_officer_list_lo,X                                         ; $DB50: BD 10 04
+OfficerRoll_RenderName:
+  LDA card_officer_ids_lo,X                           ; $DB50: BD 10 04
   STA $00                                             ; $DB53: 85 00
   LDY #$39                                            ; $DB55: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DB57: 20 07 EE
@@ -9195,7 +9316,7 @@ StrategyCommand_RenderOfficerName:
   .word B19_1A_OfficerCardRender_Entry                ; $DB5A: 00 A0
   RTS                                                 ; $DB5C: 60
 ;-------------------------------------------------------------------------------
-; StrategyCommand_AdvanceScrollPosition
+; OfficerRoll_AdvanceScroll
 ;   Advances the scroll pointer after rendering officer entries. Increments
 ;   scroll_ptr_hi; when it reaches $50, shifts the display buffer pointer
 ;   ($0542-$0543) back by 2 and advances scroll_ptr_lo. If the next officer
@@ -9203,44 +9324,44 @@ StrategyCommand_RenderOfficerName:
 ;   and sets the wrap parameter ($0544 = $27).
 ;   Uses: $0542-$0543 (display buffer ptr), $0544 (wrap parameter)
 ;-------------------------------------------------------------------------------
-StrategyCommand_AdvanceScrollPosition:
+OfficerRoll_AdvanceScroll:
   INC scroll_ptr_hi                                           ; $DB5D: EE 09 04
   LDA scroll_ptr_hi                                           ; $DB60: AD 09 04
   CMP #$50                                            ; $DB63: C9 50
   BCC @adv_skip                                           ; $DB65: 90 28
-  DEC strat_display_ptr_lo                                           ; $DB67: CE 42 05
-  DEC strat_display_ptr_lo                                           ; $DB6A: CE 42 05
+  DEC event_sub_state                                 ; $DB67: CE 42 05
+  DEC event_sub_state                                 ; $DB6A: CE 42 05
   INC scroll_ptr_lo                                           ; $DB6D: EE 08 04
   LDA #$20                                            ; $DB70: A9 20
-  STA strat_display_ptr_hi                                           ; $DB72: 8D 43 05
+  STA event_disp_page                                 ; $DB72: 8D 43 05
   LDY scroll_ptr_lo                                           ; $DB75: AC 08 04
   INY                                                 ; $DB78: C8
-  LDA strategy_officer_list_lo,Y                                         ; $DB79: B9 10 04
+  LDA card_officer_ids_lo,Y                           ; $DB79: B9 10 04
   CMP #$FF                                            ; $DB7C: C9 FF
   BNE @adv_skip                                           ; $DB7E: D0 0F
   LDA #$05                                            ; $DB80: A9 05
-  STA strat_display_ptr_lo                                           ; $DB82: 8D 42 05
+  STA event_sub_state                                 ; $DB82: 8D 42 05
   LDA #$80                                            ; $DB85: A9 80
-  STA strat_display_ptr_hi                                           ; $DB87: 8D 43 05
+  STA event_disp_page                                 ; $DB87: 8D 43 05
   LDA #$27                                            ; $DB8A: A9 27
-  STA strat_scroll_index                                           ; $DB8C: 8D 44 05
+  STA event_scroll_index                              ; $DB8C: 8D 44 05
 @adv_skip:
   RTS                                                 ; $DB8F: 60
 .endproc
 ;===============================================================================
-; $DB90: StrategyCommand_FinalizeDisplayBuffer
+; $DB90: OfficerRoll_FinalizeBuffer
 ;===============================================================================
-.proc StrategyCommand_FinalizeDisplayBuffer
+.proc OfficerRoll_FinalizeBuffer
   ptr_0380_lo     = $0380
   ptr_0380_hi     = $0381
   ptr_0382_lo     = $0382
   ptr_0382_hi     = $0383
-StrategyCommand_FinalizeDisplayBuffer:
+OfficerRoll_FinalizeBuffer:
   LDA #$40                                            ; $DB90: A9 40
   STA ptr_0380_lo                                           ; $DB92: 8D 80 03
-  LDA strat_scroll_index                                           ; $DB95: AD 44 05
+  LDA event_scroll_index                              ; $DB95: AD 44 05
   STA ptr_0380_hi                                           ; $DB98: 8D 81 03
-  LDA strat_display_ptr_hi                                           ; $DB9B: AD 43 05
+  LDA event_disp_page                                 ; $DB9B: AD 43 05
   STA ptr_0382_lo                                           ; $DB9E: 8D 82 03
   LDY #$00                                            ; $DBA1: A0 00
   LDA #$01                                            ; $DBA3: A9 01
@@ -9251,19 +9372,19 @@ StrategyCommand_FinalizeDisplayBuffer:
   BCC @loop                                           ; $DBAB: 90 F8
   LDA #$FF                                            ; $DBAD: A9 FF
   STA ptr_0382_hi,Y                                         ; $DBAF: 99 83 03
-  LDA strat_display_ptr_hi                                           ; $DBB2: AD 43 05
+  LDA event_disp_page                                 ; $DBB2: AD 43 05
   SEC                                                 ; $DBB5: 38
   SBC #$40                                            ; $DBB6: E9 40
-  STA strat_display_ptr_hi                                           ; $DBB8: 8D 43 05
-  LDA strat_scroll_index                                           ; $DBBB: AD 44 05
+  STA event_disp_page                                 ; $DBB8: 8D 43 05
+  LDA event_scroll_index                              ; $DBBB: AD 44 05
   SBC #$00                                            ; $DBBE: E9 00
-  STA strat_scroll_index                                           ; $DBC0: 8D 44 05
+  STA event_scroll_index                              ; $DBC0: 8D 44 05
   CMP #$23                                            ; $DBC3: C9 23
   BNE @skip                                           ; $DBC5: D0 0A
   LDA #$05                                            ; $DBC7: A9 05
-  STA strat_scroll_param                                           ; $DBC9: 8D 41 05
+  STA event_scene_phase                               ; $DBC9: 8D 41 05
   LDA #$00                                            ; $DBCC: A9 00
-  STA strat_display_ptr_lo                                           ; $DBCE: 8D 42 05
+  STA event_sub_state                                 ; $DBCE: 8D 42 05
 @skip:
   LDA a:$007E                                         ; $DBD1: AD 7E 00
   ORA #$04                                            ; $DBD4: 09 04
@@ -9271,20 +9392,20 @@ StrategyCommand_FinalizeDisplayBuffer:
   RTS                                                 ; $DBD9: 60
 .endproc
 ;===============================================================================
-; $DBDA: StrategyCommand_CheckConfirmInput
+; $DBDA: OfficerRoll_CheckConfirmInput
 ;===============================================================================
-.proc StrategyCommand_CheckConfirmInput
-StrategyCommand_CheckConfirmInput:
+.proc OfficerRoll_CheckConfirmInput
+OfficerRoll_CheckConfirmInput:
   LDA confirm_check_0                                           ; $DBDA: AD 00 03
   CMP #$FF                                            ; $DBDD: C9 FF
   BNE @skip                                           ; $DBDF: D0 11
   LDA confirm_check_1                                           ; $DBE1: AD 04 03
   CMP #$FF                                            ; $DBE4: C9 FF
   BNE @skip                                           ; $DBE6: D0 0A
-  DEC strat_display_ptr_hi                                           ; $DBE8: CE 43 05
+  DEC event_disp_page                                 ; $DBE8: CE 43 05
   BNE @skip                                           ; $DBEB: D0 05
   LDA #$01                                            ; $DBED: A9 01
-  STA strat_display_ptr_lo                                           ; $DBEF: 8D 42 05
+  STA event_sub_state                                 ; $DBEF: 8D 42 05
 @skip:
   RTS                                                 ; $DBF2: 60
 .endproc
@@ -9379,7 +9500,7 @@ ScrollPanel_LoadRow:
   STA ptr_0380_hi                                           ; $DC85: 8D 81 03
   LDA #$C8                                            ; $DC88: A9 C8
   STA ptr_0382_lo                                           ; $DC8A: 8D 82 03
-  LDA strat_scroll_param                                           ; $DC8D: AD 41 05
+  LDA event_scene_phase                               ; $DC8D: AD 41 05
   SEC                                                 ; $DC90: 38
   SBC #$01                                            ; $DC91: E9 01
   ASL A                                               ; $DC93: 0A
@@ -9398,7 +9519,7 @@ ScrollPanel_LoadRow:
   BCC @loop_3                                           ; $DCAC: 90 F6
   LDA #$FF                                            ; $DCAE: A9 FF
   STA ptr_0382_hi,Y                                         ; $DCB0: 99 83 03
-  LDA strat_scroll_param                                           ; $DCB3: AD 41 05
+  LDA event_scene_phase                               ; $DCB3: AD 41 05
   SEC                                                 ; $DCB6: 38
   SBC #$01                                            ; $DCB7: E9 01
   ASL A                                               ; $DCB9: 0A
@@ -9413,7 +9534,7 @@ ScrollPanel_LoadRow:
   LDA #$20                                            ; $DCCD: A9 20
   STA dispatch_offset_ptr_hi                                           ; $DCCF: 8D D5 04
   JMP @loop_2                                           ; $DCD2: 4C 72 DC
-; --- Pointer tables for initial scroll panel setup (3 entries each, indexed by strat_scroll_param - 1) ---
+; --- Pointer tables for initial scroll panel setup (3 entries each, indexed by event_scene_phase - 1) ---
 ScrollPanel_DataPtrTable:
   .word $95E6                                           ; $DCD5: Entry 1 tile data pointer
   .word $976E                                           ; $DCD7: Entry 2 tile data pointer
@@ -9431,8 +9552,8 @@ ScrollPanel_OffsetPtrTable:
   tile_buf        = $00BE
   attr_buf        = $0100
 ScrollPanel_PrepareRowData:
-  ; Y = (strat_scroll_param - 1) * $20  → row index into tile/attr tables
-  LDA strat_scroll_param                                           ; $DCE1: AD 41 05
+  ; Y = (event_scene_phase - 1) * $20  → row index into tile/attr tables
+  LDA event_scene_phase                               ; $DCE1: AD 41 05
   SEC                                                 ; $DCE4: 38
   SBC #$01                                            ; $DCE5: E9 01
   ASL A                                               ; $DCE7: 0A  ; ×2
@@ -9455,7 +9576,7 @@ ScrollPanel_PrepareRowData:
   ; Advance to next dispatch step
   INC dispatch_step                                           ; $DD01: EE C9 04
   RTS                                                 ; $DD04: 60
-  ; -- ScrollPanel tile data table (6 entries × $20 bytes, indexed by strat_scroll_param-1 × $20)
+  ; -- ScrollPanel tile data table (6 entries × $20 bytes, indexed by event_scene_phase-1 × $20)
   ;    Entries: $DD05, $DD25, $DD45, $DD65, $DD85, $DDA5
   ;    NOTE: entries 3–5 overlap with ScrollPanel_AttrTable entries 0–2
 ScrollPanel_TileTable:                                            ; $DD05
@@ -9510,10 +9631,10 @@ AnimationDispatch:
   AND #$08                                            ; $DE28: 29 08
   BEQ @skip                                           ; $DE2A: F0 08
   LDA #$03                                            ; $DE2C: A9 03
-  STA strat_scroll_param                                           ; $DE2E: 8D 41 05
+  STA event_scene_phase                               ; $DE2E: 8D 41 05
   JMP AnimSeq_PrepareTransition                                           ; $DE31: 4C C7 DE
 @skip:
-  LDA strat_scroll_param                                           ; $DE34: AD 41 05
+  LDA event_scene_phase                               ; $DE34: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $DE37: 20 DE EA
 ; --- Inline pointer table (5 entries) ---
   .word AnimSeq_Init                                         ; $DE3A: 44 DE
@@ -9529,8 +9650,8 @@ AnimationDispatch:
   ptr_0115_lo     = $0115
   ptr_0115_hi     = $0116
 AnimSeq_Init:
-  INC strat_scroll_index                                           ; $DE44: EE 44 05
-  LDA strat_scroll_index                                           ; $DE47: AD 44 05
+  INC event_scroll_index                              ; $DE44: EE 44 05
+  LDA event_scroll_index                              ; $DE47: AD 44 05
   CMP #$20                                            ; $DE4A: C9 20
   BCC @skip                                           ; $DE4C: 90 17
   LDA #$16                                            ; $DE4E: A9 16
@@ -9538,10 +9659,10 @@ AnimSeq_Init:
   LDA #$30                                            ; $DE53: A9 30
   STA ptr_0115_hi                                           ; $DE55: 8D 16 01
   LDA #$00                                            ; $DE58: A9 00
-  STA strat_display_ptr_hi                                           ; $DE5A: 8D 43 05
+  STA event_disp_page                                 ; $DE5A: 8D 43 05
   LDA #$02                                            ; $DE5D: A9 02
-  STA strat_scroll_index                                           ; $DE5F: 8D 44 05
-  INC strat_scroll_param                                           ; $DE62: EE 41 05
+  STA event_scroll_index                              ; $DE5F: 8D 44 05
+  INC event_scene_phase                               ; $DE62: EE 41 05
 @skip:
   RTS                                                 ; $DE65: 60
 .endproc
@@ -9550,7 +9671,7 @@ AnimSeq_Init:
 ;===============================================================================
 .proc AnimSeq_PlayFrames
 AnimSeq_PlayFrames:
-  LDY strat_display_ptr_hi                                           ; $DE66: AC 43 05
+  LDY event_disp_page                                 ; $DE66: AC 43 05
   CPY #$14                                            ; $DE69: C0 14
   BNE @skip                                           ; $DE6B: D0 05
   LDA #$62                                            ; $DE6D: A9 62
@@ -9558,27 +9679,27 @@ AnimSeq_PlayFrames:
 @skip:
   LDY #$21                                            ; $DE72: A0 21
   JSR B1F_SwitchBank8_B                               ; $DE74: 20 5F F2
-  LDY strat_display_ptr_hi                                           ; $DE77: AC 43 05
+  LDY event_disp_page                                 ; $DE77: AC 43 05
   LDA StratAnim_FrameTable,Y                                 ; $DE7A: B9 A0 DE
   JSR SpriteFromTable                                           ; $DE7D: 20 FA DE
-  DEC strat_scroll_index                                           ; $DE80: CE 44 05
+  DEC event_scroll_index                              ; $DE80: CE 44 05
   BNE @skip_2                                           ; $DE83: D0 1A
   LDA #$02                                            ; $DE85: A9 02
-  STA strat_scroll_index                                           ; $DE87: 8D 44 05
-  INC strat_display_ptr_hi                                           ; $DE8A: EE 43 05
-  LDY strat_display_ptr_hi                                           ; $DE8D: AC 43 05
+  STA event_scroll_index                              ; $DE87: 8D 44 05
+  INC event_disp_page                                 ; $DE8A: EE 43 05
+  LDY event_disp_page                                 ; $DE8D: AC 43 05
   LDA StratAnim_FrameTable,Y                                 ; $DE90: B9 A0 DE
   CMP #$FF                                            ; $DE93: C9 FF
   BNE @skip_2                                           ; $DE95: D0 08
-  INC strat_scroll_param                                           ; $DE97: EE 41 05
+  INC event_scene_phase                               ; $DE97: EE 41 05
   LDA #$40                                            ; $DE9A: A9 40
-  STA strat_scroll_index                                           ; $DE9C: 8D 44 05
+  STA event_scroll_index                              ; $DE9C: 8D 44 05
 @skip_2:
   RTS                                                 ; $DE9F: 60
 
 ;===============================================================================
 ; $DEA0: StratAnim_FrameTable – sprite frame indices for strategy animation
-; Indexed by strat_display_ptr_hi; $FF = end of sequence
+; Indexed by event_disp_page; $FF = end of sequence
 ;===============================================================================
 StratAnim_FrameTable:
   .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$08,$08,$08,$08,$08,$08,$08; $DEA0: 00 01 02 03 04 05 06 07 08 08 08 08 08 08 08 08
@@ -9590,12 +9711,12 @@ StratAnim_FrameTable:
 ;===============================================================================
 .proc AnimSeq_HoldFinalFrame
 AnimSeq_HoldFinalFrame:
-  DEC strat_scroll_index                                           ; $DEB9: CE 44 05
+  DEC event_scroll_index                              ; $DEB9: CE 44 05
   BEQ @skip                                           ; $DEBC: F0 05
   LDA #$08                                            ; $DEBE: A9 08
   JMP SpriteFromTable                                           ; $DEC0: 4C FA DE
 @skip:
-  INC strat_scroll_param                                           ; $DEC3: EE 41 05
+  INC event_scene_phase                               ; $DEC3: EE 41 05
   RTS                                                 ; $DEC6: 60
 .endproc
 ;===============================================================================
@@ -9606,7 +9727,7 @@ AnimSeq_HoldFinalFrame:
   ptr_0115_hi     = $0116
   var_0117        = $0117
 AnimSeq_PrepareTransition:
-  INC strat_scroll_param                                           ; $DEC7: EE 41 05
+  INC event_scene_phase                               ; $DEC7: EE 41 05
   LDA #$0F                                            ; $DECA: A9 0F
   STA ptr_0115_lo                                           ; $DECC: 8D 15 01
   STA ptr_0115_hi                                           ; $DECF: 8D 16 01
@@ -9627,7 +9748,7 @@ AnimSeq_ResetScene:
   LDA #$04                                            ; $DEE2: A9 04
   STA $D6                                             ; $DEE4: 85 D6
   LDA #$00                                            ; $DEE6: A9 00
-  STA strat_scroll_index                                           ; $DEE8: 8D 44 05
+  STA event_scroll_index                              ; $DEE8: 8D 44 05
   STA anim_ppu_ptr_lo                                           ; $DEEB: 8D 70 04
   STA anim_ppu_ptr_hi                                           ; $DEEE: 8D 71 04
   JSR B1F_BankPpuInit                                 ; $DEF1: 20 7F E5
@@ -9661,7 +9782,7 @@ SpriteFromTable:
 
 ;===============================================================================
 ; $DF15: DataRecordLoader
-; DataRecordLoader_Entry: loads the current battlefield's 4 terrain quadrant zone
+; DataRecordLoader_Entry: loads the current field map's 4 terrain quadrant zone
 ; ids (see PermutationTable below) into $00AA-$00AD and points ($A8) at $00AA.
 ; GetTileTerrain ($B6EF, prg_08_09_tactical_war.asm) then reads ($A8),Y with Y = the map
 ; quadrant, so this is the war/tactical layer's ($A8) provider.
