@@ -3951,7 +3951,7 @@ MenuRenderer:
 ; $BEBB: MenuAction00_SortieResult
 ; Screen id $00 (raw $01). Two rows and no @RowTable: bit 2 of the frame tick
 ;   $04A3 alone toggles $04A1 between 1 and 2, so the two icon rows of bank-$16
-;   table_00 blink alternately. Latches $00BF/$00C7/$00CF = $E8.
+;   SortieResultSpriteTable blink alternately. Latches $00BF/$00C7/$00CF = $E8.
 ;
 ; Opener: ArmyCommandDispatch @WarRequestCommit $B25E, after the
 ;   B19_1A_SortieWarCommit trampoline - the 出陣 Sortie order goes out with $04D6
@@ -4138,12 +4138,14 @@ MenuAction03_DiscordResult:
 ;===============================================================================
 ; $BFBF: MenuAction04_WarRulerCard
 ; Screen id $04 (raw $05). Raises the duration $04CC to $80 (128 frames) and
-;   toggles two rows of table_04. Latches $00BF/$00C7/$00CF = $D1.
+;   toggles the two rows of WarRulerCardSpriteTable. Latches $00BF/$00C7/$00CF = $D1.
 ;
 ; Opener: prg_19_1a StrategyRequestDispatch PostWarRulerMenu $CACD - the second
 ;   window of the war-outbreak chain (id $08 first, id $05 last), entered right
-;   after a RulerCardRefresh trampoline posts the current country's Ruler card
-;   (label variant 2, mode 0).
+;   after a RulerCardRefresh trampoline posts the acting country's Ruler card
+;   (label variant 2, mode 0). Only the turn owner can start a war, so that
+;   Ruler is the ATTACKING side; MenuAction05_WarRivalRulerCard shows the
+;   defender it is fighting.
 ;===============================================================================
 
 .proc MenuAction04_WarRulerCard
@@ -4183,9 +4185,11 @@ MenuAction04_WarRulerCard:
 ;
 ; Opener: prg_19_1a PostWarPairedRulerMenu @LowNibble $CB28 - the third window
 ;   of the war-outbreak chain: the opposing Ruler is unpacked from the packed
-;   Ruler pair $0507 (low nibble when the AI officer selector $6F8C is
-;   non-zero), posted through RulerCardRefresh with label variant 3, then this
-;   window opens before WarPhaseHandoff $CB2F hands the war to banks $08+$09.
+;   Ruler pair $0507 (its low nibble = the DEFENDER when the war-outcome
+;   selector $6F8C is non-zero, the attacker's high nibble when it is zero),
+;   posted through RulerCardRefresh with label variant 3, then this window opens
+;   before WarPhaseHandoff $CB2F hands the war to banks $08+$09. So the pair of
+;   windows is attacker (MenuAction04) then defender (this one).
 ;===============================================================================
 
 .proc MenuAction05_WarRivalRulerCard
@@ -4332,9 +4336,9 @@ MenuAction07_LoadRows:
 ;===============================================================================
 ; $C0C8: MenuAction08_WarOutbreakNotice
 ; Screen id $08 (raw $09). Sets $04CC = $80 only when $04D6 != $47, then two
-;   rows ($04A1 and $04A4 in 3..5) over the 5-entry table_08. Latches
-;   $00BF/$00C7/$00CF = $CA; $04D6 is the completion-sound selector read by
-;   SaveScreenSoundSelect.
+;   rows ($04A1 and $04A4 in 3..5) over the 5-entry
+;   WarOutbreakNoticeSpriteTable, latching $00BF/$00C7/$00CF = $CA. $04D6 is
+;   the completion-sound selector read by SaveScreenSoundSelect.
 ;
 ; Openers: prg_19_1a StrategyRequestDispatch @ReqWarPending $C8BC ($04D6 = $47,
 ;   the map screen is already up so the PPU re-init is skipped) and
@@ -4542,9 +4546,9 @@ MenuAction0B_LoadRows:
 ;===============================================================================
 ; $C1FA: MenuAction0C_HospitalResult
 ; Screen id $0C (raw $0D). The @RowTable row plus a second DisplayTileData at
-;   row ((($04A3 >> 3) & 1) + 5) of table_0C, with $04A3 reset at phase 10.
-;   Latches $00BF/$00C7/$00CF = $F8, $00C0/$00C8/$00D0 = $F9 and the pair $FAF9
-;   into $00C1/$00C9/$00D1.
+;   row ((($04A3 >> 3) & 1) + 5) of HospitalResultSpriteTable, with $04A3
+;   reset at phase 10. Latches $00BF/$00C7/$00CF = $F8,
+;   $00C0/$00C8/$00D0 = $F9 and the pair $FAF9 into $00C1/$00C9/$00D1.
 ;
 ; Opener: TownCommandDispatch @HealResultUI $C645 - the 病院 Hospital result,
 ;   written after the heal amount is applied; $04D6 = $52 and B1F_OpenMsgWindow0

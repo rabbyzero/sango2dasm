@@ -3638,7 +3638,9 @@ NamePlateStripSetup:
 ;      them: gold (+$02/$03) -> $0526/$0527 (war side 0 stat B), rice
 ;      (+$04/$05) -> $0522/$0523 (war side 0 stat A; drained by the
 ;      attrition rounds -> 兵糧切れ starvation retreat).
-;   2. Packs $0507 = (source Country << 4) | target Country.
+;   2. Packs $0507 = (source Country << 4) | target Country. The source is the
+;      turn owner marching out, so its nibble is the war's attacker and the
+;      target owner lands in the low nibble as the defender.
 ;   3. Moves the target Province's Officer roster (slots $11-$1A) into the
 ;      war roster defender column $0664-$066D and empties it.
 ;   4. Builds the attacker column: $066E = leader $0481, then the $0151
@@ -6383,6 +6385,12 @@ ArmyDeploySceneTrigger:  ; sub-states 5-7
 ; First post-deployment step. Keeps the Ruler card (slot 1, mode 1) refreshed
 ; until menu 9 closes, then re-posts the card in slot 2 (mode 0) and opens bank
 ; $1D menu 5 ($04A0 = 5) before advancing to sub-state 9.
+;
+; This card is the war's ATTACKING Ruler: the officer comes from $6F03, the
+; Country the turn rotation is on, and only that Country can have started the
+; war - the AI stages $0507 = $6F03<<4 | target ($A887, prg_0a_0b) and a human
+; 出陣 stages the source Province's owner into the same high nibble ($B854
+; above). MenuAction04_WarRulerCard renders it.
 ;===============================================================================
 PostWarRulerMenu:  ; sub-state 8
   JSR MarkSweepProvincesDirty             ; $CA84: 20 02 CA
@@ -6425,9 +6433,13 @@ PostWarRulerMenu:  ; sub-state 8
 ;===============================================================================
 ; $CAD4: PostWarPairedRulerMenu (sub-state 9)
 ; Second post-deployment step. Once menu 5 closes, resolves the opposing Ruler
-; from the packed Ruler pair $0507 - low nibble when the AI officer selector
-; $6F8C is non-zero, high nibble when it is zero - posts that Ruler's card in
-; slot 3, and opens bank $1D menu 6 ($04A0 = 6) before advancing to sub-state $A.
+; from the packed Ruler pair $0507 - the low nibble, the DEFENDER, when the
+; war-outcome selector $6F8C (prg_0a_0b sram_conquest_path_bit, posted with the
+; $6F8B mailbox this scene answers) is non-zero; the high nibble, the attacker,
+; when it is zero - posts that Ruler's card in slot 3, and opens bank $1D menu 6
+; ($04A0 = 6) before advancing to sub-state $A. MenuAction05_WarRivalRulerCard
+; renders it, so the two cards read attacker then defender whenever $6F8C is
+; non-zero.
 ;===============================================================================
 PostWarPairedRulerMenu:  ; sub-state 9
   JSR MarkSweepProvincesDirty             ; $CAD4: 20 02 CA

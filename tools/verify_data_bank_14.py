@@ -60,8 +60,8 @@ def assemble():
 
 def region_of(offset):
     if offset < 0x0F4:
-        return 'SpritePtrTable entry id %02X' % (offset // 2)
-    return 'SpriteRecords'
+        return 'DuelSpriteSetAPtrTable entry id %02X' % (offset // 2)
+    return 'DuelSpriteSetARecords'
 
 
 def main():

@@ -3,7 +3,7 @@
 
 This is the single codec shared by
 
-  * `tools/gen_data_bank_asm.py`       - renders `asm/banks/data_10_seed.asm` / `data_11_officer.asm`
+  * `tools/gen_data_bank_asm.py`       - renders `asm/banks/data_10_initial_data.asm` / `data_11_officer.asm`
   * `tools/check_officer_pipeline.py`  - proves the CSV -> asm -> ROM loop is lossless
   * `editor/officer_editor.py`         - the standalone officer GUI editor
   * `editor/officer_cli.py`            - the headless front-end over the same model

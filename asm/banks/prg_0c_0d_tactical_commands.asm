@@ -146,7 +146,7 @@ acting_side_flag    = $0504  ; acting side (bit7: 1 = side B; toggled per side
                              ; turn in ArmyTurnEnd_Commit; $80 seeded at war launch)
 move_points_left    = $0505  ; movement points remaining / army strength
 ruler_turn_counter  = $0506  ; ruler turn counter (inc per ruler switch)
-packed_ruler_pair   = $0507  ; packed ruler pair (lo=A, hi=B nibble)
+packed_ruler_pair   = $0507  ; war pair: hi = attacker (turn owner), lo = defender
 wait_timer          = $0508  ; wait timer; menu-cursor scratch in withdraw flow
 src_officer_slot    = $0509  ; source officer slot index (into $06xx tables)
 dst_officer_slot    = $050A  ; target officer slot / move path length
@@ -212,8 +212,8 @@ attack_officer_id_0 = $0560  ; officer ID slot 0 (result display)
 attack_officer_id_1 = $0561  ; officer ID slot 1
 attack_ruler_data_0 = $0562  ; ruler byte-3 for source ruler
 attack_ruler_data_1 = $0563  ; ruler byte-3 for target ruler
-attack_ruler_id_0   = $0564  ; ruler ID 0 (from $0507, ordered by dir)
-attack_ruler_id_1   = $0565  ; ruler ID 1
+attack_ruler_id_0   = $0564  ; acting side's ruler (hi nibble if $0504 bit 7)
+attack_ruler_id_1   = $0565  ; opponent's ruler (the other $0507 nibble)
 
 ; --- Officer selection flags ($0580-$059F, 32 bytes) ---
 ; Used by the withdraw/garrison screens to mark selected officers; $FF = unselected.
@@ -751,7 +751,8 @@ UnitAttack_SetupResult:
   LDA #$00                              ; $A3E4: A9 00
   STA $0650,Y                           ; $A3E6: 99 50 06
   JSR @LoadOfficerInfo                  ; $A3E9: 20 33 A4
-  ; Split $0507 packed ruler pair into $0564/$0565 (order depends on $0504)
+  ; Split $0507 into $0564 = the acting side's ruler, $0565 = the opponent's;
+  ; $0504 bit 7 says which nibble is acting (set = attacker, clear = defender).
   LDA $0504                             ; $A3EC: AD 04 05
   BMI @SwapRulerOrder                   ; $A3EF: 30 15
   LDA $0507                             ; $A3F1: AD 07 05

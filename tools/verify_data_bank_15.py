@@ -60,9 +60,9 @@ def assemble():
 
 def region_of(offset):
     if offset < 0x0B8:
-        return 'SpriteBlobPtrTable entry idx %02X' % (0x80 + offset // 2)
+        return 'DuelSpriteSetBPtrTable entry id %02X' % (0x80 + offset // 2)
     if offset < 0x1A90:
-        return 'SpriteBlobArea'
+        return 'DuelSpriteSetBRecords'
     if offset < 0x1E90:
         return ('CountryMapScreen ' +
                 ('attribute byte' if offset >= 0x1E50 else 'tile byte'))

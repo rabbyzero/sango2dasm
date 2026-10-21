@@ -16,7 +16,7 @@
 .include "prg_0a_0b_strategy_ai.asm"
 .include "prg_0c_0d_tactical_commands.asm"
 .include "prg_0e_0f_battle.asm"
-.include "data_10_seed.asm"
+.include "data_10_initial_data.asm"
 .include "data_11_officer.asm"
 .include "data_12_menu_display.asm"
 .include "data_13_menu_display.asm"

@@ -110,7 +110,7 @@ def region_of(offset):
             if addr < tab + 2 * count:
                 return '%s ptr table entry %d' % (name, (addr - tab) // 2)
             return '%s blob area' % name
-    return 'MenuOam area'
+    return 'MenuAction sprite area'
 
 
 def main():

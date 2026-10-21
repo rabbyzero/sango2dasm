@@ -6,7 +6,7 @@ Bank $06 (selected as $26 into the $8000-$9FFF window) holds two things:
   1. The Tactical (war) layer's per-province unit PLACEMENT POOLS and city BOUNDS
      rectangles - the geometry that the `TacticalAttackSideTypeTable` (bank $10
      $9E62) and `TacticalDefenseSideTypeTable` (bank $11 $9AB4) selectors point
-     into. Those two selector tables are already documented in data_10_seed.asm and
+     into. Those two selector tables are already documented in data_10_initial_data.asm and
      data_11_officer.asm; this bank is the arrangement they select.
   2. The dated-message / ending scroll scene graphics: three 14-row panel tile
      blocks and three tables of OAM sprite blobs.
@@ -54,7 +54,7 @@ SIDE = {
         seeds=('$02', '$0C', '$16', '$1C'), seeds_name='Attacker',
         selector='bank $10 $9E62 TacticalAttackSideTypeTable',
         selector_file='rom/prg/prg_10.bin', selector_cpu=0x9E62,
-        doc='data_10_seed.asm $9E62 block',
+        doc='data_10_initial_data.asm $9E62 block',
         anchor='The anchor itself moves with the type, i.e. the army enters on a flank'),
     'Defense': dict(
         roster='@SetupDefenderRoster $B2E4', seeds_addr='$B30E',
@@ -632,7 +632,7 @@ def header(pools, bounds):
         '; gaps: per province the pool count equals the highest side type that province uses',
         '; in the matching selector table (attack: bank $10 $9E62, defense: bank $11 $9AB4)',
         '; plus one, and the bounds run carries exactly one rectangle per pool. Both',
-        '; selector tables are documented in data_10_seed.asm / data_11_officer.asm - this bank is the',
+        '; selector tables are documented in data_10_initial_data.asm / data_11_officer.asm - this bank is the',
         '; arrangement they select.',
         ';',
         '; Sprite blobs use the B1F_SpriteOamWriterSimple format ($F1AD, prg_1f_boot): repeated',

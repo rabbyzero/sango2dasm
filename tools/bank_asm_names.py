@@ -15,7 +15,7 @@ DATA_BANK_ASM = {
     0x05: 'data_05_terrain.asm',
     0x06: 'data_06_placement_and_scroll.asm',
     0x07: 'data_07_blank.asm',
-    0x10: 'data_10_seed.asm',
+    0x10: 'data_10_initial_data.asm',
     0x11: 'data_11_officer.asm',
     0x12: 'data_12_menu_display.asm',
     0x13: 'data_13_menu_display.asm',

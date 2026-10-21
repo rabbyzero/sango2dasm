@@ -156,7 +156,7 @@ geometry.
 
 ## 7. The banks as editable, annotated assembly
 
-`asm/banks/data_10_seed.asm` and `data_11_officer.asm` are no longer blind `.incbin` stubs: the
+`asm/banks/data_10_initial_data.asm` and `data_11_officer.asm` are no longer blind `.incbin` stubs: the
 analysed tables are rendered as labelled `.byte` records with the decoded values
 in the comment, and only the still-unanalysed ranges stay as sliced includes
 (`ca65` supports `.incbin "file", skip, length`) so the bank always reproduces
@@ -226,7 +226,7 @@ The 3 KB in front of the province records are three whole nametable images:
 960 tile bytes (30 rows x 32 cols of 8 px) + 64 attribute bytes (one 2-bit
 palette index per 2x2 tile block) = 1024 bytes each. No code lives here and no
 byte is ever read as a scalar - each block is streamed to the PPU as a picture.
-`asm/banks/data_10_seed.asm` renders them as `StrategyMapBaseScreen`,
+`asm/banks/data_10_initial_data.asm` renders them as `StrategyMapBaseScreen`,
 `DuelBaseScreen`, `TacticalTerrainScreen` (tile row + attribute row per `.byte`
 line).
 
@@ -327,7 +327,7 @@ The 90 bytes between the province master records (`$8C00-$8FBF`) and the officer
 katakana names (`$901A`) are **two parallel 30-entry tables, one row per province
 id**, not one blob: 60 rate bytes at `$8FC0` immediately followed by 30 facility
 flag bytes at `$8FFC` (there is no gap - `$8FFC = $8FC0 + 30 * 2`). Rendered in
-`asm/banks/data_10_seed.asm` as `ProvinceRiceTradeRateTable` (`.byte`, 2 bytes per
+`asm/banks/data_10_initial_data.asm` as `ProvinceRiceTradeRateTable` (`.byte`, 2 bytes per
 province) + `ProvinceFacilityFlags`.
 
 ### Rate byte pairs (`ProvinceRiceTradeRateTable`, `$8FC0 + province * 2`)

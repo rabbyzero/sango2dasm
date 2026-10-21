@@ -335,7 +335,7 @@ tools/officer_model.py   -- the codec: record/name/schedule/death/roster, invari
         v
 tools/gen_data_bank_asm.py --bank all --from-csv --write
         v
-asm/banks/data_10_seed.asm, data_11_officer.asm   (annotated .byte, one line per record)
+asm/banks/data_10_initial_data.asm, data_11_officer.asm   (annotated .byte, one line per record)
         |  ca65 + ld65 (per-bank harness)
         v
 tools/verify_data_banks.py   -- byte-exact gate + decoded edit report
@@ -350,7 +350,7 @@ strict run, which exits 1 until the edited assembly is committed.
 Repo commands doing the same thing as the buttons:
 
 ```sh
-make databanks-csv   # re-render data_10_seed.asm + data_11_officer.asm from the edited CSVs
+make databanks-csv   # re-render data_10_initial_data.asm + data_11_officer.asm from the edited CSVs
 make verifydata      # assemble both banks, prove byte-exactness (strict)
 make officer-diff    # list the seed edits still live vs the stock ROM
 make checkofficers   # prove the whole loop is lossless (incl. both editors)

@@ -42,7 +42,7 @@
 ; gaps: per province the pool count equals the highest side type that province uses
 ; in the matching selector table (attack: bank $10 $9E62, defense: bank $11 $9AB4)
 ; plus one, and the bounds run carries exactly one rectangle per pool. Both
-; selector tables are documented in data_10_seed.asm / data_11_officer.asm - this bank is the
+; selector tables are documented in data_10_initial_data.asm / data_11_officer.asm - this bank is the
 ; arrangement they select.
 ;
 ; Sprite blobs use the B1F_SpriteOamWriterSimple format ($F1AD, prg_1f_boot): repeated
@@ -122,7 +122,7 @@ TacticalAttackPoolPtrTable:
 ;   (GetOrderedDestination $A1FF-$A204) while the war AI stores the byte
 ;   through unchanged. Columns $01-$1E on the 32-wide x 20-high tactical map.
 ;   The anchor itself moves with the type, i.e. the army enters on a flank.
-;   Per-side measurements: data_10_seed.asm $9E62 block.
+;   Per-side measurements: data_10_initial_data.asm $9E62 block.
 ;-------------------------------------------------------------------------------
 
 ; province  0 リョウトウ 遼東, attack side type 0 - anchor (19,2) + 15 unit tiles + 1 pair past the cursors
@@ -1348,7 +1348,7 @@ TacticalAttackBoundsPtrTable:
 ;   No two adjacent side types share a rectangle here (0 of the 90 consecutive
 ;   pairs are byte-identical): on this side each type carries its own city
 ;   area as well as its own placement array - see the attack note in
-;   data_10_seed.asm $9E62 block.
+;   data_10_initial_data.asm $9E62 block.
 ;-------------------------------------------------------------------------------
 
 ; province  0 リョウトウ 遼東, attack side type 0 - rows [16,21) cols [0,9)

@@ -17,7 +17,7 @@ Evidence for each link:
   * `CopyTileRowHoriz` (`prg_17_18_duel_and_display.asm:1139`) writes 2 of the 4 bytes per PPU
     row and picks the pair from a row bit, so a cell is 2x2 patterns = 16x16 px.
   * CHR pages come from display record 1 (`88 89 8A 88`), armed for the war
-    scene by `State_WarSceneLaunch` - `asm/banks/data_10_seed.asm:200` documents the
+    scene by `State_WarSceneLaunch` - `asm/banks/data_10_initial_data.asm:200` documents the
     static `TacticalTerrainScreen` with exactly that record and calls the result
     "terrain only - mountain / forest / water dither". Page V -> chr_V//8.bin at
     (V%8)*$400 (`code/font_analysis.md:17`).

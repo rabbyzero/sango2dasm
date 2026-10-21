@@ -29,7 +29,7 @@ Proves, in order:
      model untouched, a half-filled arrival pair still renders, and the stock
      data trips none of them;
   5. the generator agrees with the codec - `--from-csv` on the stock CSVs
-     re-renders the committed `asm/banks/data_10_seed.asm` / `data_11_officer.asm` unchanged,
+     re-renders the committed `asm/banks/data_10_initial_data.asm` / `data_11_officer.asm` unchanged,
      on an edited CSV set the record / name / schedule / death bytes and the
      roster-derived province comments it renders are the ones the codec
      predicts, and an emptied name or an over-full arrival block stops the

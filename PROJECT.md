@@ -27,7 +27,7 @@ sango2dasm/
 │       ├── data_04_terrain.asm                       # Terrain DATA bank (reg $24, prov 16-23): annotated .byte hex
 │       ├── data_05_terrain.asm                       # Terrain DATA bank (reg $25, prov 14-15,24-29): annotated .byte hex
 │       ├── data_06_placement_and_scroll.asm                       # DATA bank (reg $26): war unit-placement pools + ending-scroll panel graphics
-│       ├── data_10_seed.asm                       # Seed DATA bank (reg $30): annotated .byte records
+│       ├── data_10_initial_data.asm               # Initial-data bank (reg $30): screens + annotated .byte tables
 │       └── data_11_officer.asm                       # Seed DATA bank (reg $31): annotated .byte records
 ├── include/
 │   ├── 6502_registers.h                     # PPU/APU register definitions
@@ -402,7 +402,7 @@ resolves three province readings the manual scan could not
 writing, including that the roster set equals the officer seed's status-2 set.
 Byte-exact location evidence: [code/initial_data_tables.md](./code/initial_data_tables.md).
 
-`asm/banks/data_10_seed.asm` renders both province tables as labelled `.byte` records
+`asm/banks/data_10_initial_data.asm` renders both province tables as labelled `.byte` records
 (`ProvinceRecord_<NAME>` with a decoded summary per province, plus
 `ProvinceName_<NAME>`), verified byte-exact by `make verifydata`.
 

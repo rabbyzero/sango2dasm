@@ -18,6 +18,14 @@ and read by two consumers:
     (flip/attr EOR) and JMPs B1F_SpriteOamWriterSimple ($F1AD, prg_1f_boot), which
     walks [y,tile,attr,x] quads (OAM Y $0200,X = y + $000A; X $0203,X =
     x + $000C; attr EOR $0002; tile bias $0003 = 0) up to a leading $80 byte.
+    Sprites read the CHR slots the PPUCTRL bit 4 selects - font record bytes
+    4-7, not 0-3 - so their tiles land on chr_0f @ $0000, the command-scene
+    icon sheet that also carries the gold digits. tools/render_menu_oam_blobs.py
+    draws every blob with those pages and the scene's real sprite palette.
+
+    Blob labels are derived from the blob's own bytes (blob_kind): Number =
+    mostly digit glyphs, Mark = 1-2 sprites the handler blinks at one spot,
+    Scene = a picture cut from the icon-sheet fragments.
   - prg_1f_boot State_EventMessageScene ($E477): LDY #$36 / SwitchBank8_B, then
     B17_18_PpuCopyRaw streams 1 KB from $9B92 to PPU $2000 (the event-message
     scene background nametable image, 960 tile bytes + 64 attribute bytes).
@@ -100,6 +108,51 @@ TABLES = [
 BLOB_RECORD_BYTES = 4
 BLOB_TERMINATOR = 0x80
 
+# Sprite tile ids $40-$BF all resolve to CHR page $78 (see the banner), and that
+# page carries the gold digit glyphs at index $34-$3F, so tile ids $74-$7D and
+# their $80-window twins $B4-$BD draw 0-9, $7E/$BE draw 10, $7F/$BF draw 100.
+DIGIT_TILES = frozenset(range(0x74, 0x80)) | frozenset(range(0xB4, 0xC0))
+DIGIT_LABELS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '100']
+MARK_MAX_RECORDS = 2
+
+
+def feature_stem(handler_name):
+    """MenuAction0C_HospitalResult -> HospitalResult (the dispatch id is kept in
+    the handler's own name; the bank-16 tables are named for the panel)."""
+    return handler_name.split('_', 1)[1]
+
+
+def digit_run(tiles):
+    """The digit glyphs a blob draws, in glyph order ([] when it draws none)."""
+    hits = {tile & 0x3F for tile in tiles if tile in DIGIT_TILES}
+    return [DIGIT_LABELS[i - 0x34] for i in sorted(hits)]
+
+
+def blob_kind(recs):
+    """Classify one blob from its own bytes - the three shapes the panels use.
+
+    Number: most sprites are digit glyphs, so the blob reads as a value plate.
+    Mark: 1-2 sprites, the small glyph a handler blinks at one spot.
+    Scene: anything else, i.e. a picture cut from the icon-sheet fragments.
+    """
+    digits = sum(1 for r in recs if r[1] in DIGIT_TILES)
+    if digits and digits * 2 >= len(recs):
+        return 'Number'
+    if len(recs) <= MARK_MAX_RECORDS:
+        return 'Mark'
+    return 'Scene'
+
+
+def frame_groups(blobs):
+    """index -> (frame number, frame count). Blobs posted at identical [y,x]
+    offsets are the frames of one animation; the handler walks them with $04A1."""
+    sigs = {}
+    for i, b in enumerate(blobs):
+        sigs.setdefault(tuple(sorted((r[0], r[3]) for r in b['recs'])), []).append(i)
+    return {i: (g.index(i) + 1, len(g), g)
+            for group in sigs.values() for i in group for g in [group]}
+
+
 
 def read_bank():
     with open(os.path.join(ROOT, BANK_BIN), 'rb') as f:
@@ -163,7 +216,15 @@ def build_plan(data):
         for i in range(tofs, tofs + 2 * count):
             assert not covered[i], 'overlap at %s' % hexw(cpu_ofs(i))
             covered[i] = 1
-        entries.append(dict(name=name, tab=tab, count=count, blobs=blobs))
+        stem = feature_stem(name)
+        groups = frame_groups(blobs)
+        for i, b in enumerate(blobs):
+            b['kind'] = blob_kind(b['recs'])
+            b['label'] = '%s%s%d' % (stem, b['kind'], i)
+            b['digits'] = digit_run(r[1] for r in b['recs'])
+            b['frame'], b['frames'], b['sibling_idxs'] = groups[i]
+        entries.append(dict(name=name, stem=stem, tab=tab, count=count,
+                            blobs=blobs))
     for i in range(0, DATA_END - WINDOW_CPU):
         assert covered[i], 'gap at %s' % hexw(cpu_ofs(i))
     return entries
@@ -188,10 +249,16 @@ def span_of(values):
 
 def emit_tables(data, entries):
     out = ['',
-           '; --- $8000-$9B91  MenuOam area: 34 x .word pointer tables (one per',
-           ';     MenuAction dispatch entry) interleaved with their 130 blobs;',
-           ';     stored word = blob address + $4000 (DisplayTileData\'s SEC/SBC #$40',
-           ';     on the high byte undoes it; bank $12 biases the other way) ---']
+           '; --- $8000-$9B91  MenuAction sprite area: 34 x .word pointer tables',
+           ';     (one per MenuAction dispatch entry) interleaved with their 130',
+           ';     blobs; stored word = blob address + $4000 (DisplayTileData\'s',
+           ';     SEC/SBC #$40 on the high byte undoes it; bank $12 biases the',
+           ';     other way) ---',
+           ';     Names: <panel>SpriteTable for the pointer table, and one blob',
+           ';     <panel><Kind><n> where Kind is read off the blob itself -',
+           ';     Number (most sprites are digit glyphs), Mark (1-2 sprites the',
+           ';     handler blinks at one spot), Scene (a picture cut from the',
+           ';     icon-sheet fragments). n is the table index = Y - 1.']
     all_recs = [r for e in entries for b in e['blobs'] for r in b['recs']]
     out.append(';     Blob geometry over all %d records: y_off %s (screen Y = y_off +'
                % (len(all_recs), span_of(r[0] for r in all_recs)))
@@ -201,26 +268,43 @@ def emit_tables(data, entries):
                % (span_of(r[1] for r in all_recs),
                   ', '.join(hexb(a) for a in sorted(set(r[2] for r in all_recs)))))
     for e in entries:
+        kinds = ' '.join('%s%d' % (b['kind'], i) for i, b in enumerate(e['blobs']))
         out.append('')
-        out.append('; --- %s: %d x .word @ %s, indexed via DisplayTileData'
-                   % (e['name'], e['count'], hexw(e['tab'])))
-        out.append(';     (Y = $04A1 or $04A4, table index = Y - 1) ---')
-        out.append('MenuOamPtrTable_%02X:' % (int(e['name'][10:12], 16),))
+        out.append('; --- %sSpriteTable: %d x .word @ %s = the %s panel\'s sprite art'
+                   % (e['stem'], e['count'], hexw(e['tab']), e['name']))
+        out.append(';     (Y = $04A1 or $04A4, table index = Y - 1): %s ---' % kinds)
+        out.append('%sSpriteTable:' % e['stem'])
         for i, b in enumerate(e['blobs']):
-            out.append(line('.word', 'MenuOam_%02X_%d+$%04X'
-                            % (int(e['name'][10:12], 16), i, PTR_BIAS),
+            out.append(line('.word', '%s+$%04X' % (b['label'], PTR_BIAS),
                             e['tab'] + 2 * i,
                             [b['word'] & 0xFF, b['word'] >> 8],
-                            'entry %d -> blob %s, %d records'
-                            % (i, hexw(b['start']), len(b['recs']))))
+                            'entry %d -> %s (%d records)'
+                            % (i, b['label'], len(b['recs']))))
         for i, b in enumerate(e['blobs']):
             term = b['end'] - 1
             bs = data[b['start'] - WINDOW_CPU:term - WINDOW_CPU + 1]
             out.append('')
-            out.append('; blob entry %d (@%s): %d [y,tile,attr,x] records, %s terminator @ %s'
-                       % (i, hexw(b['start']), len(b['recs']),
+            out.append('; %s: %d [y,tile,attr,x] records @ %s, %s terminator @ %s'
+                       % (b['label'], len(b['recs']), hexw(b['start']),
                           hexb(BLOB_TERMINATOR), hexw(term)))
-            out.append('MenuOam_%02X_%d:' % (int(e['name'][10:12], 16), i))
+            note = ';     '
+            if b['frames'] > 1:
+                others = ', '.join(hexw(e['blobs'][j]['start'])
+                                   for j in b['sibling_idxs'] if j != i)
+                note += ('frame %d of %d - posts the same offsets as %sentry %s, so '
+                         'the handler walks them as one animation'
+                         % (b['frame'], b['frames'],
+                            'entries ' if len(b['sibling_idxs']) > 2 else '', others))
+            else:
+                note += ('one posting of its own (%d record%s, offsets shared by no '
+                         'other entry)' % (len(b['recs']),
+                                            's' if len(b['recs']) != 1 else ''))
+            out.append(note)
+            out.append(';     x_off %s, y_off %s' % (
+                span_of(r[3] for r in b['recs']), span_of(r[0] for r in b['recs'])))
+            if b['digits']:
+                out.append(';     digit glyphs drawn: %s' % ', '.join(b['digits']))
+            out.append('%s:' % b['label'])
             for off in range(0, len(bs), ROW_BYTES):
                 chunk = bs[off:off + ROW_BYTES]
                 note = ('terminator %s' % hexb(BLOB_TERMINATOR)
@@ -311,7 +395,7 @@ BANNER = """\
 ;              B17_18_PpuCopyRaw copies 1 KB from $9B92 to PPU $2000.
 ;
 ; Regions:
-;   $8000-$9B91  MenuOam area: %(words)d x .word in 34 per-handler tables
+;   $8000-$9B91  MenuAction sprite area: %(words)d x .word in 34 per-handler tables
 ;                (1-6 entries each) interleaved with %(blobs)d
 ;                $80-terminated blobs (%(recs)d [y,tile,attr,x] records)
 ;   $9B92-$9F91  EventMessageSceneScreen  1 KB nametable image -> PPU $2000
@@ -325,29 +409,44 @@ BANNER = """\
 ; LDY #$01, MenuAction01's @MenuAction01_RowTable 1-4, MenuAction03/05's
 ; $04A1 = 1-2 + $04A4 = 3-4, MenuAction08's $04A4 = 3-5).
 ;
-; Blob geometry over all records: y_off $00-$48 (screen OAM Y $2F-$77),
-; x_off $00-$48 (screen X $20-$68 on the left panel, $B0-$D8 when the X base
-; is $90), tile $40-$FF, attr $00/$01/$28 (EOR'd with the caller's $02 = 3).
-; Sprites are always 8x8: no writer ever sets PPUCTRL bit 5 ($008B is only
-; ever $10, ORA #$80 / AND #$7F / scroll-bit updates). Tile decode pages:
-; the MenuActions run under State_StrategyMode (prg_1f_boot $E27E), whose
-; DisplayInit A=$04 loads font record 4 (7C 7D 7D 04 ...), so sprite slots
-; 0-3 = pages $7C/$7D/$7D/$04: tiles $40-$BF land on $7D (chr_0f @ $1400,
-; the command-scene icon sheet - carts, structures, banners, cursors,
-; rendered coherently with color 0 transparent); the sparse tiles $C0-$FF
-; (37 records) land on $04 (chr_00 @ $1000, the equipment-kanji page, whose
-; glyph cells store strokes in color 0 = transparent for sprites).
-; No text: no record's sprite slots ever map to a kana page ($70/$78), and
-; the 1 KB screen at the end of the bank is a window frame (see below).
+; What a blob draws (tools/render_menu_oam_blobs.py renders all %(blobs)d of them
+; with the pages and palette below, read from the ROM):
+;   Sprites read the pattern table PPUCTRL bit 4 selects. The
+;   PPUCTRL mirror is $10 from boot (prg_1f_boot $E0C2) and nothing ever writes
+;   bits 3-4, so sprites use PPU $1000-$1FFF = NAMCO-163 CHR slots 4-7 = menu
+;   font record BYTES 4-7 (BG reads slots 0-3 = bytes 0-3). State_StrategyMode
+;   loads record action_type($0544)+2 (prg_1f_boot $E237/$E252), so the
+;   MenuActions use records 2-9, whose bytes 4-7 are 95 78 78 18 (record 5
+;   swaps slot 5 to $7A, records 7-8 slot 4 to $97, record 9 slot 7 to $90).
+;   A page value V is the 1 KB slice chr_(V//8).bin @ (V%%8)*$400, so:
+;     tile $40-$7F and $80-$BF -> page $78 = chr_0f @ $0000, the command-scene
+;       icon sheet. Slots 5 and 6 carry the same page, so tile $80+n is the
+;       same glyph as tile $40+n - and the sheet's gold digits at index $34-$3F
+;       ($74-$7D = 0-9, $7E = 10, $7F = 100) are therefore also drawn by
+;       $B4-$BF. Below the digits ($40-$73) sit the picture fragments.
+;     tile $C0-$FF -> page $18 = chr_03 @ $0000 (records 2-8).
+;   Colour: PaletteRecordLoad takes the same action_type+2 index, and for
+;   records 2-9 sprite palette 3 ($3F1D-$3F1F) is $20 $27 $17 = white, gold,
+;   black over transparent; palette 2 is $0F $20 $16. Stored attr $00/$01/$28
+;   XOR 3 -> palette 3, palette 2, palette 3 + horizontal flip.
+;   So each panel's blobs are one of three things, and the blob labels say
+;   which: a Scene (a picture cut from the icon fragments), a Number (a plate
+;   built from the digit glyphs), or a Mark (a 1-2 sprite glyph the handler
+;   blinks at one spot). Blobs that post an identical [y,x] offset set are the
+;   frames of one animation walked through $04A1 - 31 of the 34 tables hold at
+;   least one such group, and the 130 blobs collapse to 62 distinct pictures.
+;   Sprites are always 8x8: no writer ever sets PPUCTRL bit 2 ($008B is only
+;   ever $10, ORA #$80, AND #$7F, AND #$FB and the scroll-bit updates).
+;   The 1 KB screen at the end of the bank is a window frame (see below).
 ;===============================================================================
 
 .segment "CODE_BANK16"
 
-; Bank-16 labels are scoped: the generated files of the other data banks must
-; stay free to reuse the generic MenuOam* vocabulary (cf. data_13_menu_display.asm's
-; Bank13MenuStreams scope).
+; Bank-16 labels are scoped so the other generated data banks stay free to reuse
+; the short element words (Scene/Number/Mark) the blob names end with (cf.
+; data_13_menu_display.asm's Bank13MenuStreams scope).
 
-.proc Bank16MenuOamData
+.proc Bank16MenuSpriteData
 """
 
 

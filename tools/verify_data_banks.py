@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the annotated seed-data banks asm/banks/data_10_seed.asm and data_11_officer.asm.
+"""Verify the annotated data banks asm/banks/data_10_initial_data.asm and data_11_officer.asm.
 
 The banks are rendered by tools/gen_data_bank_asm.py: analysed tables are
 labelled `.byte` records, everything else is a sliced `.incbin`. This harness

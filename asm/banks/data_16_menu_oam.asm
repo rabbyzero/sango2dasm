@@ -28,7 +28,7 @@
 ;              B17_18_PpuCopyRaw copies 1 KB from $9B92 to PPU $2000.
 ;
 ; Regions:
-;   $8000-$9B91  MenuOam area: 130 x .word in 34 per-handler tables
+;   $8000-$9B91  MenuAction sprite area: 130 x .word in 34 per-handler tables
 ;                (1-6 entries each) interleaved with 130
 ;                $80-terminated blobs (1667 [y,tile,attr,x] records)
 ;   $9B92-$9F91  EventMessageSceneScreen  1 KB nametable image -> PPU $2000
@@ -42,47 +42,70 @@
 ; LDY #$01, MenuAction01's @MenuAction01_RowTable 1-4, MenuAction03/05's
 ; $04A1 = 1-2 + $04A4 = 3-4, MenuAction08's $04A4 = 3-5).
 ;
-; Blob geometry over all records: y_off $00-$48 (screen OAM Y $2F-$77),
-; x_off $00-$48 (screen X $20-$68 on the left panel, $B0-$D8 when the X base
-; is $90), tile $40-$FF, attr $00/$01/$28 (EOR'd with the caller's $02 = 3).
-; Sprites are always 8x8: no writer ever sets PPUCTRL bit 5 ($008B is only
-; ever $10, ORA #$80 / AND #$7F / scroll-bit updates). Tile decode pages:
-; the MenuActions run under State_StrategyMode (prg_1f_boot $E27E), whose
-; DisplayInit A=$04 loads font record 4 (7C 7D 7D 04 ...), so sprite slots
-; 0-3 = pages $7C/$7D/$7D/$04: tiles $40-$BF land on $7D (chr_0f @ $1400,
-; the command-scene icon sheet - carts, structures, banners, cursors,
-; rendered coherently with color 0 transparent); the sparse tiles $C0-$FF
-; (37 records) land on $04 (chr_00 @ $1000, the equipment-kanji page, whose
-; glyph cells store strokes in color 0 = transparent for sprites).
-; No text: no record's sprite slots ever map to a kana page ($70/$78), and
-; the 1 KB screen at the end of the bank is a window frame (see below).
+; What a blob draws (tools/render_menu_oam_blobs.py renders all 130 of them
+; with the pages and palette below, read from the ROM):
+;   Sprites read the pattern table PPUCTRL bit 4 selects. The
+;   PPUCTRL mirror is $10 from boot (prg_1f_boot $E0C2) and nothing ever writes
+;   bits 3-4, so sprites use PPU $1000-$1FFF = NAMCO-163 CHR slots 4-7 = menu
+;   font record BYTES 4-7 (BG reads slots 0-3 = bytes 0-3). State_StrategyMode
+;   loads record action_type($0544)+2 (prg_1f_boot $E237/$E252), so the
+;   MenuActions use records 2-9, whose bytes 4-7 are 95 78 78 18 (record 5
+;   swaps slot 5 to $7A, records 7-8 slot 4 to $97, record 9 slot 7 to $90).
+;   A page value V is the 1 KB slice chr_(V//8).bin @ (V%8)*$400, so:
+;     tile $40-$7F and $80-$BF -> page $78 = chr_0f @ $0000, the command-scene
+;       icon sheet. Slots 5 and 6 carry the same page, so tile $80+n is the
+;       same glyph as tile $40+n - and the sheet's gold digits at index $34-$3F
+;       ($74-$7D = 0-9, $7E = 10, $7F = 100) are therefore also drawn by
+;       $B4-$BF. Below the digits ($40-$73) sit the picture fragments.
+;     tile $C0-$FF -> page $18 = chr_03 @ $0000 (records 2-8).
+;   Colour: PaletteRecordLoad takes the same action_type+2 index, and for
+;   records 2-9 sprite palette 3 ($3F1D-$3F1F) is $20 $27 $17 = white, gold,
+;   black over transparent; palette 2 is $0F $20 $16. Stored attr $00/$01/$28
+;   XOR 3 -> palette 3, palette 2, palette 3 + horizontal flip.
+;   So each panel's blobs are one of three things, and the blob labels say
+;   which: a Scene (a picture cut from the icon fragments), a Number (a plate
+;   built from the digit glyphs), or a Mark (a 1-2 sprite glyph the handler
+;   blinks at one spot). Blobs that post an identical [y,x] offset set are the
+;   frames of one animation walked through $04A1 - 31 of the 34 tables hold at
+;   least one such group, and the 130 blobs collapse to 62 distinct pictures.
+;   Sprites are always 8x8: no writer ever sets PPUCTRL bit 2 ($008B is only
+;   ever $10, ORA #$80, AND #$7F, AND #$FB and the scroll-bit updates).
+;   The 1 KB screen at the end of the bank is a window frame (see below).
 ;===============================================================================
 
 .segment "CODE_BANK16"
 
-; Bank-16 labels are scoped: the generated files of the other data banks must
-; stay free to reuse the generic MenuOam* vocabulary (cf. data_13_menu_display.asm's
-; Bank13MenuStreams scope).
+; Bank-16 labels are scoped so the other generated data banks stay free to reuse
+; the short element words (Scene/Number/Mark) the blob names end with (cf.
+; data_13_menu_display.asm's Bank13MenuStreams scope).
 
-.proc Bank16MenuOamData
+.proc Bank16MenuSpriteData
 
 
-; --- $8000-$9B91  MenuOam area: 34 x .word pointer tables (one per
-;     MenuAction dispatch entry) interleaved with their 130 blobs;
-;     stored word = blob address + $4000 (DisplayTileData's SEC/SBC #$40
-;     on the high byte undoes it; bank $12 biases the other way) ---
+; --- $8000-$9B91  MenuAction sprite area: 34 x .word pointer tables
+;     (one per MenuAction dispatch entry) interleaved with their 130
+;     blobs; stored word = blob address + $4000 (DisplayTileData's
+;     SEC/SBC #$40 on the high byte undoes it; bank $12 biases the
+;     other way) ---
+;     Names: <panel>SpriteTable for the pointer table, and one blob
+;     <panel><Kind><n> where Kind is read off the blob itself -
+;     Number (most sprites are digit glyphs), Mark (1-2 sprites the
+;     handler blinks at one spot), Scene (a picture cut from the
+;     icon-sheet fragments). n is the table index = Y - 1.
 ;     Blob geometry over all 1667 records: y_off $00-$48 (screen Y = y_off +
 ;     $2F), x_off $00-$48 (screen X = x_off + $20 left panel / $90 right
 ;     panel), tile $40-$FF, attr $00, $01, $28 (EOR $03 flip/flags).
 
-; --- MenuAction00_SortieResult: 2 x .word @ $8000, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_00:
-  .word MenuOam_00_0+$4000                                                ; $8000: 04 C0  ; entry 0 -> blob $8004, 30 records
-  .word MenuOam_00_1+$4000                                                ; $8002: 7D C0  ; entry 1 -> blob $807D, 30 records
+; --- SortieResultSpriteTable: 2 x .word @ $8000 = the MenuAction00_SortieResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 ---
+SortieResultSpriteTable:
+  .word SortieResultScene0+$4000                                          ; $8000: 04 C0  ; entry 0 -> SortieResultScene0 (30 records)
+  .word SortieResultScene1+$4000                                          ; $8002: 7D C0  ; entry 1 -> SortieResultScene1 (30 records)
 
-; blob entry 0 (@$8004): 30 [y,tile,attr,x] records, $80 terminator @ $807C
-MenuOam_00_0:
+; SortieResultScene0: 30 [y,tile,attr,x] records @ $8004, $80 terminator @ $807C
+;     frame 1 of 2 - posts the same offsets as entry $807D, so the handler walks them as one animation
+;     x_off $00-$48, y_off $08-$48
+SortieResultScene0:
   .byte $08, $40, $00, $07, $08, $41, $00, $0F, $08, $42, $00, $30, $08, $43, $00, $38 ; $8004: 08 40 00 07 08 41 00 0F 08 42 00 30 08 43 00 38
   .byte $10, $44, $00, $07, $10, $45, $00, $0F, $10, $46, $00, $38, $18, $47, $00, $07 ; $8014: 10 44 00 07 10 45 00 0F 10 46 00 38 18 47 00 07
   .byte $18, $48, $00, $0F, $18, $49, $00, $38, $20, $4A, $00, $07, $20, $4B, $00, $0F ; $8024: 18 48 00 0F 18 49 00 38 20 4A 00 07 20 4B 00 0F
@@ -92,8 +115,10 @@ MenuOam_00_0:
   .byte $40, $58, $00, $10, $40, $59, $00, $40, $40, $5A, $00, $48, $48, $5B, $00, $00 ; $8064: 40 58 00 10 40 59 00 40 40 5A 00 48 48 5B 00 00
   .byte $48, $5C, $00, $08, $48, $5D, $00, $48, $80                       ; $8074: 48 5C 00 08 48 5D 00 48 80  ; terminator $80
 
-; blob entry 1 (@$807D): 30 [y,tile,attr,x] records, $80 terminator @ $80F5
-MenuOam_00_1:
+; SortieResultScene1: 30 [y,tile,attr,x] records @ $807D, $80 terminator @ $80F5
+;     frame 2 of 2 - posts the same offsets as entry $8004, so the handler walks them as one animation
+;     x_off $00-$48, y_off $08-$48
+SortieResultScene1:
   .byte $08, $5E, $00, $07, $08, $41, $00, $0F, $08, $5F, $00, $30, $08, $60, $00, $38 ; $807D: 08 5E 00 07 08 41 00 0F 08 5F 00 30 08 60 00 38
   .byte $10, $61, $00, $07, $10, $45, $00, $0F, $10, $62, $00, $38, $18, $63, $00, $07 ; $808D: 10 61 00 07 10 45 00 0F 10 62 00 38 18 63 00 07
   .byte $18, $48, $00, $0F, $18, $64, $00, $38, $20, $65, $00, $07, $20, $4B, $00, $0F ; $809D: 18 48 00 0F 18 64 00 38 20 65 00 07 20 4B 00 0F
@@ -103,41 +128,56 @@ MenuOam_00_1:
   .byte $40, $6E, $00, $10, $40, $6F, $00, $40, $40, $5A, $00, $48, $48, $70, $00, $00 ; $80DD: 40 6E 00 10 40 6F 00 40 40 5A 00 48 48 70 00 00
   .byte $48, $71, $00, $08, $48, $5D, $00, $48, $80                       ; $80ED: 48 71 00 08 48 5D 00 48 80  ; terminator $80
 
-; --- MenuAction01_AcademyResult: 4 x .word @ $80F6, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_01:
-  .word MenuOam_01_0+$4000                                                ; $80F6: FE C0  ; entry 0 -> blob $80FE, 7 records
-  .word MenuOam_01_1+$4000                                                ; $80F8: 1B C1  ; entry 1 -> blob $811B, 7 records
-  .word MenuOam_01_2+$4000                                                ; $80FA: 38 C1  ; entry 2 -> blob $8138, 7 records
-  .word MenuOam_01_3+$4000                                                ; $80FC: 55 C1  ; entry 3 -> blob $8155, 7 records
+; --- AcademyResultSpriteTable: 4 x .word @ $80F6 = the MenuAction01_AcademyResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Number0 Number1 Number2 Number3 ---
+AcademyResultSpriteTable:
+  .word AcademyResultNumber0+$4000                                        ; $80F6: FE C0  ; entry 0 -> AcademyResultNumber0 (7 records)
+  .word AcademyResultNumber1+$4000                                        ; $80F8: 1B C1  ; entry 1 -> AcademyResultNumber1 (7 records)
+  .word AcademyResultNumber2+$4000                                        ; $80FA: 38 C1  ; entry 2 -> AcademyResultNumber2 (7 records)
+  .word AcademyResultNumber3+$4000                                        ; $80FC: 55 C1  ; entry 3 -> AcademyResultNumber3 (7 records)
 
-; blob entry 0 (@$80FE): 7 [y,tile,attr,x] records, $80 terminator @ $811A
-MenuOam_01_0:
+; AcademyResultNumber0: 7 [y,tile,attr,x] records @ $80FE, $80 terminator @ $811A
+;     frame 1 of 4 - posts the same offsets as entries entry $811B, $8138, $8155, so the handler walks them as one animation
+;     x_off $20-$30, y_off $10-$20
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5
+AcademyResultNumber0:
   .byte $10, $73, $00, $20, $10, $74, $00, $28, $18, $75, $00, $20, $18, $76, $00, $28 ; $80FE: 10 73 00 20 10 74 00 28 18 75 00 20 18 76 00 28
   .byte $18, $77, $00, $30, $20, $78, $00, $20, $20, $79, $28, $28, $80   ; $810E: 18 77 00 30 20 78 00 20 20 79 28 28 80  ; terminator $80
 
-; blob entry 1 (@$811B): 7 [y,tile,attr,x] records, $80 terminator @ $8137
-MenuOam_01_1:
+; AcademyResultNumber1: 7 [y,tile,attr,x] records @ $811B, $80 terminator @ $8137
+;     frame 2 of 4 - posts the same offsets as entries entry $80FE, $8138, $8155, so the handler walks them as one animation
+;     x_off $20-$30, y_off $10-$20
+;     digit glyphs drawn: 0, 3, 6, 7, 8, 9
+AcademyResultNumber1:
   .byte $10, $73, $00, $20, $10, $74, $00, $28, $18, $7A, $00, $20, $18, $7B, $00, $28 ; $811B: 10 73 00 20 10 74 00 28 18 7A 00 20 18 7B 00 28
   .byte $18, $77, $00, $30, $20, $7C, $00, $20, $20, $7D, $00, $28, $80   ; $812B: 18 77 00 30 20 7C 00 20 20 7D 00 28 80  ; terminator $80
 
-; blob entry 2 (@$8138): 7 [y,tile,attr,x] records, $80 terminator @ $8154
-MenuOam_01_2:
+; AcademyResultNumber2: 7 [y,tile,attr,x] records @ $8138, $80 terminator @ $8154
+;     frame 3 of 4 - posts the same offsets as entries entry $80FE, $811B, $8155, so the handler walks them as one animation
+;     x_off $20-$30, y_off $10-$20
+;     digit glyphs drawn: 0, 3, 4, 10, 100
+AcademyResultNumber2:
   .byte $10, $73, $00, $20, $10, $74, $00, $28, $18, $7E, $00, $20, $18, $7F, $00, $28 ; $8138: 10 73 00 20 10 74 00 28 18 7E 00 20 18 7F 00 28
   .byte $18, $77, $00, $30, $20, $B7, $00, $20, $20, $B8, $00, $28, $80   ; $8148: 18 77 00 30 20 B7 00 20 20 B8 00 28 80  ; terminator $80
 
-; blob entry 3 (@$8155): 7 [y,tile,attr,x] records, $80 terminator @ $8171
-MenuOam_01_3:
+; AcademyResultNumber3: 7 [y,tile,attr,x] records @ $8155, $80 terminator @ $8171
+;     frame 4 of 4 - posts the same offsets as entries entry $80FE, $811B, $8138, so the handler walks them as one animation
+;     x_off $20-$30, y_off $10-$20
+;     digit glyphs drawn: 0, 3, 5, 6, 10
+AcademyResultNumber3:
   .byte $10, $73, $00, $20, $10, $74, $00, $28, $18, $7E, $00, $20, $18, $B9, $00, $28 ; $8155: 10 73 00 20 10 74 00 28 18 7E 00 20 18 B9 00 28
   .byte $18, $77, $00, $30, $20, $B7, $00, $20, $20, $BA, $00, $28, $80   ; $8165: 18 77 00 30 20 B7 00 20 20 BA 00 28 80  ; terminator $80
 
-; --- MenuAction02_SaveGameResult: 1 x .word @ $8172, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_02:
-  .word MenuOam_02_0+$4000                                                ; $8172: 74 C1  ; entry 0 -> blob $8174, 22 records
+; --- SaveGameResultSpriteTable: 1 x .word @ $8172 = the MenuAction02_SaveGameResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Number0 ---
+SaveGameResultSpriteTable:
+  .word SaveGameResultNumber0+$4000                                       ; $8172: 74 C1  ; entry 0 -> SaveGameResultNumber0 (22 records)
 
-; blob entry 0 (@$8174): 22 [y,tile,attr,x] records, $80 terminator @ $81CC
-MenuOam_02_0:
+; SaveGameResultNumber0: 22 [y,tile,attr,x] records @ $8174, $80 terminator @ $81CC
+;     one posting of its own (22 records, offsets shared by no other entry)
+;     x_off $10-$40, y_off $08-$30
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100
+SaveGameResultNumber0:
   .byte $08, $6C, $00, $40, $10, $6D, $00, $40, $18, $6E, $00, $40, $20, $6F, $00, $40 ; $8174: 08 6C 00 40 10 6D 00 40 18 6E 00 40 20 6F 00 40
   .byte $28, $70, $00, $40, $30, $71, $00, $40, $08, $72, $00, $30, $10, $73, $00, $30 ; $8184: 28 70 00 40 30 71 00 40 08 72 00 30 10 73 00 30
   .byte $18, $74, $00, $30, $20, $75, $00, $30, $28, $76, $00, $30, $08, $77, $00, $20 ; $8194: 18 74 00 30 20 75 00 30 28 76 00 30 08 77 00 20
@@ -145,64 +185,81 @@ MenuOam_02_0:
   .byte $30, $7C, $00, $20, $08, $7D, $00, $10, $10, $6D, $00, $10, $18, $7E, $00, $10 ; $81B4: 30 7C 00 20 08 7D 00 10 10 6D 00 10 18 7E 00 10
   .byte $20, $70, $00, $10, $28, $7F, $00, $10, $80                       ; $81C4: 20 70 00 10 28 7F 00 10 80  ; terminator $80
 
-; --- MenuAction03_DiscordResult: 4 x .word @ $81CD, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_03:
-  .word MenuOam_03_0+$4000                                                ; $81CD: D5 C1  ; entry 0 -> blob $81D5, 1 records
-  .word MenuOam_03_1+$4000                                                ; $81CF: DA C1  ; entry 1 -> blob $81DA, 1 records
-  .word MenuOam_03_2+$4000                                                ; $81D1: DF C1  ; entry 2 -> blob $81DF, 11 records
-  .word MenuOam_03_3+$4000                                                ; $81D3: 0C C2  ; entry 3 -> blob $820C, 11 records
+; --- DiscordResultSpriteTable: 4 x .word @ $81CD = the MenuAction03_DiscordResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Mark0 Mark1 Scene2 Scene3 ---
+DiscordResultSpriteTable:
+  .word DiscordResultMark0+$4000                                          ; $81CD: D5 C1  ; entry 0 -> DiscordResultMark0 (1 records)
+  .word DiscordResultMark1+$4000                                          ; $81CF: DA C1  ; entry 1 -> DiscordResultMark1 (1 records)
+  .word DiscordResultScene2+$4000                                         ; $81D1: DF C1  ; entry 2 -> DiscordResultScene2 (11 records)
+  .word DiscordResultScene3+$4000                                         ; $81D3: 0C C2  ; entry 3 -> DiscordResultScene3 (11 records)
 
-; blob entry 0 (@$81D5): 1 [y,tile,attr,x] records, $80 terminator @ $81D9
-MenuOam_03_0:
+; DiscordResultMark0: 1 [y,tile,attr,x] records @ $81D5, $80 terminator @ $81D9
+;     frame 1 of 2 - posts the same offsets as entry $81DA, so the handler walks them as one animation
+;     x_off $30-$30, y_off $18-$18
+DiscordResultMark0:
   .byte $18, $63, $00, $30, $80                                           ; $81D5: 18 63 00 30 80
 
-; blob entry 1 (@$81DA): 1 [y,tile,attr,x] records, $80 terminator @ $81DE
-MenuOam_03_1:
+; DiscordResultMark1: 1 [y,tile,attr,x] records @ $81DA, $80 terminator @ $81DE
+;     frame 2 of 2 - posts the same offsets as entry $81D5, so the handler walks them as one animation
+;     x_off $30-$30, y_off $18-$18
+DiscordResultMark1:
   .byte $18, $62, $00, $30, $80                                           ; $81DA: 18 62 00 30 80
 
-; blob entry 2 (@$81DF): 11 [y,tile,attr,x] records, $80 terminator @ $820B
-MenuOam_03_2:
+; DiscordResultScene2: 11 [y,tile,attr,x] records @ $81DF, $80 terminator @ $820B
+;     frame 1 of 2 - posts the same offsets as entry $820C, so the handler walks them as one animation
+;     x_off $08-$18, y_off $08-$20
+DiscordResultScene2:
   .byte $08, $86, $00, $08, $08, $87, $00, $10, $08, $88, $00, $18, $10, $89, $00, $08 ; $81DF: 08 86 00 08 08 87 00 10 08 88 00 18 10 89 00 08
   .byte $10, $8A, $00, $10, $10, $8B, $00, $18, $18, $8C, $00, $08, $18, $8D, $00, $10 ; $81EF: 10 8A 00 10 10 8B 00 18 18 8C 00 08 18 8D 00 10
   .byte $18, $8E, $00, $18, $20, $60, $00, $10, $20, $61, $00, $18, $80   ; $81FF: 18 8E 00 18 20 60 00 10 20 61 00 18 80  ; terminator $80
 
-; blob entry 3 (@$820C): 11 [y,tile,attr,x] records, $80 terminator @ $8238
-MenuOam_03_3:
+; DiscordResultScene3: 11 [y,tile,attr,x] records @ $820C, $80 terminator @ $8238
+;     frame 2 of 2 - posts the same offsets as entry $81DF, so the handler walks them as one animation
+;     x_off $08-$18, y_off $08-$20
+;     digit glyphs drawn: 7, 8, 9, 10, 100
+DiscordResultScene3:
   .byte $08, $7B, $00, $08, $08, $7C, $00, $10, $08, $7D, $00, $18, $10, $7E, $00, $08 ; $820C: 08 7B 00 08 08 7C 00 10 08 7D 00 18 10 7E 00 08
   .byte $10, $7F, $00, $10, $10, $80, $00, $18, $18, $81, $00, $08, $18, $82, $00, $10 ; $821C: 10 7F 00 10 10 80 00 18 18 81 00 08 18 82 00 10
   .byte $18, $83, $00, $18, $20, $84, $00, $10, $20, $85, $00, $18, $80   ; $822C: 18 83 00 18 20 84 00 10 20 85 00 18 80  ; terminator $80
 
-; --- MenuAction04_WarRulerCard: 2 x .word @ $8239, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_04:
-  .word MenuOam_04_0+$4000                                                ; $8239: 3D C2  ; entry 0 -> blob $823D, 13 records
-  .word MenuOam_04_1+$4000                                                ; $823B: 72 C2  ; entry 1 -> blob $8272, 13 records
+; --- WarRulerCardSpriteTable: 2 x .word @ $8239 = the MenuAction04_WarRulerCard panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Number1 ---
+WarRulerCardSpriteTable:
+  .word WarRulerCardScene0+$4000                                          ; $8239: 3D C2  ; entry 0 -> WarRulerCardScene0 (13 records)
+  .word WarRulerCardNumber1+$4000                                         ; $823B: 72 C2  ; entry 1 -> WarRulerCardNumber1 (13 records)
 
-; blob entry 0 (@$823D): 13 [y,tile,attr,x] records, $80 terminator @ $8271
-MenuOam_04_0:
+; WarRulerCardScene0: 13 [y,tile,attr,x] records @ $823D, $80 terminator @ $8271
+;     frame 1 of 2 - posts the same offsets as entry $8272, so the handler walks them as one animation
+;     x_off $00-$40, y_off $18-$28
+WarRulerCardScene0:
   .byte $18, $63, $00, $00, $18, $64, $00, $18, $18, $65, $00, $20, $18, $66, $00, $28 ; $823D: 18 63 00 00 18 64 00 18 18 65 00 20 18 66 00 28
   .byte $18, $67, $00, $40, $20, $68, $00, $00, $20, $69, $00, $10, $20, $6A, $00, $20 ; $824D: 18 67 00 40 20 68 00 00 20 69 00 10 20 6A 00 20
   .byte $20, $6B, $00, $28, $20, $6C, $00, $30, $28, $6D, $00, $00, $28, $6E, $00, $08 ; $825D: 20 6B 00 28 20 6C 00 30 28 6D 00 00 28 6E 00 08
   .byte $28, $6F, $00, $10, $80                                           ; $826D: 28 6F 00 10 80  ; terminator $80
 
-; blob entry 1 (@$8272): 13 [y,tile,attr,x] records, $80 terminator @ $82A6
-MenuOam_04_1:
+; WarRulerCardNumber1: 13 [y,tile,attr,x] records @ $8272, $80 terminator @ $82A6
+;     frame 2 of 2 - posts the same offsets as entry $823D, so the handler walks them as one animation
+;     x_off $00-$40, y_off $18-$28
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6, 7, 8
+WarRulerCardNumber1:
   .byte $18, $70, $00, $00, $18, $71, $00, $18, $18, $72, $00, $20, $18, $73, $00, $28 ; $8272: 18 70 00 00 18 71 00 18 18 72 00 20 18 73 00 28
   .byte $18, $74, $00, $40, $20, $75, $00, $00, $20, $76, $00, $10, $20, $77, $00, $20 ; $8282: 18 74 00 40 20 75 00 00 20 76 00 10 20 77 00 20
   .byte $20, $78, $00, $28, $20, $79, $00, $30, $28, $7A, $00, $00, $28, $7B, $00, $08 ; $8292: 20 78 00 28 20 79 00 30 28 7A 00 00 28 7B 00 08
   .byte $28, $7C, $00, $10, $80                                           ; $82A2: 28 7C 00 10 80  ; terminator $80
 
-; --- MenuAction05_WarRivalRulerCard: 4 x .word @ $82A7, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_05:
-  .word MenuOam_05_0+$4000                                                ; $82A7: AF C2  ; entry 0 -> blob $82AF, 25 records
-  .word MenuOam_05_1+$4000                                                ; $82A9: 14 C3  ; entry 1 -> blob $8314, 25 records
-  .word MenuOam_05_2+$4000                                                ; $82AB: 79 C3  ; entry 2 -> blob $8379, 1 records
-  .word MenuOam_05_3+$4000                                                ; $82AD: 7E C3  ; entry 3 -> blob $837E, 1 records
+; --- WarRivalRulerCardSpriteTable: 4 x .word @ $82A7 = the MenuAction05_WarRivalRulerCard panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Number0 Scene1 Number2 Number3 ---
+WarRivalRulerCardSpriteTable:
+  .word WarRivalRulerCardNumber0+$4000                                    ; $82A7: AF C2  ; entry 0 -> WarRivalRulerCardNumber0 (25 records)
+  .word WarRivalRulerCardScene1+$4000                                     ; $82A9: 14 C3  ; entry 1 -> WarRivalRulerCardScene1 (25 records)
+  .word WarRivalRulerCardNumber2+$4000                                    ; $82AB: 79 C3  ; entry 2 -> WarRivalRulerCardNumber2 (1 records)
+  .word WarRivalRulerCardNumber3+$4000                                    ; $82AD: 7E C3  ; entry 3 -> WarRivalRulerCardNumber3 (1 records)
 
-; blob entry 0 (@$82AF): 25 [y,tile,attr,x] records, $80 terminator @ $8313
-MenuOam_05_0:
+; WarRivalRulerCardNumber0: 25 [y,tile,attr,x] records @ $82AF, $80 terminator @ $8313
+;     frame 1 of 2 - posts the same offsets as entry $8314, so the handler walks them as one animation
+;     x_off $20-$40, y_off $00-$28
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100
+WarRivalRulerCardNumber0:
   .byte $00, $72, $00, $28, $00, $73, $00, $30, $00, $74, $00, $38, $00, $75, $00, $40 ; $82AF: 00 72 00 28 00 73 00 30 00 74 00 38 00 75 00 40
   .byte $08, $76, $00, $20, $08, $77, $00, $28, $08, $78, $00, $30, $08, $79, $00, $38 ; $82BF: 08 76 00 20 08 77 00 28 08 78 00 30 08 79 00 38
   .byte $08, $68, $00, $40, $10, $7A, $00, $20, $10, $7B, $00, $28, $10, $7C, $00, $30 ; $82CF: 08 68 00 40 10 7A 00 20 10 7B 00 28 10 7C 00 30
@@ -211,8 +268,10 @@ MenuOam_05_0:
   .byte $20, $B9, $00, $30, $20, $BA, $00, $38, $20, $BB, $00, $40, $28, $BC, $00, $38 ; $82FF: 20 B9 00 30 20 BA 00 38 20 BB 00 40 28 BC 00 38
   .byte $28, $BD, $00, $40, $80                                           ; $830F: 28 BD 00 40 80  ; terminator $80
 
-; blob entry 1 (@$8314): 25 [y,tile,attr,x] records, $80 terminator @ $8378
-MenuOam_05_1:
+; WarRivalRulerCardScene1: 25 [y,tile,attr,x] records @ $8314, $80 terminator @ $8378
+;     frame 2 of 2 - posts the same offsets as entry $82AF, so the handler walks them as one animation
+;     x_off $20-$40, y_off $00-$28
+WarRivalRulerCardScene1:
   .byte $00, $4D, $00, $28, $00, $4E, $00, $30, $00, $4F, $00, $38, $00, $5D, $00, $40 ; $8314: 00 4D 00 28 00 4E 00 30 00 4F 00 38 00 5D 00 40
   .byte $08, $5E, $00, $20, $08, $5F, $00, $28, $08, $60, $00, $30, $08, $61, $00, $38 ; $8324: 08 5E 00 20 08 5F 00 28 08 60 00 30 08 61 00 38
   .byte $08, $62, $00, $40, $10, $63, $00, $20, $10, $64, $00, $28, $10, $65, $00, $30 ; $8334: 08 62 00 40 10 63 00 20 10 64 00 28 10 65 00 30
@@ -221,53 +280,68 @@ MenuOam_05_1:
   .byte $20, $6D, $00, $30, $20, $6E, $00, $38, $20, $6F, $00, $40, $28, $70, $00, $38 ; $8364: 20 6D 00 30 20 6E 00 38 20 6F 00 40 28 70 00 38
   .byte $28, $71, $00, $40, $80                                           ; $8374: 28 71 00 40 80  ; terminator $80
 
-; blob entry 2 (@$8379): 1 [y,tile,attr,x] records, $80 terminator @ $837D
-MenuOam_05_2:
+; WarRivalRulerCardNumber2: 1 [y,tile,attr,x] records @ $8379, $80 terminator @ $837D
+;     frame 1 of 2 - posts the same offsets as entry $837E, so the handler walks them as one animation
+;     x_off $30-$30, y_off $38-$38
+;     digit glyphs drawn: 10
+WarRivalRulerCardNumber2:
   .byte $38, $BE, $00, $30, $80                                           ; $8379: 38 BE 00 30 80
 
-; blob entry 3 (@$837E): 1 [y,tile,attr,x] records, $80 terminator @ $8382
-MenuOam_05_3:
+; WarRivalRulerCardNumber3: 1 [y,tile,attr,x] records @ $837E, $80 terminator @ $8382
+;     frame 2 of 2 - posts the same offsets as entry $8379, so the handler walks them as one animation
+;     x_off $30-$30, y_off $38-$38
+;     digit glyphs drawn: 100
+WarRivalRulerCardNumber3:
   .byte $38, $BF, $00, $30, $80                                           ; $837E: 38 BF 00 30 80
 
-; --- MenuAction06_DisasterPreventionResult: 3 x .word @ $8383, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_06:
-  .word MenuOam_06_0+$4000                                                ; $8383: 89 C3  ; entry 0 -> blob $8389, 15 records
-  .word MenuOam_06_1+$4000                                                ; $8385: C6 C3  ; entry 1 -> blob $83C6, 18 records
-  .word MenuOam_06_2+$4000                                                ; $8387: 0F C4  ; entry 2 -> blob $840F, 17 records
+; --- DisasterPreventionResultSpriteTable: 3 x .word @ $8383 = the MenuAction06_DisasterPreventionResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 ---
+DisasterPreventionResultSpriteTable:
+  .word DisasterPreventionResultScene0+$4000                              ; $8383: 89 C3  ; entry 0 -> DisasterPreventionResultScene0 (15 records)
+  .word DisasterPreventionResultScene1+$4000                              ; $8385: C6 C3  ; entry 1 -> DisasterPreventionResultScene1 (18 records)
+  .word DisasterPreventionResultScene2+$4000                              ; $8387: 0F C4  ; entry 2 -> DisasterPreventionResultScene2 (17 records)
 
-; blob entry 0 (@$8389): 15 [y,tile,attr,x] records, $80 terminator @ $83C5
-MenuOam_06_0:
+; DisasterPreventionResultScene0: 15 [y,tile,attr,x] records @ $8389, $80 terminator @ $83C5
+;     one posting of its own (15 records, offsets shared by no other entry)
+;     x_off $18-$28, y_off $0B-$33
+;     digit glyphs drawn: 100
+DisasterPreventionResultScene0:
   .byte $0B, $7F, $00, $20, $0B, $80, $00, $28, $13, $81, $00, $18, $13, $82, $00, $20 ; $8389: 0B 7F 00 20 0B 80 00 28 13 81 00 18 13 82 00 20
   .byte $13, $83, $00, $28, $1B, $84, $00, $18, $1B, $85, $00, $20, $1B, $86, $00, $28 ; $8399: 13 83 00 28 1B 84 00 18 1B 85 00 20 1B 86 00 28
   .byte $23, $87, $00, $20, $23, $88, $00, $28, $2B, $89, $00, $20, $2B, $8A, $00, $28 ; $83A9: 23 87 00 20 23 88 00 28 2B 89 00 20 2B 8A 00 28
   .byte $33, $8B, $00, $18, $33, $8C, $00, $20, $33, $8D, $00, $28, $80   ; $83B9: 33 8B 00 18 33 8C 00 20 33 8D 00 28 80  ; terminator $80
 
-; blob entry 1 (@$83C6): 18 [y,tile,attr,x] records, $80 terminator @ $840E
-MenuOam_06_1:
+; DisasterPreventionResultScene1: 18 [y,tile,attr,x] records @ $83C6, $80 terminator @ $840E
+;     one posting of its own (18 records, offsets shared by no other entry)
+;     x_off $18-$30, y_off $03-$33
+DisasterPreventionResultScene1:
   .byte $03, $8E, $00, $20, $03, $8F, $00, $28, $0B, $90, $00, $20, $0B, $91, $00, $28 ; $83C6: 03 8E 00 20 03 8F 00 28 0B 90 00 20 0B 91 00 28
   .byte $0B, $92, $00, $30, $13, $93, $00, $20, $13, $94, $00, $28, $13, $95, $00, $30 ; $83D6: 0B 92 00 30 13 93 00 20 13 94 00 28 13 95 00 30
   .byte $1B, $96, $00, $20, $1B, $97, $00, $28, $1B, $98, $00, $30, $23, $99, $00, $20 ; $83E6: 1B 96 00 20 1B 97 00 28 1B 98 00 30 23 99 00 20
   .byte $23, $9A, $00, $28, $2B, $89, $00, $20, $2B, $8A, $00, $28, $33, $8B, $00, $18 ; $83F6: 23 9A 00 28 2B 89 00 20 2B 8A 00 28 33 8B 00 18
   .byte $33, $8C, $00, $20, $33, $8D, $00, $28, $80                       ; $8406: 33 8C 00 20 33 8D 00 28 80  ; terminator $80
 
-; blob entry 2 (@$840F): 17 [y,tile,attr,x] records, $80 terminator @ $8453
-MenuOam_06_2:
+; DisasterPreventionResultScene2: 17 [y,tile,attr,x] records @ $840F, $80 terminator @ $8453
+;     one posting of its own (17 records, offsets shared by no other entry)
+;     x_off $18-$40, y_off $13-$33
+DisasterPreventionResultScene2:
   .byte $13, $9B, $00, $28, $1B, $9C, $00, $20, $1B, $9D, $00, $28, $1B, $9E, $00, $30 ; $840F: 13 9B 00 28 1B 9C 00 20 1B 9D 00 28 1B 9E 00 30
   .byte $23, $9F, $00, $20, $23, $A0, $00, $28, $23, $A1, $00, $30, $2B, $89, $00, $20 ; $841F: 23 9F 00 20 23 A0 00 28 23 A1 00 30 2B 89 00 20
   .byte $2B, $A2, $00, $28, $2B, $A3, $00, $30, $2B, $A4, $00, $38, $2B, $A5, $00, $40 ; $842F: 2B A2 00 28 2B A3 00 30 2B A4 00 38 2B A5 00 40
   .byte $33, $8B, $00, $18, $33, $8C, $00, $20, $33, $8D, $00, $28, $33, $A6, $00, $38 ; $843F: 33 8B 00 18 33 8C 00 20 33 8D 00 28 33 A6 00 38
   .byte $33, $A7, $00, $40, $80                                           ; $844F: 33 A7 00 40 80  ; terminator $80
 
-; --- MenuAction07_ArmoryResult: 3 x .word @ $8454, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_07:
-  .word MenuOam_07_0+$4000                                                ; $8454: 5A C4  ; entry 0 -> blob $845A, 21 records
-  .word MenuOam_07_1+$4000                                                ; $8456: AF C4  ; entry 1 -> blob $84AF, 21 records
-  .word MenuOam_07_2+$4000                                                ; $8458: 04 C5  ; entry 2 -> blob $8504, 21 records
+; --- ArmoryResultSpriteTable: 3 x .word @ $8454 = the MenuAction07_ArmoryResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 ---
+ArmoryResultSpriteTable:
+  .word ArmoryResultScene0+$4000                                          ; $8454: 5A C4  ; entry 0 -> ArmoryResultScene0 (21 records)
+  .word ArmoryResultScene1+$4000                                          ; $8456: AF C4  ; entry 1 -> ArmoryResultScene1 (21 records)
+  .word ArmoryResultScene2+$4000                                          ; $8458: 04 C5  ; entry 2 -> ArmoryResultScene2 (21 records)
 
-; blob entry 0 (@$845A): 21 [y,tile,attr,x] records, $80 terminator @ $84AE
-MenuOam_07_0:
+; ArmoryResultScene0: 21 [y,tile,attr,x] records @ $845A, $80 terminator @ $84AE
+;     frame 1 of 3 - posts the same offsets as entries entry $84AF, $8504, so the handler walks them as one animation
+;     x_off $18-$48, y_off $20-$48
+ArmoryResultScene0:
   .byte $20, $43, $00, $28, $20, $44, $00, $30, $20, $45, $00, $38, $28, $46, $00, $28 ; $845A: 20 43 00 28 20 44 00 30 20 45 00 38 28 46 00 28
   .byte $28, $47, $00, $30, $28, $48, $00, $38, $30, $49, $00, $20, $30, $4A, $00, $28 ; $846A: 28 47 00 30 28 48 00 38 30 49 00 20 30 4A 00 28
   .byte $30, $4B, $00, $30, $30, $4C, $00, $38, $38, $4D, $00, $18, $38, $4E, $00, $20 ; $847A: 30 4B 00 30 30 4C 00 38 38 4D 00 18 38 4E 00 20
@@ -275,8 +349,11 @@ MenuOam_07_0:
   .byte $40, $53, $00, $20, $48, $54, $00, $18, $48, $55, $00, $20, $40, $72, $00, $48 ; $849A: 40 53 00 20 48 54 00 18 48 55 00 20 40 72 00 48
   .byte $48, $73, $00, $48, $80                                           ; $84AA: 48 73 00 48 80  ; terminator $80
 
-; blob entry 1 (@$84AF): 21 [y,tile,attr,x] records, $80 terminator @ $8503
-MenuOam_07_1:
+; ArmoryResultScene1: 21 [y,tile,attr,x] records @ $84AF, $80 terminator @ $8503
+;     frame 2 of 3 - posts the same offsets as entries entry $845A, $8504, so the handler walks them as one animation
+;     x_off $18-$48, y_off $20-$48
+;     digit glyphs drawn: 0, 1
+ArmoryResultScene1:
   .byte $20, $43, $00, $28, $20, $44, $00, $30, $20, $45, $00, $38, $28, $46, $00, $28 ; $84AF: 20 43 00 28 20 44 00 30 20 45 00 38 28 46 00 28
   .byte $28, $47, $00, $30, $28, $48, $00, $38, $30, $56, $00, $20, $30, $57, $00, $28 ; $84BF: 28 47 00 30 28 48 00 38 30 56 00 20 30 57 00 28
   .byte $30, $4B, $00, $30, $30, $4C, $00, $38, $38, $58, $00, $18, $38, $59, $00, $20 ; $84CF: 30 4B 00 30 30 4C 00 38 38 58 00 18 38 59 00 20
@@ -284,8 +361,11 @@ MenuOam_07_1:
   .byte $40, $5C, $00, $20, $48, $5D, $00, $18, $48, $5E, $00, $20, $40, $74, $00, $48 ; $84EF: 40 5C 00 20 48 5D 00 18 48 5E 00 20 40 74 00 48
   .byte $48, $75, $00, $48, $80                                           ; $84FF: 48 75 00 48 80  ; terminator $80
 
-; blob entry 2 (@$8504): 21 [y,tile,attr,x] records, $80 terminator @ $8558
-MenuOam_07_2:
+; ArmoryResultScene2: 21 [y,tile,attr,x] records @ $8504, $80 terminator @ $8558
+;     frame 3 of 3 - posts the same offsets as entries entry $845A, $84AF, so the handler walks them as one animation
+;     x_off $18-$48, y_off $20-$48
+;     digit glyphs drawn: 0, 1
+ArmoryResultScene2:
   .byte $20, $5F, $00, $28, $20, $60, $00, $30, $20, $61, $00, $38, $28, $62, $00, $28 ; $8504: 20 5F 00 28 20 60 00 30 20 61 00 38 28 62 00 28
   .byte $28, $63, $00, $30, $28, $64, $00, $38, $30, $65, $00, $20, $30, $66, $00, $28 ; $8514: 28 63 00 30 28 64 00 38 30 65 00 20 30 66 00 28
   .byte $30, $67, $00, $30, $30, $68, $00, $38, $38, $69, $00, $18, $38, $6A, $00, $20 ; $8524: 30 67 00 30 30 68 00 38 38 69 00 18 38 6A 00 20
@@ -293,371 +373,480 @@ MenuOam_07_2:
   .byte $40, $6F, $00, $20, $48, $70, $00, $18, $48, $71, $00, $20, $40, $74, $00, $48 ; $8544: 40 6F 00 20 48 70 00 18 48 71 00 20 40 74 00 48
   .byte $48, $75, $00, $48, $80                                           ; $8554: 48 75 00 48 80  ; terminator $80
 
-; --- MenuAction08_WarOutbreakNotice: 5 x .word @ $8559, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_08:
-  .word MenuOam_08_0+$4000                                                ; $8559: 63 C5  ; entry 0 -> blob $8563, 10 records
-  .word MenuOam_08_1+$4000                                                ; $855B: 8C C5  ; entry 1 -> blob $858C, 10 records
-  .word MenuOam_08_2+$4000                                                ; $855D: B5 C5  ; entry 2 -> blob $85B5, 11 records
-  .word MenuOam_08_3+$4000                                                ; $855F: E2 C5  ; entry 3 -> blob $85E2, 11 records
-  .word MenuOam_08_4+$4000                                                ; $8561: 0F C6  ; entry 4 -> blob $860F, 11 records
+; --- WarOutbreakNoticeSpriteTable: 5 x .word @ $8559 = the MenuAction08_WarOutbreakNotice panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 Scene3 Scene4 ---
+WarOutbreakNoticeSpriteTable:
+  .word WarOutbreakNoticeScene0+$4000                                     ; $8559: 63 C5  ; entry 0 -> WarOutbreakNoticeScene0 (10 records)
+  .word WarOutbreakNoticeScene1+$4000                                     ; $855B: 8C C5  ; entry 1 -> WarOutbreakNoticeScene1 (10 records)
+  .word WarOutbreakNoticeScene2+$4000                                     ; $855D: B5 C5  ; entry 2 -> WarOutbreakNoticeScene2 (11 records)
+  .word WarOutbreakNoticeScene3+$4000                                     ; $855F: E2 C5  ; entry 3 -> WarOutbreakNoticeScene3 (11 records)
+  .word WarOutbreakNoticeScene4+$4000                                     ; $8561: 0F C6  ; entry 4 -> WarOutbreakNoticeScene4 (11 records)
 
-; blob entry 0 (@$8563): 10 [y,tile,attr,x] records, $80 terminator @ $858B
-MenuOam_08_0:
+; WarOutbreakNoticeScene0: 10 [y,tile,attr,x] records @ $8563, $80 terminator @ $858B
+;     frame 1 of 2 - posts the same offsets as entry $858C, so the handler walks them as one animation
+;     x_off $00-$20, y_off $00-$20
+WarOutbreakNoticeScene0:
   .byte $00, $40, $00, $00, $00, $41, $00, $08, $00, $42, $00, $10, $08, $43, $00, $08 ; $8563: 00 40 00 00 00 41 00 08 00 42 00 10 08 43 00 08
   .byte $08, $44, $00, $10, $10, $45, $00, $10, $10, $46, $00, $18, $18, $47, $00, $18 ; $8573: 08 44 00 10 10 45 00 10 10 46 00 18 18 47 00 18
   .byte $18, $48, $00, $20, $20, $49, $00, $20, $80                       ; $8583: 18 48 00 20 20 49 00 20 80  ; terminator $80
 
-; blob entry 1 (@$858C): 10 [y,tile,attr,x] records, $80 terminator @ $85B4
-MenuOam_08_1:
+; WarOutbreakNoticeScene1: 10 [y,tile,attr,x] records @ $858C, $80 terminator @ $85B4
+;     frame 2 of 2 - posts the same offsets as entry $8563, so the handler walks them as one animation
+;     x_off $00-$20, y_off $00-$20
+WarOutbreakNoticeScene1:
   .byte $00, $4A, $00, $00, $00, $4B, $00, $08, $00, $4C, $00, $10, $08, $4D, $00, $08 ; $858C: 00 4A 00 00 00 4B 00 08 00 4C 00 10 08 4D 00 08
   .byte $08, $4E, $00, $10, $10, $4F, $00, $10, $10, $50, $00, $18, $18, $51, $00, $18 ; $859C: 08 4E 00 10 10 4F 00 10 10 50 00 18 18 51 00 18
   .byte $18, $52, $00, $20, $20, $53, $00, $20, $80                       ; $85AC: 18 52 00 20 20 53 00 20 80  ; terminator $80
 
-; blob entry 2 (@$85B5): 11 [y,tile,attr,x] records, $80 terminator @ $85E1
-MenuOam_08_2:
+; WarOutbreakNoticeScene2: 11 [y,tile,attr,x] records @ $85B5, $80 terminator @ $85E1
+;     frame 1 of 3 - posts the same offsets as entries entry $85E2, $860F, so the handler walks them as one animation
+;     x_off $08-$48, y_off $40-$48
+WarOutbreakNoticeScene2:
   .byte $40, $54, $00, $08, $40, $55, $00, $18, $40, $56, $00, $20, $40, $57, $00, $30 ; $85B5: 40 54 00 08 40 55 00 18 40 56 00 20 40 57 00 30
   .byte $40, $58, $00, $38, $40, $59, $00, $40, $48, $5A, $00, $08, $48, $5B, $00, $30 ; $85C5: 40 58 00 38 40 59 00 40 48 5A 00 08 48 5B 00 30
   .byte $48, $5C, $00, $38, $48, $5D, $00, $40, $48, $5E, $00, $48, $80   ; $85D5: 48 5C 00 38 48 5D 00 40 48 5E 00 48 80  ; terminator $80
 
-; blob entry 3 (@$85E2): 11 [y,tile,attr,x] records, $80 terminator @ $860E
-MenuOam_08_3:
+; WarOutbreakNoticeScene3: 11 [y,tile,attr,x] records @ $85E2, $80 terminator @ $860E
+;     frame 2 of 3 - posts the same offsets as entries entry $85B5, $860F, so the handler walks them as one animation
+;     x_off $08-$48, y_off $40-$48
+WarOutbreakNoticeScene3:
   .byte $40, $5F, $00, $08, $40, $60, $00, $18, $40, $61, $00, $20, $40, $62, $00, $30 ; $85E2: 40 5F 00 08 40 60 00 18 40 61 00 20 40 62 00 30
   .byte $40, $63, $00, $38, $40, $64, $00, $40, $48, $65, $00, $08, $48, $5B, $00, $30 ; $85F2: 40 63 00 38 40 64 00 40 48 65 00 08 48 5B 00 30
   .byte $48, $5C, $00, $38, $48, $66, $00, $40, $48, $67, $00, $48, $80   ; $8602: 48 5C 00 38 48 66 00 40 48 67 00 48 80  ; terminator $80
 
-; blob entry 4 (@$860F): 11 [y,tile,attr,x] records, $80 terminator @ $863B
-MenuOam_08_4:
+; WarOutbreakNoticeScene4: 11 [y,tile,attr,x] records @ $860F, $80 terminator @ $863B
+;     frame 3 of 3 - posts the same offsets as entries entry $85B5, $85E2, so the handler walks them as one animation
+;     x_off $08-$48, y_off $40-$48
+WarOutbreakNoticeScene4:
   .byte $40, $68, $00, $08, $40, $69, $00, $18, $40, $6A, $00, $20, $40, $6B, $00, $30 ; $860F: 40 68 00 08 40 69 00 18 40 6A 00 20 40 6B 00 30
   .byte $40, $6C, $00, $38, $40, $6D, $00, $40, $48, $6E, $00, $08, $48, $5B, $00, $30 ; $861F: 40 6C 00 38 40 6D 00 40 48 6E 00 08 48 5B 00 30
   .byte $48, $5C, $00, $38, $48, $6F, $00, $40, $48, $70, $00, $48, $80   ; $862F: 48 5C 00 38 48 6F 00 40 48 70 00 48 80  ; terminator $80
 
-; --- MenuAction09_LandReclamationResult0A: 4 x .word @ $863C, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_09:
-  .word MenuOam_09_0+$4000                                                ; $863C: 44 C6  ; entry 0 -> blob $8644, 19 records
-  .word MenuOam_09_1+$4000                                                ; $863E: 91 C6  ; entry 1 -> blob $8691, 16 records
-  .word MenuOam_09_2+$4000                                                ; $8640: D2 C6  ; entry 2 -> blob $86D2, 17 records
-  .word MenuOam_09_3+$4000                                                ; $8642: 17 C7  ; entry 3 -> blob $8717, 18 records
+; --- LandReclamationResult0ASpriteTable: 4 x .word @ $863C = the MenuAction09_LandReclamationResult0A panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Number0 Scene1 Scene2 Scene3 ---
+LandReclamationResult0ASpriteTable:
+  .word LandReclamationResult0ANumber0+$4000                              ; $863C: 44 C6  ; entry 0 -> LandReclamationResult0ANumber0 (19 records)
+  .word LandReclamationResult0AScene1+$4000                               ; $863E: 91 C6  ; entry 1 -> LandReclamationResult0AScene1 (16 records)
+  .word LandReclamationResult0AScene2+$4000                               ; $8640: D2 C6  ; entry 2 -> LandReclamationResult0AScene2 (17 records)
+  .word LandReclamationResult0AScene3+$4000                               ; $8642: 17 C7  ; entry 3 -> LandReclamationResult0AScene3 (18 records)
 
-; blob entry 0 (@$8644): 19 [y,tile,attr,x] records, $80 terminator @ $8690
-MenuOam_09_0:
+; LandReclamationResult0ANumber0: 19 [y,tile,attr,x] records @ $8644, $80 terminator @ $8690
+;     one posting of its own (19 records, offsets shared by no other entry)
+;     x_off $08-$20, y_off $00-$38
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100
+LandReclamationResult0ANumber0:
   .byte $00, $74, $00, $18, $08, $75, $00, $11, $08, $76, $00, $19, $10, $77, $00, $08 ; $8644: 00 74 00 18 08 75 00 11 08 76 00 19 10 77 00 08
   .byte $10, $78, $00, $10, $10, $79, $00, $18, $10, $7A, $00, $20, $18, $7B, $00, $08 ; $8654: 10 78 00 10 10 79 00 18 10 7A 00 20 18 7B 00 08
   .byte $18, $7C, $00, $10, $18, $7D, $00, $18, $18, $7E, $00, $20, $20, $7F, $00, $11 ; $8664: 18 7C 00 10 18 7D 00 18 18 7E 00 20 20 7F 00 11
   .byte $20, $80, $00, $19, $28, $81, $00, $11, $28, $82, $00, $19, $30, $83, $00, $11 ; $8674: 20 80 00 19 28 81 00 11 28 82 00 19 30 83 00 11
   .byte $30, $84, $00, $19, $38, $85, $00, $11, $38, $86, $00, $19, $80   ; $8684: 30 84 00 19 38 85 00 11 38 86 00 19 80  ; terminator $80
 
-; blob entry 1 (@$8691): 16 [y,tile,attr,x] records, $80 terminator @ $86D1
-MenuOam_09_1:
+; LandReclamationResult0AScene1: 16 [y,tile,attr,x] records @ $8691, $80 terminator @ $86D1
+;     one posting of its own (16 records, offsets shared by no other entry)
+;     x_off $10-$20, y_off $00-$38
+LandReclamationResult0AScene1:
   .byte $00, $87, $00, $14, $08, $88, $00, $14, $10, $89, $00, $10, $10, $8A, $00, $18 ; $8691: 00 87 00 14 08 88 00 14 10 89 00 10 10 8A 00 18
   .byte $10, $8B, $00, $20, $18, $8C, $00, $10, $18, $8D, $00, $18, $18, $8E, $00, $20 ; $86A1: 10 8B 00 20 18 8C 00 10 18 8D 00 18 18 8E 00 20
   .byte $20, $8F, $00, $11, $20, $90, $00, $19, $28, $91, $00, $11, $28, $92, $00, $19 ; $86B1: 20 8F 00 11 20 90 00 19 28 91 00 11 28 92 00 19
   .byte $30, $93, $00, $11, $30, $94, $00, $19, $38, $85, $00, $11, $38, $86, $00, $19 ; $86C1: 30 93 00 11 30 94 00 19 38 85 00 11 38 86 00 19
   .byte $80                                                               ; $86D1: 80  ; terminator $80
 
-; blob entry 2 (@$86D2): 17 [y,tile,attr,x] records, $80 terminator @ $8716
-MenuOam_09_2:
+; LandReclamationResult0AScene2: 17 [y,tile,attr,x] records @ $86D2, $80 terminator @ $8716
+;     one posting of its own (17 records, offsets shared by no other entry)
+;     x_off $10-$30, y_off $10-$38
+LandReclamationResult0AScene2:
   .byte $10, $95, $00, $18, $18, $96, $00, $13, $18, $97, $00, $1B, $20, $98, $00, $10 ; $86D2: 10 95 00 18 18 96 00 13 18 97 00 1B 20 98 00 10
   .byte $20, $99, $00, $18, $20, $9A, $00, $20, $28, $9B, $00, $10, $28, $9C, $00, $18 ; $86E2: 20 99 00 18 20 9A 00 20 28 9B 00 10 28 9C 00 18
   .byte $28, $9D, $00, $20, $30, $9E, $00, $10, $30, $9F, $00, $18, $30, $A0, $00, $20 ; $86F2: 28 9D 00 20 30 9E 00 10 30 9F 00 18 30 A0 00 20
   .byte $30, $A1, $00, $28, $30, $A2, $00, $30, $38, $85, $00, $11, $38, $86, $00, $19 ; $8702: 30 A1 00 28 30 A2 00 30 38 85 00 11 38 86 00 19
   .byte $38, $A3, $00, $2A, $80                                           ; $8712: 38 A3 00 2A 80  ; terminator $80
 
-; blob entry 3 (@$8717): 18 [y,tile,attr,x] records, $80 terminator @ $875F
-MenuOam_09_3:
+; LandReclamationResult0AScene3: 18 [y,tile,attr,x] records @ $8717, $80 terminator @ $875F
+;     one posting of its own (18 records, offsets shared by no other entry)
+;     x_off $10-$30, y_off $10-$38
+LandReclamationResult0AScene3:
   .byte $10, $A4, $00, $18, $18, $A5, $00, $10, $18, $A6, $00, $18, $18, $A7, $00, $20 ; $8717: 10 A4 00 18 18 A5 00 10 18 A6 00 18 18 A7 00 20
   .byte $20, $A8, $00, $10, $20, $A9, $00, $18, $20, $AA, $00, $20, $28, $AB, $00, $10 ; $8727: 20 A8 00 10 20 A9 00 18 20 AA 00 20 28 AB 00 10
   .byte $28, $AC, $00, $18, $28, $AD, $00, $20, $28, $AE, $00, $28, $30, $AF, $00, $11 ; $8737: 28 AC 00 18 28 AD 00 20 28 AE 00 28 30 AF 00 11
   .byte $30, $B0, $00, $19, $30, $B1, $00, $28, $30, $B2, $00, $30, $38, $85, $00, $11 ; $8747: 30 B0 00 19 30 B1 00 28 30 B2 00 30 38 85 00 11
   .byte $38, $86, $00, $19, $38, $B3, $00, $2B, $80                       ; $8757: 38 86 00 19 38 B3 00 2B 80  ; terminator $80
 
-; --- MenuAction0A_LandReclamationResult0B: 3 x .word @ $8760, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_0A:
-  .word MenuOam_0A_0+$4000                                                ; $8760: 66 C7  ; entry 0 -> blob $8766, 8 records
-  .word MenuOam_0A_1+$4000                                                ; $8762: 87 C7  ; entry 1 -> blob $8787, 8 records
-  .word MenuOam_0A_2+$4000                                                ; $8764: A8 C7  ; entry 2 -> blob $87A8, 10 records
+; --- LandReclamationResult0BSpriteTable: 3 x .word @ $8760 = the MenuAction0A_LandReclamationResult0B panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 ---
+LandReclamationResult0BSpriteTable:
+  .word LandReclamationResult0BScene0+$4000                               ; $8760: 66 C7  ; entry 0 -> LandReclamationResult0BScene0 (8 records)
+  .word LandReclamationResult0BScene1+$4000                               ; $8762: 87 C7  ; entry 1 -> LandReclamationResult0BScene1 (8 records)
+  .word LandReclamationResult0BScene2+$4000                               ; $8764: A8 C7  ; entry 2 -> LandReclamationResult0BScene2 (10 records)
 
-; blob entry 0 (@$8766): 8 [y,tile,attr,x] records, $80 terminator @ $8786
-MenuOam_0A_0:
+; LandReclamationResult0BScene0: 8 [y,tile,attr,x] records @ $8766, $80 terminator @ $8786
+;     frame 1 of 2 - posts the same offsets as entry $8787, so the handler walks them as one animation
+;     x_off $28-$30, y_off $08-$20
+LandReclamationResult0BScene0:
   .byte $08, $40, $00, $28, $08, $41, $00, $30, $10, $42, $00, $28, $10, $43, $00, $30 ; $8766: 08 40 00 28 08 41 00 30 10 42 00 28 10 43 00 30
   .byte $18, $44, $00, $28, $18, $45, $00, $30, $20, $46, $00, $28, $20, $47, $00, $30 ; $8776: 18 44 00 28 18 45 00 30 20 46 00 28 20 47 00 30
   .byte $80                                                               ; $8786: 80  ; terminator $80
 
-; blob entry 1 (@$8787): 8 [y,tile,attr,x] records, $80 terminator @ $87A7
-MenuOam_0A_1:
+; LandReclamationResult0BScene1: 8 [y,tile,attr,x] records @ $8787, $80 terminator @ $87A7
+;     frame 2 of 2 - posts the same offsets as entry $8766, so the handler walks them as one animation
+;     x_off $28-$30, y_off $08-$20
+LandReclamationResult0BScene1:
   .byte $08, $48, $00, $28, $08, $49, $00, $30, $10, $4A, $00, $28, $10, $4B, $00, $30 ; $8787: 08 48 00 28 08 49 00 30 10 4A 00 28 10 4B 00 30
   .byte $18, $4C, $00, $28, $18, $4D, $00, $30, $20, $4E, $00, $28, $20, $4F, $00, $30 ; $8797: 18 4C 00 28 18 4D 00 30 20 4E 00 28 20 4F 00 30
   .byte $80                                                               ; $87A7: 80  ; terminator $80
 
-; blob entry 2 (@$87A8): 10 [y,tile,attr,x] records, $80 terminator @ $87D0
-MenuOam_0A_2:
+; LandReclamationResult0BScene2: 10 [y,tile,attr,x] records @ $87A8, $80 terminator @ $87D0
+;     one posting of its own (10 records, offsets shared by no other entry)
+;     x_off $18-$30, y_off $08-$20
+LandReclamationResult0BScene2:
   .byte $08, $50, $00, $28, $08, $51, $00, $30, $10, $52, $00, $18, $10, $53, $00, $20 ; $87A8: 08 50 00 28 08 51 00 30 10 52 00 18 10 53 00 20
   .byte $10, $54, $00, $28, $10, $55, $00, $30, $18, $56, $00, $28, $18, $57, $00, $30 ; $87B8: 10 54 00 28 10 55 00 30 18 56 00 28 18 57 00 30
   .byte $20, $58, $00, $28, $20, $59, $00, $30, $80                       ; $87C8: 20 58 00 28 20 59 00 30 80  ; terminator $80
 
-; --- MenuAction0B_CivilianReliefResult: 4 x .word @ $87D1, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_0B:
-  .word MenuOam_0B_0+$4000                                                ; $87D1: D9 C7  ; entry 0 -> blob $87D9, 18 records
-  .word MenuOam_0B_1+$4000                                                ; $87D3: 22 C8  ; entry 1 -> blob $8822, 18 records
-  .word MenuOam_0B_2+$4000                                                ; $87D5: 6B C8  ; entry 2 -> blob $886B, 18 records
-  .word MenuOam_0B_3+$4000                                                ; $87D7: B4 C8  ; entry 3 -> blob $88B4, 8 records
+; --- CivilianReliefResultSpriteTable: 4 x .word @ $87D1 = the MenuAction0B_CivilianReliefResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 Scene3 ---
+CivilianReliefResultSpriteTable:
+  .word CivilianReliefResultScene0+$4000                                  ; $87D1: D9 C7  ; entry 0 -> CivilianReliefResultScene0 (18 records)
+  .word CivilianReliefResultScene1+$4000                                  ; $87D3: 22 C8  ; entry 1 -> CivilianReliefResultScene1 (18 records)
+  .word CivilianReliefResultScene2+$4000                                  ; $87D5: 6B C8  ; entry 2 -> CivilianReliefResultScene2 (18 records)
+  .word CivilianReliefResultScene3+$4000                                  ; $87D7: B4 C8  ; entry 3 -> CivilianReliefResultScene3 (8 records)
 
-; blob entry 0 (@$87D9): 18 [y,tile,attr,x] records, $80 terminator @ $8821
-MenuOam_0B_0:
+; CivilianReliefResultScene0: 18 [y,tile,attr,x] records @ $87D9, $80 terminator @ $8821
+;     frame 1 of 3 - posts the same offsets as entries entry $8822, $886B, so the handler walks them as one animation
+;     x_off $20-$40, y_off $08-$28
+;     digit glyphs drawn: 0
+CivilianReliefResultScene0:
   .byte $08, $64, $00, $28, $08, $65, $00, $30, $08, $66, $00, $38, $10, $67, $00, $28 ; $87D9: 08 64 00 28 08 65 00 30 08 66 00 38 10 67 00 28
   .byte $10, $68, $00, $30, $10, $69, $00, $38, $18, $66, $00, $20, $18, $6A, $00, $28 ; $87E9: 10 68 00 30 10 69 00 38 18 66 00 20 18 6A 00 28
   .byte $18, $6B, $00, $30, $18, $6C, $00, $38, $18, $6D, $00, $40, $20, $6E, $00, $20 ; $87F9: 18 6B 00 30 18 6C 00 38 18 6D 00 40 20 6E 00 20
   .byte $20, $6F, $00, $28, $20, $70, $00, $30, $20, $71, $00, $38, $20, $72, $00, $40 ; $8809: 20 6F 00 28 20 70 00 30 20 71 00 38 20 72 00 40
   .byte $28, $73, $00, $28, $28, $74, $00, $30, $80                       ; $8819: 28 73 00 28 28 74 00 30 80  ; terminator $80
 
-; blob entry 1 (@$8822): 18 [y,tile,attr,x] records, $80 terminator @ $886A
-MenuOam_0B_1:
+; CivilianReliefResultScene1: 18 [y,tile,attr,x] records @ $8822, $80 terminator @ $886A
+;     frame 2 of 3 - posts the same offsets as entries entry $87D9, $886B, so the handler walks them as one animation
+;     x_off $20-$40, y_off $08-$28
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6
+CivilianReliefResultScene1:
   .byte $08, $75, $00, $28, $08, $76, $00, $30, $08, $77, $00, $38, $10, $78, $00, $28 ; $8822: 08 75 00 28 08 76 00 30 08 77 00 38 10 78 00 28
   .byte $10, $79, $00, $30, $10, $7A, $00, $38, $18, $66, $00, $20, $18, $A8, $00, $28 ; $8832: 10 79 00 30 10 7A 00 38 18 66 00 20 18 A8 00 28
   .byte $18, $A9, $00, $30, $18, $AA, $00, $38, $18, $AB, $00, $40, $20, $AC, $00, $20 ; $8842: 18 A9 00 30 18 AA 00 38 18 AB 00 40 20 AC 00 20
   .byte $20, $AD, $00, $28, $20, $F1, $00, $30, $20, $F2, $00, $38, $20, $F3, $00, $40 ; $8852: 20 AD 00 28 20 F1 00 30 20 F2 00 38 20 F3 00 40
   .byte $28, $73, $00, $28, $28, $74, $00, $30, $80                       ; $8862: 28 73 00 28 28 74 00 30 80  ; terminator $80
 
-; blob entry 2 (@$886B): 18 [y,tile,attr,x] records, $80 terminator @ $88B3
-MenuOam_0B_2:
+; CivilianReliefResultScene2: 18 [y,tile,attr,x] records @ $886B, $80 terminator @ $88B3
+;     frame 3 of 3 - posts the same offsets as entries entry $87D9, $8822, so the handler walks them as one animation
+;     x_off $20-$40, y_off $08-$28
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6
+CivilianReliefResultScene2:
   .byte $08, $75, $00, $28, $08, $76, $00, $30, $08, $77, $00, $38, $10, $78, $00, $28 ; $886B: 08 75 00 28 08 76 00 30 08 77 00 38 10 78 00 28
   .byte $10, $79, $00, $30, $10, $7A, $00, $38, $18, $66, $00, $20, $18, $F4, $00, $28 ; $887B: 10 79 00 30 10 7A 00 38 18 66 00 20 18 F4 00 28
   .byte $18, $F5, $00, $30, $18, $AA, $00, $38, $18, $AB, $00, $40, $20, $AC, $00, $20 ; $888B: 18 F5 00 30 18 AA 00 38 18 AB 00 40 20 AC 00 20
   .byte $20, $AD, $00, $28, $20, $F1, $00, $30, $20, $F2, $00, $38, $20, $F3, $00, $40 ; $889B: 20 AD 00 28 20 F1 00 30 20 F2 00 38 20 F3 00 40
   .byte $28, $73, $00, $28, $28, $74, $00, $30, $80                       ; $88AB: 28 73 00 28 28 74 00 30 80  ; terminator $80
 
-; blob entry 3 (@$88B4): 8 [y,tile,attr,x] records, $80 terminator @ $88D4
-MenuOam_0B_3:
+; CivilianReliefResultScene3: 8 [y,tile,attr,x] records @ $88B4, $80 terminator @ $88D4
+;     one posting of its own (8 records, offsets shared by no other entry)
+;     x_off $18-$38, y_off $40-$48
+CivilianReliefResultScene3:
   .byte $40, $F8, $00, $18, $40, $F9, $00, $20, $40, $FA, $00, $28, $48, $FB, $00, $18 ; $88B4: 40 F8 00 18 40 F9 00 20 40 FA 00 28 48 FB 00 18
   .byte $48, $FC, $00, $20, $48, $FD, $00, $28, $48, $FE, $00, $30, $48, $FF, $00, $38 ; $88C4: 48 FC 00 20 48 FD 00 28 48 FE 00 30 48 FF 00 38
   .byte $80                                                               ; $88D4: 80  ; terminator $80
 
-; --- MenuAction0C_HospitalResult: 6 x .word @ $88D5, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_0C:
-  .word MenuOam_0C_0+$4000                                                ; $88D5: E1 C8  ; entry 0 -> blob $88E1, 12 records
-  .word MenuOam_0C_1+$4000                                                ; $88D7: 12 C9  ; entry 1 -> blob $8912, 12 records
-  .word MenuOam_0C_2+$4000                                                ; $88D9: 43 C9  ; entry 2 -> blob $8943, 12 records
-  .word MenuOam_0C_3+$4000                                                ; $88DB: 74 C9  ; entry 3 -> blob $8974, 12 records
-  .word MenuOam_0C_4+$4000                                                ; $88DD: A5 C9  ; entry 4 -> blob $89A5, 2 records
-  .word MenuOam_0C_5+$4000                                                ; $88DF: AE C9  ; entry 5 -> blob $89AE, 2 records
+; --- HospitalResultSpriteTable: 6 x .word @ $88D5 = the MenuAction0C_HospitalResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Number2 Scene3 Mark4 Mark5 ---
+HospitalResultSpriteTable:
+  .word HospitalResultScene0+$4000                                        ; $88D5: E1 C8  ; entry 0 -> HospitalResultScene0 (12 records)
+  .word HospitalResultScene1+$4000                                        ; $88D7: 12 C9  ; entry 1 -> HospitalResultScene1 (12 records)
+  .word HospitalResultNumber2+$4000                                       ; $88D9: 43 C9  ; entry 2 -> HospitalResultNumber2 (12 records)
+  .word HospitalResultScene3+$4000                                        ; $88DB: 74 C9  ; entry 3 -> HospitalResultScene3 (12 records)
+  .word HospitalResultMark4+$4000                                         ; $88DD: A5 C9  ; entry 4 -> HospitalResultMark4 (2 records)
+  .word HospitalResultMark5+$4000                                         ; $88DF: AE C9  ; entry 5 -> HospitalResultMark5 (2 records)
 
-; blob entry 0 (@$88E1): 12 [y,tile,attr,x] records, $80 terminator @ $8911
-MenuOam_0C_0:
+; HospitalResultScene0: 12 [y,tile,attr,x] records @ $88E1, $80 terminator @ $8911
+;     frame 1 of 4 - posts the same offsets as entries entry $8912, $8943, $8974, so the handler walks them as one animation
+;     x_off $28-$38, y_off $08-$20
+HospitalResultScene0:
   .byte $08, $62, $00, $28, $08, $63, $00, $30, $08, $64, $00, $38, $10, $65, $00, $28 ; $88E1: 08 62 00 28 08 63 00 30 08 64 00 38 10 65 00 28
   .byte $10, $66, $00, $30, $10, $67, $00, $38, $18, $68, $00, $28, $18, $69, $00, $30 ; $88F1: 10 66 00 30 10 67 00 38 18 68 00 28 18 69 00 30
   .byte $18, $6A, $00, $38, $20, $6B, $00, $28, $20, $6C, $00, $30, $20, $6D, $00, $38 ; $8901: 18 6A 00 38 20 6B 00 28 20 6C 00 30 20 6D 00 38
   .byte $80                                                               ; $8911: 80  ; terminator $80
 
-; blob entry 1 (@$8912): 12 [y,tile,attr,x] records, $80 terminator @ $8942
-MenuOam_0C_1:
+; HospitalResultScene1: 12 [y,tile,attr,x] records @ $8912, $80 terminator @ $8942
+;     frame 2 of 4 - posts the same offsets as entries entry $88E1, $8943, $8974, so the handler walks them as one animation
+;     x_off $28-$38, y_off $08-$20
+;     digit glyphs drawn: 0, 1, 2, 3, 4
+HospitalResultScene1:
   .byte $08, $62, $00, $28, $08, $6E, $00, $30, $08, $6F, $00, $38, $10, $70, $00, $28 ; $8912: 08 62 00 28 08 6E 00 30 08 6F 00 38 10 70 00 28
   .byte $10, $71, $00, $30, $10, $72, $00, $38, $18, $73, $00, $28, $18, $74, $00, $30 ; $8922: 10 71 00 30 10 72 00 38 18 73 00 28 18 74 00 30
   .byte $18, $75, $00, $38, $20, $76, $00, $28, $20, $77, $00, $30, $20, $78, $00, $38 ; $8932: 18 75 00 38 20 76 00 28 20 77 00 30 20 78 00 38
   .byte $80                                                               ; $8942: 80  ; terminator $80
 
-; blob entry 2 (@$8943): 12 [y,tile,attr,x] records, $80 terminator @ $8973
-MenuOam_0C_2:
+; HospitalResultNumber2: 12 [y,tile,attr,x] records @ $8943, $80 terminator @ $8973
+;     frame 3 of 4 - posts the same offsets as entries entry $88E1, $8912, $8974, so the handler walks them as one animation
+;     x_off $28-$38, y_off $08-$20
+;     digit glyphs drawn: 5, 6, 7, 8, 9, 10, 100
+HospitalResultNumber2:
   .byte $08, $79, $00, $28, $08, $7A, $00, $30, $08, $7B, $00, $38, $10, $7C, $00, $28 ; $8943: 08 79 00 28 08 7A 00 30 08 7B 00 38 10 7C 00 28
   .byte $10, $7D, $00, $30, $10, $7E, $00, $38, $18, $7F, $00, $28, $18, $80, $00, $30 ; $8953: 10 7D 00 30 10 7E 00 38 18 7F 00 28 18 80 00 30
   .byte $18, $81, $00, $38, $20, $82, $00, $28, $20, $83, $00, $30, $20, $84, $00, $38 ; $8963: 18 81 00 38 20 82 00 28 20 83 00 30 20 84 00 38
   .byte $80                                                               ; $8973: 80  ; terminator $80
 
-; blob entry 3 (@$8974): 12 [y,tile,attr,x] records, $80 terminator @ $89A4
-MenuOam_0C_3:
+; HospitalResultScene3: 12 [y,tile,attr,x] records @ $8974, $80 terminator @ $89A4
+;     frame 4 of 4 - posts the same offsets as entries entry $88E1, $8912, $8943, so the handler walks them as one animation
+;     x_off $28-$38, y_off $08-$20
+HospitalResultScene3:
   .byte $08, $85, $00, $28, $08, $86, $00, $30, $08, $87, $00, $38, $10, $88, $00, $28 ; $8974: 08 85 00 28 08 86 00 30 08 87 00 38 10 88 00 28
   .byte $10, $89, $00, $30, $10, $8A, $00, $38, $18, $8B, $00, $28, $18, $8C, $00, $30 ; $8984: 10 89 00 30 10 8A 00 38 18 8B 00 28 18 8C 00 30
   .byte $18, $8D, $00, $38, $20, $8E, $00, $28, $20, $8F, $00, $30, $20, $90, $00, $38 ; $8994: 18 8D 00 38 20 8E 00 28 20 8F 00 30 20 90 00 38
   .byte $80                                                               ; $89A4: 80  ; terminator $80
 
-; blob entry 4 (@$89A5): 2 [y,tile,attr,x] records, $80 terminator @ $89AD
-MenuOam_0C_4:
+; HospitalResultMark4: 2 [y,tile,attr,x] records @ $89A5, $80 terminator @ $89AD
+;     frame 1 of 2 - posts the same offsets as entry $89AE, so the handler walks them as one animation
+;     x_off $08-$10, y_off $28-$28
+HospitalResultMark4:
   .byte $28, $D0, $00, $08, $28, $D1, $00, $10, $80                       ; $89A5: 28 D0 00 08 28 D1 00 10 80
 
-; blob entry 5 (@$89AE): 2 [y,tile,attr,x] records, $80 terminator @ $89B6
-MenuOam_0C_5:
+; HospitalResultMark5: 2 [y,tile,attr,x] records @ $89AE, $80 terminator @ $89B6
+;     frame 2 of 2 - posts the same offsets as entry $89A5, so the handler walks them as one animation
+;     x_off $08-$10, y_off $28-$28
+HospitalResultMark5:
   .byte $28, $D2, $00, $08, $28, $D3, $00, $10, $80                       ; $89AE: 28 D2 00 08 28 D3 00 10 80
 
-; --- MenuAction0D_LandReclamationResult0E: 5 x .word @ $89B7, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_0D:
-  .word MenuOam_0D_0+$4000                                                ; $89B7: C1 C9  ; entry 0 -> blob $89C1, 9 records
-  .word MenuOam_0D_1+$4000                                                ; $89B9: E6 C9  ; entry 1 -> blob $89E6, 9 records
-  .word MenuOam_0D_2+$4000                                                ; $89BB: 0B CA  ; entry 2 -> blob $8A0B, 9 records
-  .word MenuOam_0D_3+$4000                                                ; $89BD: 30 CA  ; entry 3 -> blob $8A30, 4 records
-  .word MenuOam_0D_4+$4000                                                ; $89BF: 41 CA  ; entry 4 -> blob $8A41, 4 records
+; --- LandReclamationResult0ESpriteTable: 5 x .word @ $89B7 = the MenuAction0D_LandReclamationResult0E panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Number0 Scene1 Scene2 Scene3 Number4 ---
+LandReclamationResult0ESpriteTable:
+  .word LandReclamationResult0ENumber0+$4000                              ; $89B7: C1 C9  ; entry 0 -> LandReclamationResult0ENumber0 (9 records)
+  .word LandReclamationResult0EScene1+$4000                               ; $89B9: E6 C9  ; entry 1 -> LandReclamationResult0EScene1 (9 records)
+  .word LandReclamationResult0EScene2+$4000                               ; $89BB: 0B CA  ; entry 2 -> LandReclamationResult0EScene2 (9 records)
+  .word LandReclamationResult0EScene3+$4000                               ; $89BD: 30 CA  ; entry 3 -> LandReclamationResult0EScene3 (4 records)
+  .word LandReclamationResult0ENumber4+$4000                              ; $89BF: 41 CA  ; entry 4 -> LandReclamationResult0ENumber4 (4 records)
 
-; blob entry 0 (@$89C1): 9 [y,tile,attr,x] records, $80 terminator @ $89E5
-MenuOam_0D_0:
+; LandReclamationResult0ENumber0: 9 [y,tile,attr,x] records @ $89C1, $80 terminator @ $89E5
+;     frame 1 of 3 - posts the same offsets as entries entry $89E6, $8A0B, so the handler walks them as one animation
+;     x_off $28-$38, y_off $28-$38
+;     digit glyphs drawn: 2, 3, 4, 5, 6, 100
+LandReclamationResult0ENumber0:
   .byte $28, $66, $00, $28, $28, $67, $00, $30, $28, $68, $00, $38, $30, $76, $00, $28 ; $89C1: 28 66 00 28 28 67 00 30 28 68 00 38 30 76 00 28
   .byte $30, $77, $00, $30, $30, $78, $00, $38, $38, $79, $00, $28, $38, $7A, $00, $30 ; $89D1: 30 77 00 30 30 78 00 38 38 79 00 28 38 7A 00 30
   .byte $38, $7F, $00, $38, $80                                           ; $89E1: 38 7F 00 38 80  ; terminator $80
 
-; blob entry 1 (@$89E6): 9 [y,tile,attr,x] records, $80 terminator @ $8A0A
-MenuOam_0D_1:
+; LandReclamationResult0EScene1: 9 [y,tile,attr,x] records @ $89E6, $80 terminator @ $8A0A
+;     frame 2 of 3 - posts the same offsets as entries entry $89C1, $8A0B, so the handler walks them as one animation
+;     x_off $28-$38, y_off $28-$38
+;     digit glyphs drawn: 7, 8, 9, 100
+LandReclamationResult0EScene1:
   .byte $28, $5D, $00, $28, $28, $6B, $00, $30, $28, $6C, $00, $38, $30, $6D, $00, $28 ; $89E6: 28 5D 00 28 28 6B 00 30 28 6C 00 38 30 6D 00 28
   .byte $30, $7B, $00, $30, $30, $7C, $00, $38, $38, $7D, $00, $28, $38, $5C, $00, $30 ; $89F6: 30 7B 00 30 30 7C 00 38 38 7D 00 28 38 5C 00 30
   .byte $38, $7F, $00, $38, $80                                           ; $8A06: 38 7F 00 38 80  ; terminator $80
 
-; blob entry 2 (@$8A0B): 9 [y,tile,attr,x] records, $80 terminator @ $8A2F
-MenuOam_0D_2:
+; LandReclamationResult0EScene2: 9 [y,tile,attr,x] records @ $8A0B, $80 terminator @ $8A2F
+;     frame 3 of 3 - posts the same offsets as entries entry $89C1, $89E6, so the handler walks them as one animation
+;     x_off $28-$38, y_off $28-$38
+;     digit glyphs drawn: 9, 10, 100
+LandReclamationResult0EScene2:
   .byte $28, $5D, $00, $28, $28, $5E, $00, $30, $28, $5F, $00, $38, $30, $6D, $00, $28 ; $8A0B: 28 5D 00 28 28 5E 00 30 28 5F 00 38 30 6D 00 28
   .byte $30, $6E, $00, $30, $30, $6F, $00, $38, $38, $7D, $00, $28, $38, $7E, $00, $30 ; $8A1B: 30 6E 00 30 30 6F 00 38 38 7D 00 28 38 7E 00 30
   .byte $38, $7F, $00, $38, $80                                           ; $8A2B: 38 7F 00 38 80  ; terminator $80
 
-; blob entry 3 (@$8A30): 4 [y,tile,attr,x] records, $80 terminator @ $8A40
-MenuOam_0D_3:
+; LandReclamationResult0EScene3: 4 [y,tile,attr,x] records @ $8A30, $80 terminator @ $8A40
+;     frame 1 of 2 - posts the same offsets as entry $8A41, so the handler walks them as one animation
+;     x_off $10-$18, y_off $20-$28
+LandReclamationResult0EScene3:
   .byte $20, $70, $00, $10, $20, $71, $00, $18, $28, $72, $00, $10, $28, $73, $00, $18 ; $8A30: 20 70 00 10 20 71 00 18 28 72 00 10 28 73 00 18
   .byte $80                                                               ; $8A40: 80  ; terminator $80
 
-; blob entry 4 (@$8A41): 4 [y,tile,attr,x] records, $80 terminator @ $8A51
-MenuOam_0D_4:
+; LandReclamationResult0ENumber4: 4 [y,tile,attr,x] records @ $8A41, $80 terminator @ $8A51
+;     frame 2 of 2 - posts the same offsets as entry $8A30, so the handler walks them as one animation
+;     x_off $10-$18, y_off $20-$28
+;     digit glyphs drawn: 0, 1
+LandReclamationResult0ENumber4:
   .byte $20, $70, $00, $10, $20, $74, $00, $18, $28, $72, $00, $10, $28, $75, $00, $18 ; $8A41: 20 70 00 10 20 74 00 18 28 72 00 10 28 75 00 18
   .byte $80                                                               ; $8A51: 80  ; terminator $80
 
-; --- MenuAction0E_TownDevelopmentResult0F: 5 x .word @ $8A52, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_0E:
-  .word MenuOam_0E_0+$4000                                                ; $8A52: 5C CA  ; entry 0 -> blob $8A5C, 5 records
-  .word MenuOam_0E_1+$4000                                                ; $8A54: 71 CA  ; entry 1 -> blob $8A71, 5 records
-  .word MenuOam_0E_2+$4000                                                ; $8A56: 86 CA  ; entry 2 -> blob $8A86, 17 records
-  .word MenuOam_0E_3+$4000                                                ; $8A58: CB CA  ; entry 3 -> blob $8ACB, 17 records
-  .word MenuOam_0E_4+$4000                                                ; $8A5A: 10 CB  ; entry 4 -> blob $8B10, 17 records
+; --- TownDevelopmentResult0FSpriteTable: 5 x .word @ $8A52 = the MenuAction0E_TownDevelopmentResult0F panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 Number3 Scene4 ---
+TownDevelopmentResult0FSpriteTable:
+  .word TownDevelopmentResult0FScene0+$4000                               ; $8A52: 5C CA  ; entry 0 -> TownDevelopmentResult0FScene0 (5 records)
+  .word TownDevelopmentResult0FScene1+$4000                               ; $8A54: 71 CA  ; entry 1 -> TownDevelopmentResult0FScene1 (5 records)
+  .word TownDevelopmentResult0FScene2+$4000                               ; $8A56: 86 CA  ; entry 2 -> TownDevelopmentResult0FScene2 (17 records)
+  .word TownDevelopmentResult0FNumber3+$4000                              ; $8A58: CB CA  ; entry 3 -> TownDevelopmentResult0FNumber3 (17 records)
+  .word TownDevelopmentResult0FScene4+$4000                               ; $8A5A: 10 CB  ; entry 4 -> TownDevelopmentResult0FScene4 (17 records)
 
-; blob entry 0 (@$8A5C): 5 [y,tile,attr,x] records, $80 terminator @ $8A70
-MenuOam_0E_0:
+; TownDevelopmentResult0FScene0: 5 [y,tile,attr,x] records @ $8A5C, $80 terminator @ $8A70
+;     frame 1 of 2 - posts the same offsets as entry $8A71, so the handler walks them as one animation
+;     x_off $20-$30, y_off $40-$48
+TownDevelopmentResult0FScene0:
   .byte $40, $8F, $00, $20, $40, $90, $00, $28, $48, $91, $00, $20, $48, $92, $00, $28 ; $8A5C: 40 8F 00 20 40 90 00 28 48 91 00 20 48 92 00 28
   .byte $48, $93, $00, $30, $80                                           ; $8A6C: 48 93 00 30 80  ; terminator $80
 
-; blob entry 1 (@$8A71): 5 [y,tile,attr,x] records, $80 terminator @ $8A85
-MenuOam_0E_1:
+; TownDevelopmentResult0FScene1: 5 [y,tile,attr,x] records @ $8A71, $80 terminator @ $8A85
+;     frame 2 of 2 - posts the same offsets as entry $8A5C, so the handler walks them as one animation
+;     x_off $20-$30, y_off $40-$48
+TownDevelopmentResult0FScene1:
   .byte $40, $94, $00, $20, $40, $95, $00, $28, $48, $96, $00, $20, $48, $97, $00, $28 ; $8A71: 40 94 00 20 40 95 00 28 48 96 00 20 48 97 00 28
   .byte $48, $98, $00, $30, $80                                           ; $8A81: 48 98 00 30 80  ; terminator $80
 
-; blob entry 2 (@$8A86): 17 [y,tile,attr,x] records, $80 terminator @ $8ACA
-MenuOam_0E_2:
+; TownDevelopmentResult0FScene2: 17 [y,tile,attr,x] records @ $8A86, $80 terminator @ $8ACA
+;     frame 1 of 3 - posts the same offsets as entries entry $8ACB, $8B10, so the handler walks them as one animation
+;     x_off $30-$48, y_off $18-$38
+TownDevelopmentResult0FScene2:
   .byte $18, $5E, $00, $38, $18, $5F, $00, $40, $18, $60, $00, $48, $20, $61, $00, $30 ; $8A86: 18 5E 00 38 18 5F 00 40 18 60 00 48 20 61 00 30
   .byte $20, $62, $00, $38, $20, $63, $00, $40, $20, $64, $00, $48, $28, $65, $00, $30 ; $8A96: 20 62 00 38 20 63 00 40 20 64 00 48 28 65 00 30
   .byte $28, $66, $00, $38, $28, $67, $00, $40, $28, $68, $00, $48, $30, $69, $00, $30 ; $8AA6: 28 66 00 38 28 67 00 40 28 68 00 48 30 69 00 30
   .byte $30, $6A, $00, $38, $30, $6B, $00, $40, $30, $6C, $00, $48, $38, $6D, $00, $38 ; $8AB6: 30 6A 00 38 30 6B 00 40 30 6C 00 48 38 6D 00 38
   .byte $38, $6E, $00, $40, $80                                           ; $8AC6: 38 6E 00 40 80  ; terminator $80
 
-; blob entry 3 (@$8ACB): 17 [y,tile,attr,x] records, $80 terminator @ $8B0F
-MenuOam_0E_3:
+; TownDevelopmentResult0FNumber3: 17 [y,tile,attr,x] records @ $8ACB, $80 terminator @ $8B0F
+;     frame 2 of 3 - posts the same offsets as entries entry $8A86, $8B10, so the handler walks them as one animation
+;     x_off $30-$48, y_off $18-$38
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100
+TownDevelopmentResult0FNumber3:
   .byte $18, $6F, $00, $38, $18, $70, $00, $40, $18, $71, $00, $48, $20, $72, $00, $30 ; $8ACB: 18 6F 00 38 18 70 00 40 18 71 00 48 20 72 00 30
   .byte $20, $73, $00, $38, $20, $74, $00, $40, $20, $75, $00, $48, $28, $76, $00, $30 ; $8ADB: 20 73 00 38 20 74 00 40 20 75 00 48 28 76 00 30
   .byte $28, $77, $00, $38, $28, $78, $00, $40, $28, $79, $00, $48, $30, $7A, $00, $30 ; $8AEB: 28 77 00 38 28 78 00 40 28 79 00 48 30 7A 00 30
   .byte $30, $7B, $00, $38, $30, $7C, $00, $40, $30, $7D, $00, $48, $38, $7E, $00, $38 ; $8AFB: 30 7B 00 38 30 7C 00 40 30 7D 00 48 38 7E 00 38
   .byte $38, $7F, $00, $40, $80                                           ; $8B0B: 38 7F 00 40 80  ; terminator $80
 
-; blob entry 4 (@$8B10): 17 [y,tile,attr,x] records, $80 terminator @ $8B54
-MenuOam_0E_4:
+; TownDevelopmentResult0FScene4: 17 [y,tile,attr,x] records @ $8B10, $80 terminator @ $8B54
+;     frame 3 of 3 - posts the same offsets as entries entry $8A86, $8ACB, so the handler walks them as one animation
+;     x_off $30-$48, y_off $18-$38
+;     digit glyphs drawn: 10, 100
+TownDevelopmentResult0FScene4:
   .byte $18, $80, $00, $38, $18, $81, $00, $40, $18, $82, $00, $48, $20, $83, $00, $30 ; $8B10: 18 80 00 38 18 81 00 40 18 82 00 48 20 83 00 30
   .byte $20, $84, $00, $38, $20, $85, $00, $40, $20, $86, $00, $48, $28, $87, $00, $30 ; $8B20: 20 84 00 38 20 85 00 40 20 86 00 48 28 87 00 30
   .byte $28, $88, $00, $38, $28, $89, $00, $40, $28, $8A, $00, $48, $30, $8B, $00, $30 ; $8B30: 28 88 00 38 28 89 00 40 28 8A 00 48 30 8B 00 30
   .byte $30, $8C, $00, $38, $30, $8D, $00, $40, $30, $8E, $00, $48, $38, $7E, $00, $38 ; $8B40: 30 8C 00 38 30 8D 00 40 30 8E 00 48 38 7E 00 38
   .byte $38, $7F, $00, $40, $80                                           ; $8B50: 38 7F 00 40 80  ; terminator $80
 
-; --- MenuAction0F_IndustryAndTownResult10: 6 x .word @ $8B55, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_0F:
-  .word MenuOam_0F_0+$4000                                                ; $8B55: 61 CB  ; entry 0 -> blob $8B61, 4 records
-  .word MenuOam_0F_1+$4000                                                ; $8B57: 72 CB  ; entry 1 -> blob $8B72, 4 records
-  .word MenuOam_0F_2+$4000                                                ; $8B59: 83 CB  ; entry 2 -> blob $8B83, 4 records
-  .word MenuOam_0F_3+$4000                                                ; $8B5B: 94 CB  ; entry 3 -> blob $8B94, 9 records
-  .word MenuOam_0F_4+$4000                                                ; $8B5D: B9 CB  ; entry 4 -> blob $8BB9, 9 records
-  .word MenuOam_0F_5+$4000                                                ; $8B5F: DE CB  ; entry 5 -> blob $8BDE, 9 records
+; --- IndustryAndTownResult10SpriteTable: 6 x .word @ $8B55 = the MenuAction0F_IndustryAndTownResult10 panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Number0 Number1 Number2 Scene3 Scene4 Scene5 ---
+IndustryAndTownResult10SpriteTable:
+  .word IndustryAndTownResult10Number0+$4000                              ; $8B55: 61 CB  ; entry 0 -> IndustryAndTownResult10Number0 (4 records)
+  .word IndustryAndTownResult10Number1+$4000                              ; $8B57: 72 CB  ; entry 1 -> IndustryAndTownResult10Number1 (4 records)
+  .word IndustryAndTownResult10Number2+$4000                              ; $8B59: 83 CB  ; entry 2 -> IndustryAndTownResult10Number2 (4 records)
+  .word IndustryAndTownResult10Scene3+$4000                               ; $8B5B: 94 CB  ; entry 3 -> IndustryAndTownResult10Scene3 (9 records)
+  .word IndustryAndTownResult10Scene4+$4000                               ; $8B5D: B9 CB  ; entry 4 -> IndustryAndTownResult10Scene4 (9 records)
+  .word IndustryAndTownResult10Scene5+$4000                               ; $8B5F: DE CB  ; entry 5 -> IndustryAndTownResult10Scene5 (9 records)
 
-; blob entry 0 (@$8B61): 4 [y,tile,attr,x] records, $80 terminator @ $8B71
-MenuOam_0F_0:
+; IndustryAndTownResult10Number0: 4 [y,tile,attr,x] records @ $8B61, $80 terminator @ $8B71
+;     frame 1 of 3 - posts the same offsets as entries entry $8B72, $8B83, so the handler walks them as one animation
+;     x_off $30-$38, y_off $08-$10
+;     digit glyphs drawn: 1, 2, 3, 4
+IndustryAndTownResult10Number0:
   .byte $08, $75, $00, $30, $08, $76, $00, $38, $10, $77, $00, $30, $10, $78, $00, $38 ; $8B61: 08 75 00 30 08 76 00 38 10 77 00 30 10 78 00 38
   .byte $80                                                               ; $8B71: 80  ; terminator $80
 
-; blob entry 1 (@$8B72): 4 [y,tile,attr,x] records, $80 terminator @ $8B82
-MenuOam_0F_1:
+; IndustryAndTownResult10Number1: 4 [y,tile,attr,x] records @ $8B72, $80 terminator @ $8B82
+;     frame 2 of 3 - posts the same offsets as entries entry $8B61, $8B83, so the handler walks them as one animation
+;     x_off $30-$38, y_off $08-$10
+;     digit glyphs drawn: 1, 2, 5, 6
+IndustryAndTownResult10Number1:
   .byte $08, $75, $00, $30, $08, $76, $00, $38, $10, $79, $00, $30, $10, $7A, $00, $38 ; $8B72: 08 75 00 30 08 76 00 38 10 79 00 30 10 7A 00 38
   .byte $80                                                               ; $8B82: 80  ; terminator $80
 
-; blob entry 2 (@$8B83): 4 [y,tile,attr,x] records, $80 terminator @ $8B93
-MenuOam_0F_2:
+; IndustryAndTownResult10Number2: 4 [y,tile,attr,x] records @ $8B83, $80 terminator @ $8B93
+;     frame 3 of 3 - posts the same offsets as entries entry $8B61, $8B72, so the handler walks them as one animation
+;     x_off $30-$38, y_off $08-$10
+;     digit glyphs drawn: 1, 2, 7, 8
+IndustryAndTownResult10Number2:
   .byte $08, $75, $00, $30, $08, $76, $00, $38, $10, $7B, $00, $30, $10, $7C, $00, $38 ; $8B83: 08 75 00 30 08 76 00 38 10 7B 00 30 10 7C 00 38
   .byte $80                                                               ; $8B93: 80  ; terminator $80
 
-; blob entry 3 (@$8B94): 9 [y,tile,attr,x] records, $80 terminator @ $8BB8
-MenuOam_0F_3:
+; IndustryAndTownResult10Scene3: 9 [y,tile,attr,x] records @ $8B94, $80 terminator @ $8BB8
+;     frame 1 of 3 - posts the same offsets as entries entry $8BB9, $8BDE, so the handler walks them as one animation
+;     x_off $38-$48, y_off $20-$30
+IndustryAndTownResult10Scene3:
   .byte $20, $5A, $00, $38, $20, $5B, $00, $40, $20, $5C, $00, $48, $28, $5D, $00, $38 ; $8B94: 20 5A 00 38 20 5B 00 40 20 5C 00 48 28 5D 00 38
   .byte $28, $5E, $00, $40, $28, $5F, $00, $48, $30, $60, $00, $38, $30, $61, $00, $40 ; $8BA4: 28 5E 00 40 28 5F 00 48 30 60 00 38 30 61 00 40
   .byte $30, $62, $00, $48, $80                                           ; $8BB4: 30 62 00 48 80  ; terminator $80
 
-; blob entry 4 (@$8BB9): 9 [y,tile,attr,x] records, $80 terminator @ $8BDD
-MenuOam_0F_4:
+; IndustryAndTownResult10Scene4: 9 [y,tile,attr,x] records @ $8BB9, $80 terminator @ $8BDD
+;     frame 2 of 3 - posts the same offsets as entries entry $8B94, $8BDE, so the handler walks them as one animation
+;     x_off $38-$48, y_off $20-$30
+IndustryAndTownResult10Scene4:
   .byte $20, $63, $00, $38, $20, $64, $00, $40, $20, $65, $00, $48, $28, $66, $00, $38 ; $8BB9: 20 63 00 38 20 64 00 40 20 65 00 48 28 66 00 38
   .byte $28, $67, $00, $40, $28, $68, $00, $48, $30, $69, $00, $38, $30, $6A, $00, $40 ; $8BC9: 28 67 00 40 28 68 00 48 30 69 00 38 30 6A 00 40
   .byte $30, $6B, $00, $48, $80                                           ; $8BD9: 30 6B 00 48 80  ; terminator $80
 
-; blob entry 5 (@$8BDE): 9 [y,tile,attr,x] records, $80 terminator @ $8C02
-MenuOam_0F_5:
+; IndustryAndTownResult10Scene5: 9 [y,tile,attr,x] records @ $8BDE, $80 terminator @ $8C02
+;     frame 3 of 3 - posts the same offsets as entries entry $8B94, $8BB9, so the handler walks them as one animation
+;     x_off $38-$48, y_off $20-$30
+;     digit glyphs drawn: 0
+IndustryAndTownResult10Scene5:
   .byte $20, $6C, $00, $38, $20, $6D, $00, $40, $20, $6E, $00, $48, $28, $6F, $00, $38 ; $8BDE: 20 6C 00 38 20 6D 00 40 20 6E 00 48 28 6F 00 38
   .byte $28, $70, $00, $40, $28, $71, $00, $48, $30, $72, $00, $38, $30, $73, $00, $40 ; $8BEE: 28 70 00 40 28 71 00 48 30 72 00 38 30 73 00 40
   .byte $30, $74, $00, $48, $80                                           ; $8BFE: 30 74 00 48 80  ; terminator $80
 
-; --- MenuAction10_OfficerTransferResult: 5 x .word @ $8C03, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_10:
-  .word MenuOam_10_0+$4000                                                ; $8C03: 0D CC  ; entry 0 -> blob $8C0D, 17 records
-  .word MenuOam_10_1+$4000                                                ; $8C05: 52 CC  ; entry 1 -> blob $8C52, 17 records
-  .word MenuOam_10_2+$4000                                                ; $8C07: 97 CC  ; entry 2 -> blob $8C97, 17 records
-  .word MenuOam_10_3+$4000                                                ; $8C09: DC CC  ; entry 3 -> blob $8CDC, 17 records
-  .word MenuOam_10_4+$4000                                                ; $8C0B: 21 CD  ; entry 4 -> blob $8D21, 3 records
+; --- OfficerTransferResultSpriteTable: 5 x .word @ $8C03 = the MenuAction10_OfficerTransferResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 Scene3 Number4 ---
+OfficerTransferResultSpriteTable:
+  .word OfficerTransferResultScene0+$4000                                 ; $8C03: 0D CC  ; entry 0 -> OfficerTransferResultScene0 (17 records)
+  .word OfficerTransferResultScene1+$4000                                 ; $8C05: 52 CC  ; entry 1 -> OfficerTransferResultScene1 (17 records)
+  .word OfficerTransferResultScene2+$4000                                 ; $8C07: 97 CC  ; entry 2 -> OfficerTransferResultScene2 (17 records)
+  .word OfficerTransferResultScene3+$4000                                 ; $8C09: DC CC  ; entry 3 -> OfficerTransferResultScene3 (17 records)
+  .word OfficerTransferResultNumber4+$4000                                ; $8C0B: 21 CD  ; entry 4 -> OfficerTransferResultNumber4 (3 records)
 
-; blob entry 0 (@$8C0D): 17 [y,tile,attr,x] records, $80 terminator @ $8C51
-MenuOam_10_0:
+; OfficerTransferResultScene0: 17 [y,tile,attr,x] records @ $8C0D, $80 terminator @ $8C51
+;     frame 1 of 4 - posts the same offsets as entries entry $8C52, $8C97, $8CDC, so the handler walks them as one animation
+;     x_off $00-$20, y_off $28-$48
+;     digit glyphs drawn: 2, 5, 8
+OfficerTransferResultScene0:
   .byte $28, $79, $00, $00, $28, $61, $00, $10, $28, $62, $00, $18, $30, $76, $00, $00 ; $8C0D: 28 79 00 00 28 61 00 10 28 62 00 18 30 76 00 00
   .byte $30, $71, $00, $10, $30, $72, $00, $18, $30, $73, $00, $20, $38, $62, $00, $08 ; $8C1D: 30 71 00 10 30 72 00 18 30 73 00 20 38 62 00 08
   .byte $38, $63, $00, $10, $38, $66, $00, $18, $38, $69, $00, $20, $40, $70, $00, $00 ; $8C2D: 38 63 00 10 38 66 00 18 38 69 00 20 40 70 00 00
   .byte $40, $72, $00, $08, $40, $73, $00, $10, $48, $6B, $00, $00, $48, $6C, $00, $08 ; $8C3D: 40 72 00 08 40 73 00 10 48 6B 00 00 48 6C 00 08
   .byte $48, $7C, $00, $10, $80                                           ; $8C4D: 48 7C 00 10 80  ; terminator $80
 
-; blob entry 1 (@$8C52): 17 [y,tile,attr,x] records, $80 terminator @ $8C96
-MenuOam_10_1:
+; OfficerTransferResultScene1: 17 [y,tile,attr,x] records @ $8C52, $80 terminator @ $8C96
+;     frame 2 of 4 - posts the same offsets as entries entry $8C0D, $8C97, $8CDC, so the handler walks them as one animation
+;     x_off $00-$20, y_off $28-$48
+;     digit glyphs drawn: 0, 1, 2, 4, 5, 8
+OfficerTransferResultScene1:
   .byte $28, $73, $00, $00, $28, $64, $00, $10, $28, $62, $00, $18, $30, $A2, $00, $00 ; $8C52: 28 73 00 00 28 64 00 10 28 62 00 18 30 A2 00 00
   .byte $30, $74, $00, $10, $30, $72, $00, $18, $30, $73, $00, $20, $38, $68, $00, $08 ; $8C62: 30 74 00 10 30 72 00 18 30 73 00 20 38 68 00 08
   .byte $38, $6B, $00, $10, $38, $6C, $00, $18, $38, $7C, $00, $20, $40, $6D, $00, $00 ; $8C72: 38 6B 00 10 38 6C 00 18 38 7C 00 20 40 6D 00 00
   .byte $40, $78, $00, $08, $40, $79, $00, $10, $48, $65, $00, $00, $48, $75, $00, $08 ; $8C82: 40 78 00 08 40 79 00 10 48 65 00 00 48 75 00 08
   .byte $48, $76, $00, $10, $80                                           ; $8C92: 48 76 00 10 80  ; terminator $80
 
-; blob entry 2 (@$8C97): 17 [y,tile,attr,x] records, $80 terminator @ $8CDB
-MenuOam_10_2:
+; OfficerTransferResultScene2: 17 [y,tile,attr,x] records @ $8C97, $80 terminator @ $8CDB
+;     frame 3 of 4 - posts the same offsets as entries entry $8C0D, $8C52, $8CDC, so the handler walks them as one animation
+;     x_off $00-$20, y_off $28-$48
+;     digit glyphs drawn: 1, 2, 3, 4, 5, 7
+OfficerTransferResultScene2:
   .byte $28, $73, $00, $00, $28, $67, $00, $10, $28, $68, $00, $18, $30, $69, $00, $00 ; $8C97: 28 73 00 00 28 67 00 10 28 68 00 18 30 69 00 00
   .byte $30, $77, $00, $10, $30, $78, $00, $18, $30, $79, $00, $20, $38, $62, $00, $08 ; $8CA7: 30 77 00 10 30 78 00 18 30 79 00 20 38 62 00 08
   .byte $38, $65, $00, $10, $38, $75, $00, $18, $38, $76, $00, $20, $40, $6E, $00, $00 ; $8CB7: 38 65 00 10 38 75 00 18 38 76 00 20 40 6E 00 00
   .byte $40, $7B, $00, $08, $40, $73, $00, $10, $48, $A0, $00, $00, $48, $A1, $00, $08 ; $8CC7: 40 7B 00 08 40 73 00 10 48 A0 00 00 48 A1 00 08
   .byte $48, $A2, $00, $10, $80                                           ; $8CD7: 48 A2 00 10 80  ; terminator $80
 
-; blob entry 3 (@$8CDC): 17 [y,tile,attr,x] records, $80 terminator @ $8D20
-MenuOam_10_3:
+; OfficerTransferResultScene3: 17 [y,tile,attr,x] records @ $8CDC, $80 terminator @ $8D20
+;     frame 4 of 4 - posts the same offsets as entries entry $8C0D, $8C52, $8C97, so the handler walks them as one animation
+;     x_off $00-$20, y_off $28-$48
+;     digit glyphs drawn: 6, 7, 8
+OfficerTransferResultScene3:
   .byte $28, $73, $00, $00, $28, $6A, $00, $10, $28, $62, $00, $18, $30, $7C, $00, $00 ; $8CDC: 28 73 00 00 28 6A 00 10 28 62 00 18 30 7C 00 00
   .byte $30, $7A, $00, $10, $30, $7B, $00, $18, $30, $73, $00, $20, $38, $62, $00, $08 ; $8CEC: 30 7A 00 10 30 7B 00 18 30 73 00 20 38 62 00 08
   .byte $38, $A0, $00, $10, $38, $A1, $00, $18, $38, $A2, $00, $20, $40, $6F, $00, $00 ; $8CFC: 38 A0 00 10 38 A1 00 18 38 A2 00 20 40 6F 00 00
   .byte $40, $72, $00, $08, $40, $73, $00, $10, $48, $63, $00, $00, $48, $66, $00, $08 ; $8D0C: 40 72 00 08 40 73 00 10 48 63 00 00 48 66 00 08
   .byte $48, $69, $00, $10, $80                                           ; $8D1C: 48 69 00 10 80  ; terminator $80
 
-; blob entry 4 (@$8D21): 3 [y,tile,attr,x] records, $80 terminator @ $8D2D
-MenuOam_10_4:
+; OfficerTransferResultNumber4: 3 [y,tile,attr,x] records @ $8D21, $80 terminator @ $8D2D
+;     one posting of its own (3 records, offsets shared by no other entry)
+;     x_off $30-$40, y_off $10-$10
+;     digit glyphs drawn: 9, 10
+OfficerTransferResultNumber4:
   .byte $10, $7D, $00, $30, $10, $7E, $00, $38, $10, $7E, $00, $40, $80   ; $8D21: 10 7D 00 30 10 7E 00 38 10 7E 00 40 80
 
-; --- MenuAction11_IndustryDevelopmentResult12: 3 x .word @ $8D2E, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_11:
-  .word MenuOam_11_0+$4000                                                ; $8D2E: 34 CD  ; entry 0 -> blob $8D34, 21 records
-  .word MenuOam_11_1+$4000                                                ; $8D30: 89 CD  ; entry 1 -> blob $8D89, 21 records
-  .word MenuOam_11_2+$4000                                                ; $8D32: DE CD  ; entry 2 -> blob $8DDE, 22 records
+; --- IndustryDevelopmentResult12SpriteTable: 3 x .word @ $8D2E = the MenuAction11_IndustryDevelopmentResult12 panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 ---
+IndustryDevelopmentResult12SpriteTable:
+  .word IndustryDevelopmentResult12Scene0+$4000                           ; $8D2E: 34 CD  ; entry 0 -> IndustryDevelopmentResult12Scene0 (21 records)
+  .word IndustryDevelopmentResult12Scene1+$4000                           ; $8D30: 89 CD  ; entry 1 -> IndustryDevelopmentResult12Scene1 (21 records)
+  .word IndustryDevelopmentResult12Scene2+$4000                           ; $8D32: DE CD  ; entry 2 -> IndustryDevelopmentResult12Scene2 (22 records)
 
-; blob entry 0 (@$8D34): 21 [y,tile,attr,x] records, $80 terminator @ $8D88
-MenuOam_11_0:
+; IndustryDevelopmentResult12Scene0: 21 [y,tile,attr,x] records @ $8D34, $80 terminator @ $8D88
+;     frame 1 of 2 - posts the same offsets as entry $8D89, so the handler walks them as one animation
+;     x_off $18-$38, y_off $20-$48
+IndustryDevelopmentResult12Scene0:
   .byte $20, $5A, $00, $18, $20, $5B, $00, $20, $28, $5C, $00, $18, $28, $5D, $00, $20 ; $8D34: 20 5A 00 18 20 5B 00 20 28 5C 00 18 28 5D 00 20
   .byte $28, $5E, $00, $28, $28, $4A, $00, $30, $28, $4B, $00, $38, $30, $72, $00, $18 ; $8D44: 28 5E 00 28 28 4A 00 30 28 4B 00 38 30 72 00 18
   .byte $30, $73, $00, $20, $30, $A9, $00, $28, $30, $4F, $00, $30, $30, $50, $00, $38 ; $8D54: 30 73 00 20 30 A9 00 28 30 4F 00 30 30 50 00 38
@@ -665,8 +854,10 @@ MenuOam_11_0:
   .byte $40, $55, $00, $18, $40, $62, $00, $20, $40, $63, $00, $28, $48, $58, $00, $20 ; $8D74: 40 55 00 18 40 62 00 20 40 63 00 28 48 58 00 20
   .byte $48, $59, $00, $28, $80                                           ; $8D84: 48 59 00 28 80  ; terminator $80
 
-; blob entry 1 (@$8D89): 21 [y,tile,attr,x] records, $80 terminator @ $8DDD
-MenuOam_11_1:
+; IndustryDevelopmentResult12Scene1: 21 [y,tile,attr,x] records @ $8D89, $80 terminator @ $8DDD
+;     frame 2 of 2 - posts the same offsets as entry $8D34, so the handler walks them as one animation
+;     x_off $18-$38, y_off $20-$48
+IndustryDevelopmentResult12Scene1:
   .byte $20, $45, $00, $18, $20, $46, $00, $20, $28, $47, $00, $18, $28, $48, $00, $20 ; $8D89: 20 45 00 18 20 46 00 20 28 47 00 18 28 48 00 20
   .byte $28, $49, $00, $28, $28, $4A, $00, $30, $28, $4B, $00, $38, $30, $4C, $00, $18 ; $8D99: 28 49 00 28 28 4A 00 30 28 4B 00 38 30 4C 00 18
   .byte $30, $4D, $00, $20, $30, $4E, $00, $28, $30, $4F, $00, $30, $30, $50, $00, $38 ; $8DA9: 30 4D 00 20 30 4E 00 28 30 4F 00 30 30 50 00 38
@@ -674,8 +865,10 @@ MenuOam_11_1:
   .byte $40, $55, $00, $18, $40, $56, $00, $20, $40, $57, $00, $28, $48, $58, $00, $20 ; $8DC9: 40 55 00 18 40 56 00 20 40 57 00 28 48 58 00 20
   .byte $48, $59, $00, $28, $80                                           ; $8DD9: 48 59 00 28 80  ; terminator $80
 
-; blob entry 2 (@$8DDE): 22 [y,tile,attr,x] records, $80 terminator @ $8E36
-MenuOam_11_2:
+; IndustryDevelopmentResult12Scene2: 22 [y,tile,attr,x] records @ $8DDE, $80 terminator @ $8E36
+;     one posting of its own (22 records, offsets shared by no other entry)
+;     x_off $18-$38, y_off $20-$48
+IndustryDevelopmentResult12Scene2:
   .byte $20, $64, $00, $28, $20, $65, $00, $30, $20, $66, $00, $38, $28, $67, $00, $18 ; $8DDE: 20 64 00 28 20 65 00 30 20 66 00 38 28 67 00 18
   .byte $28, $68, $00, $28, $28, $69, $00, $30, $28, $4B, $00, $38, $30, $6A, $00, $18 ; $8DEE: 28 68 00 28 28 69 00 30 28 4B 00 38 30 6A 00 18
   .byte $30, $6B, $00, $20, $30, $6C, $00, $28, $30, $6D, $00, $30, $30, $6E, $00, $38 ; $8DFE: 30 6B 00 20 30 6C 00 28 30 6D 00 30 30 6E 00 38
@@ -683,256 +876,330 @@ MenuOam_11_2:
   .byte $40, $55, $00, $18, $40, $6F, $00, $20, $40, $70, $00, $28, $40, $71, $00, $30 ; $8E1E: 40 55 00 18 40 6F 00 20 40 70 00 28 40 71 00 30
   .byte $48, $58, $00, $20, $48, $59, $00, $28, $80                       ; $8E2E: 48 58 00 20 48 59 00 28 80  ; terminator $80
 
-; --- MenuAction12_PoachingResult: 6 x .word @ $8E37, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_12:
-  .word MenuOam_12_0+$4000                                                ; $8E37: 43 CE  ; entry 0 -> blob $8E43, 2 records
-  .word MenuOam_12_1+$4000                                                ; $8E39: 4C CE  ; entry 1 -> blob $8E4C, 2 records
-  .word MenuOam_12_2+$4000                                                ; $8E3B: 55 CE  ; entry 2 -> blob $8E55, 2 records
-  .word MenuOam_12_3+$4000                                                ; $8E3D: 5E CE  ; entry 3 -> blob $8E5E, 2 records
-  .word MenuOam_12_4+$4000                                                ; $8E3F: 67 CE  ; entry 4 -> blob $8E67, 15 records
-  .word MenuOam_12_5+$4000                                                ; $8E41: A4 CE  ; entry 5 -> blob $8EA4, 14 records
+; --- PoachingResultSpriteTable: 6 x .word @ $8E37 = the MenuAction12_PoachingResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Mark0 Mark1 Mark2 Mark3 Scene4 Scene5 ---
+PoachingResultSpriteTable:
+  .word PoachingResultMark0+$4000                                         ; $8E37: 43 CE  ; entry 0 -> PoachingResultMark0 (2 records)
+  .word PoachingResultMark1+$4000                                         ; $8E39: 4C CE  ; entry 1 -> PoachingResultMark1 (2 records)
+  .word PoachingResultMark2+$4000                                         ; $8E3B: 55 CE  ; entry 2 -> PoachingResultMark2 (2 records)
+  .word PoachingResultMark3+$4000                                         ; $8E3D: 5E CE  ; entry 3 -> PoachingResultMark3 (2 records)
+  .word PoachingResultScene4+$4000                                        ; $8E3F: 67 CE  ; entry 4 -> PoachingResultScene4 (15 records)
+  .word PoachingResultScene5+$4000                                        ; $8E41: A4 CE  ; entry 5 -> PoachingResultScene5 (14 records)
 
-; blob entry 0 (@$8E43): 2 [y,tile,attr,x] records, $80 terminator @ $8E4B
-MenuOam_12_0:
+; PoachingResultMark0: 2 [y,tile,attr,x] records @ $8E43, $80 terminator @ $8E4B
+;     frame 1 of 2 - posts the same offsets as entry $8E4C, so the handler walks them as one animation
+;     x_off $38-$40, y_off $28-$28
+PoachingResultMark0:
   .byte $28, $5A, $00, $38, $28, $5B, $00, $40, $80                       ; $8E43: 28 5A 00 38 28 5B 00 40 80
 
-; blob entry 1 (@$8E4C): 2 [y,tile,attr,x] records, $80 terminator @ $8E54
-MenuOam_12_1:
+; PoachingResultMark1: 2 [y,tile,attr,x] records @ $8E4C, $80 terminator @ $8E54
+;     frame 2 of 2 - posts the same offsets as entry $8E43, so the handler walks them as one animation
+;     x_off $38-$40, y_off $28-$28
+PoachingResultMark1:
   .byte $28, $5C, $00, $38, $28, $5D, $00, $40, $80                       ; $8E4C: 28 5C 00 38 28 5D 00 40 80
 
-; blob entry 2 (@$8E55): 2 [y,tile,attr,x] records, $80 terminator @ $8E5D
-MenuOam_12_2:
+; PoachingResultMark2: 2 [y,tile,attr,x] records @ $8E55, $80 terminator @ $8E5D
+;     frame 1 of 2 - posts the same offsets as entry $8E5E, so the handler walks them as one animation
+;     x_off $38-$40, y_off $30-$30
+PoachingResultMark2:
   .byte $30, $5E, $00, $38, $30, $5F, $00, $40, $80                       ; $8E55: 30 5E 00 38 30 5F 00 40 80
 
-; blob entry 3 (@$8E5E): 2 [y,tile,attr,x] records, $80 terminator @ $8E66
-MenuOam_12_3:
+; PoachingResultMark3: 2 [y,tile,attr,x] records @ $8E5E, $80 terminator @ $8E66
+;     frame 2 of 2 - posts the same offsets as entry $8E55, so the handler walks them as one animation
+;     x_off $38-$40, y_off $30-$30
+PoachingResultMark3:
   .byte $30, $60, $00, $38, $30, $61, $00, $40, $80                       ; $8E5E: 30 60 00 38 30 61 00 40 80
 
-; blob entry 4 (@$8E67): 15 [y,tile,attr,x] records, $80 terminator @ $8EA3
-MenuOam_12_4:
+; PoachingResultScene4: 15 [y,tile,attr,x] records @ $8E67, $80 terminator @ $8EA3
+;     one posting of its own (15 records, offsets shared by no other entry)
+;     x_off $00-$18, y_off $00-$20
+PoachingResultScene4:
   .byte $00, $4D, $01, $00, $00, $4E, $01, $08, $00, $4F, $01, $10, $00, $50, $01, $18 ; $8E67: 00 4D 01 00 00 4E 01 08 00 4F 01 10 00 50 01 18
   .byte $08, $51, $01, $00, $08, $52, $01, $08, $08, $53, $01, $10, $08, $50, $01, $18 ; $8E77: 08 51 01 00 08 52 01 08 08 53 01 10 08 50 01 18
   .byte $10, $54, $00, $08, $10, $55, $00, $10, $18, $56, $00, $08, $18, $57, $00, $10 ; $8E87: 10 54 00 08 10 55 00 10 18 56 00 08 18 57 00 10
   .byte $20, $58, $01, $08, $20, $59, $01, $10, $20, $95, $01, $00, $80   ; $8E97: 20 58 01 08 20 59 01 10 20 95 01 00 80  ; terminator $80
 
-; blob entry 5 (@$8EA4): 14 [y,tile,attr,x] records, $80 terminator @ $8EDC
-MenuOam_12_5:
+; PoachingResultScene5: 14 [y,tile,attr,x] records @ $8EA4, $80 terminator @ $8EDC
+;     one posting of its own (14 records, offsets shared by no other entry)
+;     x_off $00-$18, y_off $00-$20
+PoachingResultScene5:
   .byte $00, $40, $01, $00, $00, $41, $01, $08, $00, $42, $01, $10, $00, $43, $01, $18 ; $8EA4: 00 40 01 00 00 41 01 08 00 42 01 10 00 43 01 18
   .byte $08, $44, $01, $00, $08, $45, $01, $08, $08, $46, $01, $10, $08, $47, $01, $18 ; $8EB4: 08 44 01 00 08 45 01 08 08 46 01 10 08 47 01 18
   .byte $10, $48, $00, $10, $18, $49, $00, $08, $18, $4A, $00, $10, $20, $4B, $01, $08 ; $8EC4: 10 48 00 10 18 49 00 08 18 4A 00 10 20 4B 01 08
   .byte $20, $4C, $01, $10, $20, $94, $01, $00, $80                       ; $8ED4: 20 4C 01 10 20 94 01 00 80  ; terminator $80
 
-; --- MenuAction13_IndustryDevelopmentResult14: 2 x .word @ $8EDD, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_13:
-  .word MenuOam_13_0+$4000                                                ; $8EDD: E1 CE  ; entry 0 -> blob $8EE1, 17 records
-  .word MenuOam_13_1+$4000                                                ; $8EDF: 26 CF  ; entry 1 -> blob $8F26, 17 records
+; --- IndustryDevelopmentResult14SpriteTable: 2 x .word @ $8EDD = the MenuAction13_IndustryDevelopmentResult14 panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 ---
+IndustryDevelopmentResult14SpriteTable:
+  .word IndustryDevelopmentResult14Scene0+$4000                           ; $8EDD: E1 CE  ; entry 0 -> IndustryDevelopmentResult14Scene0 (17 records)
+  .word IndustryDevelopmentResult14Scene1+$4000                           ; $8EDF: 26 CF  ; entry 1 -> IndustryDevelopmentResult14Scene1 (17 records)
 
-; blob entry 0 (@$8EE1): 17 [y,tile,attr,x] records, $80 terminator @ $8F25
-MenuOam_13_0:
+; IndustryDevelopmentResult14Scene0: 17 [y,tile,attr,x] records @ $8EE1, $80 terminator @ $8F25
+;     frame 1 of 2 - posts the same offsets as entry $8F26, so the handler walks them as one animation
+;     x_off $00-$38, y_off $00-$18
+IndustryDevelopmentResult14Scene0:
   .byte $00, $51, $00, $00, $00, $53, $00, $18, $00, $54, $00, $20, $00, $55, $00, $30 ; $8EE1: 00 51 00 00 00 53 00 18 00 54 00 20 00 55 00 30
   .byte $00, $56, $00, $38, $08, $52, $00, $00, $08, $57, $00, $18, $08, $58, $00, $20 ; $8EF1: 00 56 00 38 08 52 00 00 08 57 00 18 08 58 00 20
   .byte $08, $59, $00, $30, $08, $5A, $00, $38, $10, $5B, $00, $18, $10, $5C, $00, $20 ; $8F01: 08 59 00 30 08 5A 00 38 10 5B 00 18 10 5C 00 20
   .byte $10, $5D, $00, $28, $10, $5E, $00, $30, $10, $5F, $00, $38, $18, $60, $00, $28 ; $8F11: 10 5D 00 28 10 5E 00 30 10 5F 00 38 18 60 00 28
   .byte $18, $61, $00, $30, $80                                           ; $8F21: 18 61 00 30 80  ; terminator $80
 
-; blob entry 1 (@$8F26): 17 [y,tile,attr,x] records, $80 terminator @ $8F6A
-MenuOam_13_1:
+; IndustryDevelopmentResult14Scene1: 17 [y,tile,attr,x] records @ $8F26, $80 terminator @ $8F6A
+;     frame 2 of 2 - posts the same offsets as entry $8EE1, so the handler walks them as one animation
+;     x_off $00-$38, y_off $00-$18
+IndustryDevelopmentResult14Scene1:
   .byte $00, $62, $00, $00, $00, $64, $00, $18, $00, $65, $00, $20, $00, $66, $00, $30 ; $8F26: 00 62 00 00 00 64 00 18 00 65 00 20 00 66 00 30
   .byte $00, $67, $00, $38, $08, $63, $00, $00, $08, $68, $00, $18, $08, $69, $00, $20 ; $8F36: 00 67 00 38 08 63 00 00 08 68 00 18 08 69 00 20
   .byte $08, $6A, $00, $30, $08, $6B, $00, $38, $10, $6C, $00, $18, $10, $6D, $00, $20 ; $8F46: 08 6A 00 30 08 6B 00 38 10 6C 00 18 10 6D 00 20
   .byte $10, $6E, $00, $28, $10, $6F, $00, $30, $10, $70, $00, $38, $18, $71, $00, $28 ; $8F56: 10 6E 00 28 10 6F 00 30 10 70 00 38 18 71 00 28
   .byte $18, $72, $00, $30, $80                                           ; $8F66: 18 72 00 30 80  ; terminator $80
 
-; --- MenuAction14_LandAndIndustryResult15: 4 x .word @ $8F6B, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_14:
-  .word MenuOam_14_0+$4000                                                ; $8F6B: 73 CF  ; entry 0 -> blob $8F73, 16 records
-  .word MenuOam_14_1+$4000                                                ; $8F6D: B4 CF  ; entry 1 -> blob $8FB4, 16 records
-  .word MenuOam_14_2+$4000                                                ; $8F6F: F5 CF  ; entry 2 -> blob $8FF5, 16 records
-  .word MenuOam_14_3+$4000                                                ; $8F71: 36 D0  ; entry 3 -> blob $9036, 16 records
+; --- LandAndIndustryResult15SpriteTable: 4 x .word @ $8F6B = the MenuAction14_LandAndIndustryResult15 panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Number0 Number1 Scene2 Scene3 ---
+LandAndIndustryResult15SpriteTable:
+  .word LandAndIndustryResult15Number0+$4000                              ; $8F6B: 73 CF  ; entry 0 -> LandAndIndustryResult15Number0 (16 records)
+  .word LandAndIndustryResult15Number1+$4000                              ; $8F6D: B4 CF  ; entry 1 -> LandAndIndustryResult15Number1 (16 records)
+  .word LandAndIndustryResult15Scene2+$4000                               ; $8F6F: F5 CF  ; entry 2 -> LandAndIndustryResult15Scene2 (16 records)
+  .word LandAndIndustryResult15Scene3+$4000                               ; $8F71: 36 D0  ; entry 3 -> LandAndIndustryResult15Scene3 (16 records)
 
-; blob entry 0 (@$8F73): 16 [y,tile,attr,x] records, $80 terminator @ $8FB3
-MenuOam_14_0:
+; LandAndIndustryResult15Number0: 16 [y,tile,attr,x] records @ $8F73, $80 terminator @ $8FB3
+;     frame 1 of 4 - posts the same offsets as entries entry $8FB4, $8FF5, $9036, so the handler walks them as one animation
+;     x_off $38-$48, y_off $00-$28
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6, 7, 8
+LandAndIndustryResult15Number0:
   .byte $00, $6C, $00, $38, $00, $6F, $00, $40, $00, $6B, $00, $48, $08, $70, $00, $38 ; $8F73: 00 6C 00 38 00 6F 00 40 00 6B 00 48 08 70 00 38
   .byte $08, $71, $00, $40, $08, $72, $00, $48, $10, $73, $00, $38, $10, $74, $00, $40 ; $8F83: 08 71 00 40 08 72 00 48 10 73 00 38 10 74 00 40
   .byte $10, $75, $00, $48, $18, $76, $00, $38, $18, $77, $00, $40, $18, $78, $00, $48 ; $8F93: 10 75 00 48 18 76 00 38 18 77 00 40 18 78 00 48
   .byte $20, $79, $00, $38, $20, $7A, $00, $40, $20, $7B, $00, $48, $28, $7C, $00, $40 ; $8FA3: 20 79 00 38 20 7A 00 40 20 7B 00 48 28 7C 00 40
   .byte $80                                                               ; $8FB3: 80  ; terminator $80
 
-; blob entry 1 (@$8FB4): 16 [y,tile,attr,x] records, $80 terminator @ $8FF4
-MenuOam_14_1:
+; LandAndIndustryResult15Number1: 16 [y,tile,attr,x] records @ $8FB4, $80 terminator @ $8FF4
+;     frame 2 of 4 - posts the same offsets as entries entry $8F73, $8FF5, $9036, so the handler walks them as one animation
+;     x_off $38-$48, y_off $00-$28
+;     digit glyphs drawn: 2, 3, 4, 5, 6, 7, 8, 9, 10, 100
+LandAndIndustryResult15Number1:
   .byte $00, $6C, $00, $38, $00, $6F, $00, $40, $00, $6B, $00, $48, $08, $70, $00, $38 ; $8FB4: 00 6C 00 38 00 6F 00 40 00 6B 00 48 08 70 00 38
   .byte $08, $71, $00, $40, $08, $72, $00, $48, $10, $7D, $00, $38, $10, $7E, $00, $40 ; $8FC4: 08 71 00 40 08 72 00 48 10 7D 00 38 10 7E 00 40
   .byte $10, $7F, $00, $48, $18, $76, $00, $38, $18, $77, $00, $40, $18, $78, $00, $48 ; $8FD4: 10 7F 00 48 18 76 00 38 18 77 00 40 18 78 00 48
   .byte $20, $79, $00, $38, $20, $7A, $00, $40, $20, $7B, $00, $48, $28, $7C, $00, $40 ; $8FE4: 20 79 00 38 20 7A 00 40 20 7B 00 48 28 7C 00 40
   .byte $80                                                               ; $8FF4: 80  ; terminator $80
 
-; blob entry 2 (@$8FF5): 16 [y,tile,attr,x] records, $80 terminator @ $9035
-MenuOam_14_2:
+; LandAndIndustryResult15Scene2: 16 [y,tile,attr,x] records @ $8FF5, $80 terminator @ $9035
+;     frame 3 of 4 - posts the same offsets as entries entry $8F73, $8FB4, $9036, so the handler walks them as one animation
+;     x_off $38-$48, y_off $00-$28
+;     digit glyphs drawn: 0, 1, 5, 6, 7, 8
+LandAndIndustryResult15Scene2:
   .byte $00, $6C, $00, $38, $00, $6F, $00, $40, $00, $6B, $00, $48, $08, $70, $00, $38 ; $8FF5: 00 6C 00 38 00 6F 00 40 00 6B 00 48 08 70 00 38
   .byte $08, $71, $00, $40, $08, $72, $00, $48, $10, $73, $00, $38, $10, $74, $00, $40 ; $9005: 08 71 00 40 08 72 00 48 10 73 00 38 10 74 00 40
   .byte $10, $75, $00, $48, $18, $80, $00, $38, $18, $81, $00, $40, $18, $82, $00, $48 ; $9015: 10 75 00 48 18 80 00 38 18 81 00 40 18 82 00 48
   .byte $20, $79, $00, $38, $20, $7A, $00, $40, $20, $7B, $00, $48, $28, $7C, $00, $40 ; $9025: 20 79 00 38 20 7A 00 40 20 7B 00 48 28 7C 00 40
   .byte $80                                                               ; $9035: 80  ; terminator $80
 
-; blob entry 3 (@$9036): 16 [y,tile,attr,x] records, $80 terminator @ $9076
-MenuOam_14_3:
+; LandAndIndustryResult15Scene3: 16 [y,tile,attr,x] records @ $9036, $80 terminator @ $9076
+;     frame 4 of 4 - posts the same offsets as entries entry $8F73, $8FB4, $8FF5, so the handler walks them as one animation
+;     x_off $38-$48, y_off $00-$28
+;     digit glyphs drawn: 5, 6, 7, 8
+LandAndIndustryResult15Scene3:
   .byte $00, $A0, $00, $38, $00, $83, $00, $40, $00, $84, $00, $48, $08, $85, $00, $38 ; $9036: 00 A0 00 38 00 83 00 40 00 84 00 48 08 85 00 38
   .byte $08, $86, $00, $40, $08, $87, $00, $48, $10, $88, $00, $38, $10, $89, $00, $40 ; $9046: 08 86 00 40 08 87 00 48 10 88 00 38 10 89 00 40
   .byte $10, $8A, $00, $48, $18, $8B, $00, $38, $18, $8C, $00, $40, $18, $8D, $00, $48 ; $9056: 10 8A 00 48 18 8B 00 38 18 8C 00 40 18 8D 00 48
   .byte $20, $79, $00, $38, $20, $7A, $00, $40, $20, $7B, $00, $48, $28, $7C, $00, $40 ; $9066: 20 79 00 38 20 7A 00 40 20 7B 00 48 28 7C 00 40
   .byte $80                                                               ; $9076: 80  ; terminator $80
 
-; --- MenuAction15_IndustryAndTownResult16: 3 x .word @ $9077, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_15:
-  .word MenuOam_15_0+$4000                                                ; $9077: 7D D0  ; entry 0 -> blob $907D, 16 records
-  .word MenuOam_15_1+$4000                                                ; $9079: BE D0  ; entry 1 -> blob $90BE, 16 records
-  .word MenuOam_15_2+$4000                                                ; $907B: FF D0  ; entry 2 -> blob $90FF, 16 records
+; --- IndustryAndTownResult16SpriteTable: 3 x .word @ $9077 = the MenuAction15_IndustryAndTownResult16 panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Number2 ---
+IndustryAndTownResult16SpriteTable:
+  .word IndustryAndTownResult16Scene0+$4000                               ; $9077: 7D D0  ; entry 0 -> IndustryAndTownResult16Scene0 (16 records)
+  .word IndustryAndTownResult16Scene1+$4000                               ; $9079: BE D0  ; entry 1 -> IndustryAndTownResult16Scene1 (16 records)
+  .word IndustryAndTownResult16Number2+$4000                              ; $907B: FF D0  ; entry 2 -> IndustryAndTownResult16Number2 (16 records)
 
-; blob entry 0 (@$907D): 16 [y,tile,attr,x] records, $80 terminator @ $90BD
-MenuOam_15_0:
+; IndustryAndTownResult16Scene0: 16 [y,tile,attr,x] records @ $907D, $80 terminator @ $90BD
+;     frame 1 of 2 - posts the same offsets as entry $90FF, so the handler walks them as one animation
+;     x_off $20-$48, y_off $30-$40
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6
+IndustryAndTownResult16Scene0:
   .byte $30, $6B, $00, $20, $30, $6C, $00, $28, $30, $6D, $00, $38, $30, $6E, $00, $40 ; $907D: 30 6B 00 20 30 6C 00 28 30 6D 00 38 30 6E 00 40
   .byte $38, $6F, $00, $20, $38, $70, $00, $28, $38, $71, $00, $30, $38, $72, $00, $38 ; $908D: 38 6F 00 20 38 70 00 28 38 71 00 30 38 72 00 38
   .byte $38, $73, $00, $40, $38, $74, $00, $48, $40, $75, $00, $20, $40, $76, $00, $28 ; $909D: 38 73 00 40 38 74 00 48 40 75 00 20 40 76 00 28
   .byte $40, $77, $00, $30, $40, $78, $00, $38, $40, $79, $00, $40, $40, $7A, $00, $48 ; $90AD: 40 77 00 30 40 78 00 38 40 79 00 40 40 7A 00 48
   .byte $80                                                               ; $90BD: 80  ; terminator $80
 
-; blob entry 1 (@$90BE): 16 [y,tile,attr,x] records, $80 terminator @ $90FE
-MenuOam_15_1:
+; IndustryAndTownResult16Scene1: 16 [y,tile,attr,x] records @ $90BE, $80 terminator @ $90FE
+;     one posting of its own (16 records, offsets shared by no other entry)
+;     x_off $20-$48, y_off $30-$40
+;     digit glyphs drawn: 0, 7, 8, 9, 10
+IndustryAndTownResult16Scene1:
   .byte $30, $7B, $00, $20, $30, $7C, $00, $28, $30, $7D, $00, $30, $30, $7E, $00, $38 ; $90BE: 30 7B 00 20 30 7C 00 28 30 7D 00 30 30 7E 00 38
   .byte $30, $6E, $00, $40, $38, $AE, $00, $20, $38, $AF, $00, $28, $38, $B0, $00, $30 ; $90CE: 30 6E 00 40 38 AE 00 20 38 AF 00 28 38 B0 00 30
   .byte $38, $B1, $00, $38, $38, $73, $00, $40, $38, $74, $00, $48, $40, $B2, $00, $28 ; $90DE: 38 B1 00 38 38 73 00 40 38 74 00 48 40 B2 00 28
   .byte $40, $B3, $00, $30, $40, $B4, $00, $38, $40, $FC, $00, $40, $40, $FD, $00, $48 ; $90EE: 40 B3 00 30 40 B4 00 38 40 FC 00 40 40 FD 00 48
   .byte $80                                                               ; $90FE: 80  ; terminator $80
 
-; blob entry 2 (@$90FF): 16 [y,tile,attr,x] records, $80 terminator @ $913F
-MenuOam_15_2:
+; IndustryAndTownResult16Number2: 16 [y,tile,attr,x] records @ $90FF, $80 terminator @ $913F
+;     frame 2 of 2 - posts the same offsets as entry $907D, so the handler walks them as one animation
+;     x_off $20-$48, y_off $30-$40
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100
+IndustryAndTownResult16Number2:
   .byte $30, $B5, $00, $20, $30, $B6, $00, $28, $30, $B7, $00, $38, $30, $6E, $00, $40 ; $90FF: 30 B5 00 20 30 B6 00 28 30 B7 00 38 30 6E 00 40
   .byte $38, $B8, $00, $20, $38, $B9, $00, $28, $38, $BA, $00, $30, $38, $BB, $00, $38 ; $910F: 38 B8 00 20 38 B9 00 28 38 BA 00 30 38 BB 00 38
   .byte $38, $73, $00, $40, $38, $74, $00, $48, $40, $BC, $00, $20, $40, $BD, $00, $28 ; $911F: 38 73 00 40 38 74 00 48 40 BC 00 20 40 BD 00 28
   .byte $40, $BE, $00, $30, $40, $BF, $00, $38, $40, $FE, $00, $40, $40, $FF, $00, $48 ; $912F: 40 BE 00 30 40 BF 00 38 40 FE 00 40 40 FF 00 48
   .byte $80                                                               ; $913F: 80  ; terminator $80
 
-; --- MenuAction16_OfficerGiftResult: 4 x .word @ $9140, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_16:
-  .word MenuOam_16_0+$4000                                                ; $9140: 48 D1  ; entry 0 -> blob $9148, 1 records
-  .word MenuOam_16_1+$4000                                                ; $9142: 4D D1  ; entry 1 -> blob $914D, 1 records
-  .word MenuOam_16_2+$4000                                                ; $9144: 52 D1  ; entry 2 -> blob $9152, 17 records
-  .word MenuOam_16_3+$4000                                                ; $9146: 97 D1  ; entry 3 -> blob $9197, 17 records
+; --- OfficerGiftResultSpriteTable: 4 x .word @ $9140 = the MenuAction16_OfficerGiftResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Number0 Number1 Scene2 Scene3 ---
+OfficerGiftResultSpriteTable:
+  .word OfficerGiftResultNumber0+$4000                                    ; $9140: 48 D1  ; entry 0 -> OfficerGiftResultNumber0 (1 records)
+  .word OfficerGiftResultNumber1+$4000                                    ; $9142: 4D D1  ; entry 1 -> OfficerGiftResultNumber1 (1 records)
+  .word OfficerGiftResultScene2+$4000                                     ; $9144: 52 D1  ; entry 2 -> OfficerGiftResultScene2 (17 records)
+  .word OfficerGiftResultScene3+$4000                                     ; $9146: 97 D1  ; entry 3 -> OfficerGiftResultScene3 (17 records)
 
-; blob entry 0 (@$9148): 1 [y,tile,attr,x] records, $80 terminator @ $914C
-MenuOam_16_0:
+; OfficerGiftResultNumber0: 1 [y,tile,attr,x] records @ $9148, $80 terminator @ $914C
+;     frame 1 of 2 - posts the same offsets as entry $914D, so the handler walks them as one animation
+;     x_off $38-$38, y_off $10-$10
+;     digit glyphs drawn: 0
+OfficerGiftResultNumber0:
   .byte $10, $74, $00, $38, $80                                           ; $9148: 10 74 00 38 80
 
-; blob entry 1 (@$914D): 1 [y,tile,attr,x] records, $80 terminator @ $9151
-MenuOam_16_1:
+; OfficerGiftResultNumber1: 1 [y,tile,attr,x] records @ $914D, $80 terminator @ $9151
+;     frame 2 of 2 - posts the same offsets as entry $9148, so the handler walks them as one animation
+;     x_off $38-$38, y_off $10-$10
+;     digit glyphs drawn: 1
+OfficerGiftResultNumber1:
   .byte $10, $75, $00, $38, $80                                           ; $914D: 10 75 00 38 80
 
-; blob entry 2 (@$9152): 17 [y,tile,attr,x] records, $80 terminator @ $9196
-MenuOam_16_2:
+; OfficerGiftResultScene2: 17 [y,tile,attr,x] records @ $9152, $80 terminator @ $9196
+;     frame 1 of 2 - posts the same offsets as entry $9197, so the handler walks them as one animation
+;     x_off $00-$18, y_off $00-$20
+OfficerGiftResultScene2:
   .byte $00, $52, $00, $00, $00, $53, $00, $08, $08, $54, $00, $00, $08, $55, $00, $08 ; $9152: 00 52 00 00 00 53 00 08 08 54 00 00 08 55 00 08
   .byte $08, $56, $00, $10, $08, $57, $00, $18, $10, $58, $00, $00, $10, $59, $00, $08 ; $9162: 08 56 00 10 08 57 00 18 10 58 00 00 10 59 00 08
   .byte $10, $5A, $00, $10, $10, $5B, $00, $18, $18, $5C, $00, $00, $18, $5D, $00, $08 ; $9172: 10 5A 00 10 10 5B 00 18 18 5C 00 00 18 5D 00 08
   .byte $18, $5E, $00, $10, $18, $5F, $00, $18, $20, $60, $00, $00, $20, $61, $00, $08 ; $9182: 18 5E 00 10 18 5F 00 18 20 60 00 00 20 61 00 08
   .byte $20, $62, $00, $10, $80                                           ; $9192: 20 62 00 10 80  ; terminator $80
 
-; blob entry 3 (@$9197): 17 [y,tile,attr,x] records, $80 terminator @ $91DB
-MenuOam_16_3:
+; OfficerGiftResultScene3: 17 [y,tile,attr,x] records @ $9197, $80 terminator @ $91DB
+;     frame 2 of 2 - posts the same offsets as entry $9152, so the handler walks them as one animation
+;     x_off $00-$18, y_off $00-$20
+OfficerGiftResultScene3:
   .byte $00, $63, $00, $00, $00, $64, $00, $08, $08, $65, $00, $00, $08, $66, $00, $08 ; $9197: 00 63 00 00 00 64 00 08 08 65 00 00 08 66 00 08
   .byte $08, $67, $00, $10, $08, $68, $00, $18, $10, $69, $00, $00, $10, $6A, $00, $08 ; $91A7: 08 67 00 10 08 68 00 18 10 69 00 00 10 6A 00 08
   .byte $10, $6B, $00, $10, $10, $6C, $00, $18, $18, $6D, $00, $00, $18, $6E, $00, $08 ; $91B7: 10 6B 00 10 10 6C 00 18 18 6D 00 00 18 6E 00 08
   .byte $18, $6F, $00, $10, $18, $70, $00, $18, $20, $71, $00, $00, $20, $72, $00, $08 ; $91C7: 18 6F 00 10 18 70 00 18 20 71 00 00 20 72 00 08
   .byte $20, $73, $00, $10, $80                                           ; $91D7: 20 73 00 10 80  ; terminator $80
 
-; --- MenuAction17_IndustryAndTownResult18: 4 x .word @ $91DC, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_17:
-  .word MenuOam_17_0+$4000                                                ; $91DC: E4 D1  ; entry 0 -> blob $91E4, 13 records
-  .word MenuOam_17_1+$4000                                                ; $91DE: 19 D2  ; entry 1 -> blob $9219, 13 records
-  .word MenuOam_17_2+$4000                                                ; $91E0: 4E D2  ; entry 2 -> blob $924E, 10 records
-  .word MenuOam_17_3+$4000                                                ; $91E2: 77 D2  ; entry 3 -> blob $9277, 10 records
+; --- IndustryAndTownResult18SpriteTable: 4 x .word @ $91DC = the MenuAction17_IndustryAndTownResult18 panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 Scene3 ---
+IndustryAndTownResult18SpriteTable:
+  .word IndustryAndTownResult18Scene0+$4000                               ; $91DC: E4 D1  ; entry 0 -> IndustryAndTownResult18Scene0 (13 records)
+  .word IndustryAndTownResult18Scene1+$4000                               ; $91DE: 19 D2  ; entry 1 -> IndustryAndTownResult18Scene1 (13 records)
+  .word IndustryAndTownResult18Scene2+$4000                               ; $91E0: 4E D2  ; entry 2 -> IndustryAndTownResult18Scene2 (10 records)
+  .word IndustryAndTownResult18Scene3+$4000                               ; $91E2: 77 D2  ; entry 3 -> IndustryAndTownResult18Scene3 (10 records)
 
-; blob entry 0 (@$91E4): 13 [y,tile,attr,x] records, $80 terminator @ $9218
-MenuOam_17_0:
+; IndustryAndTownResult18Scene0: 13 [y,tile,attr,x] records @ $91E4, $80 terminator @ $9218
+;     frame 1 of 2 - posts the same offsets as entry $9219, so the handler walks them as one animation
+;     x_off $20-$40, y_off $20-$48
+IndustryAndTownResult18Scene0:
   .byte $20, $60, $00, $20, $38, $46, $00, $28, $38, $47, $00, $30, $38, $4F, $00, $40 ; $91E4: 20 60 00 20 38 46 00 28 38 47 00 30 38 4F 00 40
   .byte $40, $50, $00, $20, $40, $48, $00, $28, $40, $49, $00, $30, $40, $51, $00, $38 ; $91F4: 40 50 00 20 40 48 00 28 40 49 00 30 40 51 00 38
   .byte $40, $AF, $00, $40, $48, $80, $00, $20, $48, $80, $00, $28, $48, $B0, $00, $30 ; $9204: 40 AF 00 40 48 80 00 20 48 80 00 28 48 B0 00 30
   .byte $48, $B1, $00, $38, $80                                           ; $9214: 48 B1 00 38 80  ; terminator $80
 
-; blob entry 1 (@$9219): 13 [y,tile,attr,x] records, $80 terminator @ $924D
-MenuOam_17_1:
+; IndustryAndTownResult18Scene1: 13 [y,tile,attr,x] records @ $9219, $80 terminator @ $924D
+;     frame 2 of 2 - posts the same offsets as entry $91E4, so the handler walks them as one animation
+;     x_off $20-$40, y_off $20-$48
+;     digit glyphs drawn: 0, 1
+IndustryAndTownResult18Scene1:
   .byte $20, $61, $00, $20, $38, $80, $00, $28, $38, $4B, $00, $30, $38, $4E, $00, $40 ; $9219: 20 61 00 20 38 80 00 28 38 4B 00 30 38 4E 00 40
   .byte $40, $4D, $00, $20, $40, $4C, $00, $28, $40, $80, $00, $30, $40, $80, $00, $38 ; $9229: 40 4D 00 20 40 4C 00 28 40 80 00 30 40 80 00 38
   .byte $40, $4A, $00, $40, $48, $B2, $00, $20, $48, $B3, $00, $28, $48, $B4, $00, $30 ; $9239: 40 4A 00 40 48 B2 00 20 48 B3 00 28 48 B4 00 30
   .byte $48, $B5, $00, $38, $80                                           ; $9249: 48 B5 00 38 80  ; terminator $80
 
-; blob entry 2 (@$924E): 10 [y,tile,attr,x] records, $80 terminator @ $9276
-MenuOam_17_2:
+; IndustryAndTownResult18Scene2: 10 [y,tile,attr,x] records @ $924E, $80 terminator @ $9276
+;     frame 1 of 2 - posts the same offsets as entry $9277, so the handler walks them as one animation
+;     x_off $08-$48, y_off $18-$38
+;     digit glyphs drawn: 2
+IndustryAndTownResult18Scene2:
   .byte $18, $55, $00, $48, $20, $54, $00, $38, $20, $64, $00, $40, $20, $65, $00, $48 ; $924E: 18 55 00 48 20 54 00 38 20 64 00 40 20 65 00 48
   .byte $28, $58, $00, $38, $28, $59, $00, $40, $28, $B6, $00, $48, $30, $5B, $00, $38 ; $925E: 28 58 00 38 28 59 00 40 28 B6 00 48 30 5B 00 38
   .byte $30, $43, $00, $18, $38, $45, $00, $08, $80                       ; $926E: 30 43 00 18 38 45 00 08 80  ; terminator $80
 
-; blob entry 3 (@$9277): 10 [y,tile,attr,x] records, $80 terminator @ $929F
-MenuOam_17_3:
+; IndustryAndTownResult18Scene3: 10 [y,tile,attr,x] records @ $9277, $80 terminator @ $929F
+;     frame 2 of 2 - posts the same offsets as entry $924E, so the handler walks them as one animation
+;     x_off $08-$48, y_off $18-$38
+IndustryAndTownResult18Scene3:
   .byte $18, $53, $00, $48, $20, $52, $00, $38, $20, $62, $00, $40, $20, $63, $00, $48 ; $9277: 18 53 00 48 20 52 00 38 20 62 00 40 20 63 00 48
   .byte $28, $56, $00, $38, $28, $57, $00, $40, $28, $81, $00, $48, $30, $5A, $00, $38 ; $9287: 28 56 00 38 28 57 00 40 28 81 00 48 30 5A 00 38
   .byte $30, $42, $00, $18, $38, $44, $00, $08, $80                       ; $9297: 30 42 00 18 38 44 00 08 80  ; terminator $80
 
-; --- MenuAction18_AllianceResult: 6 x .word @ $92A0, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_18:
-  .word MenuOam_18_0+$4000                                                ; $92A0: AC D2  ; entry 0 -> blob $92AC, 1 records
-  .word MenuOam_18_1+$4000                                                ; $92A2: B1 D2  ; entry 1 -> blob $92B1, 1 records
-  .word MenuOam_18_2+$4000                                                ; $92A4: B6 D2  ; entry 2 -> blob $92B6, 1 records
-  .word MenuOam_18_3+$4000                                                ; $92A6: BB D2  ; entry 3 -> blob $92BB, 1 records
-  .word MenuOam_18_4+$4000                                                ; $92A8: C0 D2  ; entry 4 -> blob $92C0, 16 records
-  .word MenuOam_18_5+$4000                                                ; $92AA: 01 D3  ; entry 5 -> blob $9301, 16 records
+; --- AllianceResultSpriteTable: 6 x .word @ $92A0 = the MenuAction18_AllianceResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Number0 Mark1 Mark2 Mark3 Scene4 Scene5 ---
+AllianceResultSpriteTable:
+  .word AllianceResultNumber0+$4000                                       ; $92A0: AC D2  ; entry 0 -> AllianceResultNumber0 (1 records)
+  .word AllianceResultMark1+$4000                                         ; $92A2: B1 D2  ; entry 1 -> AllianceResultMark1 (1 records)
+  .word AllianceResultMark2+$4000                                         ; $92A4: B6 D2  ; entry 2 -> AllianceResultMark2 (1 records)
+  .word AllianceResultMark3+$4000                                         ; $92A6: BB D2  ; entry 3 -> AllianceResultMark3 (1 records)
+  .word AllianceResultScene4+$4000                                        ; $92A8: C0 D2  ; entry 4 -> AllianceResultScene4 (16 records)
+  .word AllianceResultScene5+$4000                                        ; $92AA: 01 D3  ; entry 5 -> AllianceResultScene5 (16 records)
 
-; blob entry 0 (@$92AC): 1 [y,tile,attr,x] records, $80 terminator @ $92B0
-MenuOam_18_0:
+; AllianceResultNumber0: 1 [y,tile,attr,x] records @ $92AC, $80 terminator @ $92B0
+;     frame 1 of 2 - posts the same offsets as entry $92B1, so the handler walks them as one animation
+;     x_off $40-$40, y_off $18-$18
+;     digit glyphs drawn: 4
+AllianceResultNumber0:
   .byte $18, $78, $00, $40, $80                                           ; $92AC: 18 78 00 40 80
 
-; blob entry 1 (@$92B1): 1 [y,tile,attr,x] records, $80 terminator @ $92B5
-MenuOam_18_1:
+; AllianceResultMark1: 1 [y,tile,attr,x] records @ $92B1, $80 terminator @ $92B5
+;     frame 2 of 2 - posts the same offsets as entry $92AC, so the handler walks them as one animation
+;     x_off $40-$40, y_off $18-$18
+AllianceResultMark1:
   .byte $18, $68, $00, $40, $80                                           ; $92B1: 18 68 00 40 80
 
-; blob entry 2 (@$92B6): 1 [y,tile,attr,x] records, $80 terminator @ $92BA
-MenuOam_18_2:
+; AllianceResultMark2: 1 [y,tile,attr,x] records @ $92B6, $80 terminator @ $92BA
+;     frame 1 of 2 - posts the same offsets as entry $92BB, so the handler walks them as one animation
+;     x_off $08-$08, y_off $20-$20
+AllianceResultMark2:
   .byte $20, $48, $00, $08, $80                                           ; $92B6: 20 48 00 08 80
 
-; blob entry 3 (@$92BB): 1 [y,tile,attr,x] records, $80 terminator @ $92BF
-MenuOam_18_3:
+; AllianceResultMark3: 1 [y,tile,attr,x] records @ $92BB, $80 terminator @ $92BF
+;     frame 2 of 2 - posts the same offsets as entry $92B6, so the handler walks them as one animation
+;     x_off $08-$08, y_off $20-$20
+AllianceResultMark3:
   .byte $20, $58, $00, $08, $80                                           ; $92BB: 20 58 00 08 80
 
-; blob entry 4 (@$92C0): 16 [y,tile,attr,x] records, $80 terminator @ $9300
-MenuOam_18_4:
+; AllianceResultScene4: 16 [y,tile,attr,x] records @ $92C0, $80 terminator @ $9300
+;     frame 1 of 2 - posts the same offsets as entry $9301, so the handler walks them as one animation
+;     x_off $00-$18, y_off $30-$48
+AllianceResultScene4:
   .byte $30, $40, $00, $00, $30, $41, $00, $08, $30, $42, $00, $10, $30, $43, $00, $18 ; $92C0: 30 40 00 00 30 41 00 08 30 42 00 10 30 43 00 18
   .byte $38, $50, $00, $00, $38, $51, $00, $08, $38, $52, $00, $10, $38, $53, $00, $18 ; $92D0: 38 50 00 00 38 51 00 08 38 52 00 10 38 53 00 18
   .byte $40, $60, $00, $00, $40, $61, $00, $08, $40, $62, $00, $10, $40, $63, $00, $18 ; $92E0: 40 60 00 00 40 61 00 08 40 62 00 10 40 63 00 18
   .byte $48, $70, $00, $00, $48, $71, $00, $08, $48, $72, $00, $10, $48, $73, $00, $18 ; $92F0: 48 70 00 00 48 71 00 08 48 72 00 10 48 73 00 18
   .byte $80                                                               ; $9300: 80  ; terminator $80
 
-; blob entry 5 (@$9301): 16 [y,tile,attr,x] records, $80 terminator @ $9341
-MenuOam_18_5:
+; AllianceResultScene5: 16 [y,tile,attr,x] records @ $9301, $80 terminator @ $9341
+;     frame 2 of 2 - posts the same offsets as entry $92C0, so the handler walks them as one animation
+;     x_off $00-$18, y_off $30-$48
+;     digit glyphs drawn: 0, 1, 2, 3
+AllianceResultScene5:
   .byte $30, $44, $00, $00, $30, $45, $00, $08, $30, $46, $00, $10, $30, $47, $00, $18 ; $9301: 30 44 00 00 30 45 00 08 30 46 00 10 30 47 00 18
   .byte $38, $54, $00, $00, $38, $55, $00, $08, $38, $56, $00, $10, $38, $57, $00, $18 ; $9311: 38 54 00 00 38 55 00 08 38 56 00 10 38 57 00 18
   .byte $40, $64, $00, $00, $40, $65, $00, $08, $40, $66, $00, $10, $40, $67, $00, $18 ; $9321: 40 64 00 00 40 65 00 08 40 66 00 10 40 67 00 18
   .byte $48, $74, $00, $00, $48, $75, $00, $08, $48, $76, $00, $10, $48, $77, $00, $18 ; $9331: 48 74 00 00 48 75 00 08 48 76 00 10 48 77 00 18
   .byte $80                                                               ; $9341: 80  ; terminator $80
 
-; --- MenuAction19_ConscriptionResult: 3 x .word @ $9342, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_19:
-  .word MenuOam_19_0+$4000                                                ; $9342: 48 D3  ; entry 0 -> blob $9348, 25 records
-  .word MenuOam_19_1+$4000                                                ; $9344: AD D3  ; entry 1 -> blob $93AD, 25 records
-  .word MenuOam_19_2+$4000                                                ; $9346: 12 D4  ; entry 2 -> blob $9412, 25 records
+; --- ConscriptionResultSpriteTable: 3 x .word @ $9342 = the MenuAction19_ConscriptionResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 ---
+ConscriptionResultSpriteTable:
+  .word ConscriptionResultScene0+$4000                                    ; $9342: 48 D3  ; entry 0 -> ConscriptionResultScene0 (25 records)
+  .word ConscriptionResultScene1+$4000                                    ; $9344: AD D3  ; entry 1 -> ConscriptionResultScene1 (25 records)
+  .word ConscriptionResultScene2+$4000                                    ; $9346: 12 D4  ; entry 2 -> ConscriptionResultScene2 (25 records)
 
-; blob entry 0 (@$9348): 25 [y,tile,attr,x] records, $80 terminator @ $93AC
-MenuOam_19_0:
+; ConscriptionResultScene0: 25 [y,tile,attr,x] records @ $9348, $80 terminator @ $93AC
+;     frame 1 of 3 - posts the same offsets as entries entry $93AD, $9412, so the handler walks them as one animation
+;     x_off $08-$30, y_off $00-$30
+;     digit glyphs drawn: 4, 6, 7
+ConscriptionResultScene0:
   .byte $00, $59, $00, $08, $00, $59, $00, $10, $08, $59, $00, $08, $08, $59, $00, $10 ; $9348: 00 59 00 08 00 59 00 10 08 59 00 08 08 59 00 10
   .byte $08, $59, $00, $18, $10, $59, $00, $10, $10, $59, $00, $18, $18, $5A, $00, $10 ; $9358: 08 59 00 18 10 59 00 10 10 59 00 18 18 5A 00 10
   .byte $18, $5B, $00, $18, $18, $5C, $00, $20, $18, $5D, $00, $28, $18, $78, $00, $30 ; $9368: 18 5B 00 18 18 5C 00 20 18 5D 00 28 18 78 00 30
@@ -941,8 +1208,11 @@ MenuOam_19_0:
   .byte $28, $65, $00, $28, $28, $7B, $00, $30, $30, $66, $00, $18, $30, $67, $00, $20 ; $9398: 28 65 00 28 28 7B 00 30 30 66 00 18 30 67 00 20
   .byte $30, $68, $00, $28, $80                                           ; $93A8: 30 68 00 28 80  ; terminator $80
 
-; blob entry 1 (@$93AD): 25 [y,tile,attr,x] records, $80 terminator @ $9411
-MenuOam_19_1:
+; ConscriptionResultScene1: 25 [y,tile,attr,x] records @ $93AD, $80 terminator @ $9411
+;     frame 2 of 3 - posts the same offsets as entries entry $9348, $9412, so the handler walks them as one animation
+;     x_off $08-$30, y_off $00-$30
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 7
+ConscriptionResultScene1:
   .byte $00, $59, $00, $08, $00, $59, $00, $10, $08, $59, $00, $08, $08, $69, $00, $10 ; $93AD: 00 59 00 08 00 59 00 10 08 59 00 08 08 69 00 10
   .byte $08, $6A, $00, $18, $10, $6B, $00, $10, $10, $6C, $00, $18, $18, $6D, $00, $10 ; $93BD: 08 6A 00 18 10 6B 00 10 10 6C 00 18 18 6D 00 10
   .byte $18, $6E, $00, $18, $18, $6F, $00, $20, $18, $5D, $00, $28, $18, $78, $00, $30 ; $93CD: 18 6E 00 18 18 6F 00 20 18 5D 00 28 18 78 00 30
@@ -951,8 +1221,11 @@ MenuOam_19_1:
   .byte $28, $65, $00, $28, $28, $7B, $00, $30, $30, $76, $00, $18, $30, $77, $00, $20 ; $93FD: 28 65 00 28 28 7B 00 30 30 76 00 18 30 77 00 20
   .byte $30, $68, $00, $28, $80                                           ; $940D: 30 68 00 28 80  ; terminator $80
 
-; blob entry 2 (@$9412): 25 [y,tile,attr,x] records, $80 terminator @ $9476
-MenuOam_19_2:
+; ConscriptionResultScene2: 25 [y,tile,attr,x] records @ $9412, $80 terminator @ $9476
+;     frame 3 of 3 - posts the same offsets as entries entry $9348, $93AD, so the handler walks them as one animation
+;     x_off $08-$30, y_off $00-$30
+;     digit glyphs drawn: 4, 5, 7, 8, 9, 10, 100
+ConscriptionResultScene2:
   .byte $00, $7C, $00, $08, $00, $7D, $00, $10, $08, $7E, $00, $08, $08, $7F, $00, $10 ; $9412: 00 7C 00 08 00 7D 00 10 08 7E 00 08 08 7F 00 10
   .byte $08, $80, $00, $18, $10, $81, $00, $10, $10, $82, $00, $18, $18, $83, $00, $10 ; $9422: 08 80 00 18 10 81 00 10 10 82 00 18 18 83 00 10
   .byte $18, $84, $00, $18, $18, $F7, $00, $20, $18, $5D, $00, $28, $18, $78, $00, $30 ; $9432: 18 84 00 18 18 F7 00 20 18 5D 00 28 18 78 00 30
@@ -961,18 +1234,20 @@ MenuOam_19_2:
   .byte $28, $65, $00, $28, $28, $7B, $00, $30, $30, $FE, $00, $18, $30, $FF, $00, $20 ; $9462: 28 65 00 28 28 7B 00 30 30 FE 00 18 30 FF 00 20
   .byte $30, $68, $00, $28, $80                                           ; $9472: 30 68 00 28 80  ; terminator $80
 
-; --- MenuAction1A_IntelligenceGatheringResult: 6 x .word @ $9477, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_1A:
-  .word MenuOam_1A_0+$4000                                                ; $9477: 83 D4  ; entry 0 -> blob $9483, 21 records
-  .word MenuOam_1A_1+$4000                                                ; $9479: D8 D4  ; entry 1 -> blob $94D8, 21 records
-  .word MenuOam_1A_2+$4000                                                ; $947B: 2D D5  ; entry 2 -> blob $952D, 22 records
-  .word MenuOam_1A_3+$4000                                                ; $947D: 86 D5  ; entry 3 -> blob $9586, 22 records
-  .word MenuOam_1A_4+$4000                                                ; $947F: DF D5  ; entry 4 -> blob $95DF, 22 records
-  .word MenuOam_1A_5+$4000                                                ; $9481: 38 D6  ; entry 5 -> blob $9638, 22 records
+; --- IntelligenceGatheringResultSpriteTable: 6 x .word @ $9477 = the MenuAction1A_IntelligenceGatheringResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 Scene3 Scene4 Scene5 ---
+IntelligenceGatheringResultSpriteTable:
+  .word IntelligenceGatheringResultScene0+$4000                           ; $9477: 83 D4  ; entry 0 -> IntelligenceGatheringResultScene0 (21 records)
+  .word IntelligenceGatheringResultScene1+$4000                           ; $9479: D8 D4  ; entry 1 -> IntelligenceGatheringResultScene1 (21 records)
+  .word IntelligenceGatheringResultScene2+$4000                           ; $947B: 2D D5  ; entry 2 -> IntelligenceGatheringResultScene2 (22 records)
+  .word IntelligenceGatheringResultScene3+$4000                           ; $947D: 86 D5  ; entry 3 -> IntelligenceGatheringResultScene3 (22 records)
+  .word IntelligenceGatheringResultScene4+$4000                           ; $947F: DF D5  ; entry 4 -> IntelligenceGatheringResultScene4 (22 records)
+  .word IntelligenceGatheringResultScene5+$4000                           ; $9481: 38 D6  ; entry 5 -> IntelligenceGatheringResultScene5 (22 records)
 
-; blob entry 0 (@$9483): 21 [y,tile,attr,x] records, $80 terminator @ $94D7
-MenuOam_1A_0:
+; IntelligenceGatheringResultScene0: 21 [y,tile,attr,x] records @ $9483, $80 terminator @ $94D7
+;     one posting of its own (21 records, offsets shared by no other entry)
+;     x_off $20-$40, y_off $20-$48
+IntelligenceGatheringResultScene0:
   .byte $20, $40, $00, $21, $20, $41, $00, $31, $28, $42, $00, $22, $28, $43, $00, $2A ; $9483: 20 40 00 21 20 41 00 31 28 42 00 22 28 43 00 2A
   .byte $28, $44, $00, $32, $30, $45, $00, $20, $30, $46, $00, $28, $30, $47, $00, $30 ; $9493: 28 44 00 32 30 45 00 20 30 46 00 28 30 47 00 30
   .byte $30, $48, $00, $38, $30, $49, $00, $40, $38, $4A, $00, $28, $38, $4B, $00, $30 ; $94A3: 30 48 00 38 30 49 00 40 38 4A 00 28 38 4B 00 30
@@ -980,8 +1255,10 @@ MenuOam_1A_0:
   .byte $40, $50, $00, $38, $40, $51, $00, $40, $48, $52, $00, $2C, $48, $53, $00, $38 ; $94C3: 40 50 00 38 40 51 00 40 48 52 00 2C 48 53 00 38
   .byte $48, $54, $00, $40, $80                                           ; $94D3: 48 54 00 40 80  ; terminator $80
 
-; blob entry 1 (@$94D8): 21 [y,tile,attr,x] records, $80 terminator @ $952C
-MenuOam_1A_1:
+; IntelligenceGatheringResultScene1: 21 [y,tile,attr,x] records @ $94D8, $80 terminator @ $952C
+;     one posting of its own (21 records, offsets shared by no other entry)
+;     x_off $20-$40, y_off $20-$48
+IntelligenceGatheringResultScene1:
   .byte $20, $40, $00, $21, $20, $41, $00, $31, $28, $42, $00, $22, $28, $43, $00, $2A ; $94D8: 20 40 00 21 20 41 00 31 28 42 00 22 28 43 00 2A
   .byte $28, $44, $00, $32, $30, $45, $00, $20, $30, $46, $00, $28, $30, $47, $00, $30 ; $94E8: 28 44 00 32 30 45 00 20 30 46 00 28 30 47 00 30
   .byte $30, $48, $00, $38, $30, $49, $00, $40, $38, $4A, $00, $28, $38, $4B, $00, $30 ; $94F8: 30 48 00 38 30 49 00 40 38 4A 00 28 38 4B 00 30
@@ -989,8 +1266,10 @@ MenuOam_1A_1:
   .byte $40, $59, $00, $38, $40, $5A, $00, $40, $48, $5B, $00, $26, $48, $5C, $00, $2E ; $9518: 40 59 00 38 40 5A 00 40 48 5B 00 26 48 5C 00 2E
   .byte $48, $5D, $00, $3F, $80                                           ; $9528: 48 5D 00 3F 80  ; terminator $80
 
-; blob entry 2 (@$952D): 22 [y,tile,attr,x] records, $80 terminator @ $9585
-MenuOam_1A_2:
+; IntelligenceGatheringResultScene2: 22 [y,tile,attr,x] records @ $952D, $80 terminator @ $9585
+;     frame 1 of 4 - posts the same offsets as entries entry $9586, $95DF, $9638, so the handler walks them as one animation
+;     x_off $20-$40, y_off $20-$48
+IntelligenceGatheringResultScene2:
   .byte $20, $40, $00, $21, $20, $69, $00, $31, $28, $42, $00, $22, $28, $43, $00, $2A ; $952D: 20 40 00 21 20 69 00 31 28 42 00 22 28 43 00 2A
   .byte $28, $6A, $00, $32, $30, $45, $00, $20, $30, $46, $00, $28, $30, $47, $00, $30 ; $953D: 28 6A 00 32 30 45 00 20 30 46 00 28 30 47 00 30
   .byte $30, $48, $00, $38, $30, $49, $00, $40, $38, $5E, $00, $28, $38, $4B, $00, $30 ; $954D: 30 48 00 38 30 49 00 40 38 5E 00 28 38 4B 00 30
@@ -998,8 +1277,11 @@ MenuOam_1A_2:
   .byte $40, $63, $00, $38, $40, $64, $00, $40, $48, $65, $00, $28, $48, $66, $00, $30 ; $956D: 40 63 00 38 40 64 00 40 48 65 00 28 48 66 00 30
   .byte $48, $67, $00, $38, $48, $68, $00, $40, $80                       ; $957D: 48 67 00 38 48 68 00 40 80  ; terminator $80
 
-; blob entry 3 (@$9586): 22 [y,tile,attr,x] records, $80 terminator @ $95DE
-MenuOam_1A_3:
+; IntelligenceGatheringResultScene3: 22 [y,tile,attr,x] records @ $9586, $80 terminator @ $95DE
+;     frame 2 of 4 - posts the same offsets as entries entry $952D, $95DF, $9638, so the handler walks them as one animation
+;     x_off $20-$40, y_off $20-$48
+;     digit glyphs drawn: 0, 1, 2
+IntelligenceGatheringResultScene3:
   .byte $20, $40, $00, $21, $20, $69, $00, $31, $28, $42, $00, $22, $28, $43, $00, $2A ; $9586: 20 40 00 21 20 69 00 31 28 42 00 22 28 43 00 2A
   .byte $28, $6A, $00, $32, $30, $45, $00, $20, $30, $46, $00, $28, $30, $47, $00, $30 ; $9596: 28 6A 00 32 30 45 00 20 30 46 00 28 30 47 00 30
   .byte $30, $48, $00, $38, $30, $49, $00, $40, $38, $6B, $00, $28, $38, $6C, $00, $30 ; $95A6: 30 48 00 38 30 49 00 40 38 6B 00 28 38 6C 00 30
@@ -1007,8 +1289,11 @@ MenuOam_1A_3:
   .byte $40, $71, $00, $38, $40, $72, $00, $40, $48, $73, $00, $28, $48, $74, $00, $30 ; $95C6: 40 71 00 38 40 72 00 40 48 73 00 28 48 74 00 30
   .byte $48, $75, $00, $38, $48, $76, $00, $40, $80                       ; $95D6: 48 75 00 38 48 76 00 40 80  ; terminator $80
 
-; blob entry 4 (@$95DF): 22 [y,tile,attr,x] records, $80 terminator @ $9637
-MenuOam_1A_4:
+; IntelligenceGatheringResultScene4: 22 [y,tile,attr,x] records @ $95DF, $80 terminator @ $9637
+;     frame 3 of 4 - posts the same offsets as entries entry $952D, $9586, $9638, so the handler walks them as one animation
+;     x_off $20-$40, y_off $20-$48
+;     digit glyphs drawn: 3, 4
+IntelligenceGatheringResultScene4:
   .byte $20, $40, $00, $21, $20, $77, $00, $31, $28, $42, $00, $22, $28, $43, $00, $2A ; $95DF: 20 40 00 21 20 77 00 31 28 42 00 22 28 43 00 2A
   .byte $28, $78, $00, $32, $30, $45, $00, $20, $30, $46, $00, $28, $30, $47, $00, $30 ; $95EF: 28 78 00 32 30 45 00 20 30 46 00 28 30 47 00 30
   .byte $30, $48, $00, $38, $30, $49, $00, $40, $38, $5E, $00, $28, $38, $4B, $00, $30 ; $95FF: 30 48 00 38 30 49 00 40 38 5E 00 28 38 4B 00 30
@@ -1016,8 +1301,11 @@ MenuOam_1A_4:
   .byte $40, $63, $00, $38, $40, $64, $00, $40, $48, $65, $00, $28, $48, $66, $00, $30 ; $961F: 40 63 00 38 40 64 00 40 48 65 00 28 48 66 00 30
   .byte $48, $67, $00, $38, $48, $68, $00, $40, $80                       ; $962F: 48 67 00 38 48 68 00 40 80  ; terminator $80
 
-; blob entry 5 (@$9638): 22 [y,tile,attr,x] records, $80 terminator @ $9690
-MenuOam_1A_5:
+; IntelligenceGatheringResultScene5: 22 [y,tile,attr,x] records @ $9638, $80 terminator @ $9690
+;     frame 4 of 4 - posts the same offsets as entries entry $952D, $9586, $95DF, so the handler walks them as one animation
+;     x_off $20-$40, y_off $20-$48
+;     digit glyphs drawn: 0, 1, 2, 3, 4
+IntelligenceGatheringResultScene5:
   .byte $20, $40, $00, $21, $20, $77, $00, $31, $28, $42, $00, $22, $28, $43, $00, $2A ; $9638: 20 40 00 21 20 77 00 31 28 42 00 22 28 43 00 2A
   .byte $28, $78, $00, $32, $30, $45, $00, $20, $30, $46, $00, $28, $30, $47, $00, $30 ; $9648: 28 78 00 32 30 45 00 20 30 46 00 28 30 47 00 30
   .byte $30, $48, $00, $38, $30, $49, $00, $40, $38, $6B, $00, $28, $38, $6C, $00, $30 ; $9658: 30 48 00 38 30 49 00 40 38 6B 00 28 38 6C 00 30
@@ -1025,73 +1313,93 @@ MenuOam_1A_5:
   .byte $40, $71, $00, $38, $40, $72, $00, $40, $48, $73, $00, $28, $48, $74, $00, $30 ; $9678: 40 71 00 38 40 72 00 40 48 73 00 28 48 74 00 30
   .byte $48, $75, $00, $38, $48, $76, $00, $40, $80                       ; $9688: 48 75 00 38 48 76 00 40 80  ; terminator $80
 
-; --- MenuAction1B_DroughtDamageWindow: 6 x .word @ $9691, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_1B:
-  .word MenuOam_1B_0+$4000                                                ; $9691: 9D D6  ; entry 0 -> blob $969D, 4 records
-  .word MenuOam_1B_1+$4000                                                ; $9693: AE D6  ; entry 1 -> blob $96AE, 4 records
-  .word MenuOam_1B_2+$4000                                                ; $9695: BF D6  ; entry 2 -> blob $96BF, 4 records
-  .word MenuOam_1B_3+$4000                                                ; $9697: D0 D6  ; entry 3 -> blob $96D0, 8 records
-  .word MenuOam_1B_4+$4000                                                ; $9699: F1 D6  ; entry 4 -> blob $96F1, 8 records
-  .word MenuOam_1B_5+$4000                                                ; $969B: 12 D7  ; entry 5 -> blob $9712, 8 records
+; --- DroughtDamageWindowSpriteTable: 6 x .word @ $9691 = the MenuAction1B_DroughtDamageWindow panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 Scene3 Scene4 Scene5 ---
+DroughtDamageWindowSpriteTable:
+  .word DroughtDamageWindowScene0+$4000                                   ; $9691: 9D D6  ; entry 0 -> DroughtDamageWindowScene0 (4 records)
+  .word DroughtDamageWindowScene1+$4000                                   ; $9693: AE D6  ; entry 1 -> DroughtDamageWindowScene1 (4 records)
+  .word DroughtDamageWindowScene2+$4000                                   ; $9695: BF D6  ; entry 2 -> DroughtDamageWindowScene2 (4 records)
+  .word DroughtDamageWindowScene3+$4000                                   ; $9697: D0 D6  ; entry 3 -> DroughtDamageWindowScene3 (8 records)
+  .word DroughtDamageWindowScene4+$4000                                   ; $9699: F1 D6  ; entry 4 -> DroughtDamageWindowScene4 (8 records)
+  .word DroughtDamageWindowScene5+$4000                                   ; $969B: 12 D7  ; entry 5 -> DroughtDamageWindowScene5 (8 records)
 
-; blob entry 0 (@$969D): 4 [y,tile,attr,x] records, $80 terminator @ $96AD
-MenuOam_1B_0:
+; DroughtDamageWindowScene0: 4 [y,tile,attr,x] records @ $969D, $80 terminator @ $96AD
+;     frame 1 of 3 - posts the same offsets as entries entry $96AE, $96BF, so the handler walks them as one animation
+;     x_off $08-$18, y_off $38-$40
+DroughtDamageWindowScene0:
   .byte $38, $4E, $00, $08, $38, $4F, $00, $10, $38, $50, $00, $18, $40, $51, $00, $10 ; $969D: 38 4E 00 08 38 4F 00 10 38 50 00 18 40 51 00 10
   .byte $80                                                               ; $96AD: 80  ; terminator $80
 
-; blob entry 1 (@$96AE): 4 [y,tile,attr,x] records, $80 terminator @ $96BE
-MenuOam_1B_1:
+; DroughtDamageWindowScene1: 4 [y,tile,attr,x] records @ $96AE, $80 terminator @ $96BE
+;     frame 2 of 3 - posts the same offsets as entries entry $969D, $96BF, so the handler walks them as one animation
+;     x_off $08-$18, y_off $38-$40
+DroughtDamageWindowScene1:
   .byte $38, $52, $00, $08, $38, $53, $00, $10, $38, $54, $00, $18, $40, $55, $00, $10 ; $96AE: 38 52 00 08 38 53 00 10 38 54 00 18 40 55 00 10
   .byte $80                                                               ; $96BE: 80  ; terminator $80
 
-; blob entry 2 (@$96BF): 4 [y,tile,attr,x] records, $80 terminator @ $96CF
-MenuOam_1B_2:
+; DroughtDamageWindowScene2: 4 [y,tile,attr,x] records @ $96BF, $80 terminator @ $96CF
+;     frame 3 of 3 - posts the same offsets as entries entry $969D, $96AE, so the handler walks them as one animation
+;     x_off $08-$18, y_off $38-$40
+DroughtDamageWindowScene2:
   .byte $38, $4E, $00, $08, $38, $56, $00, $10, $38, $57, $00, $18, $40, $55, $00, $10 ; $96BF: 38 4E 00 08 38 56 00 10 38 57 00 18 40 55 00 10
   .byte $80                                                               ; $96CF: 80  ; terminator $80
 
-; blob entry 3 (@$96D0): 8 [y,tile,attr,x] records, $80 terminator @ $96F0
-MenuOam_1B_3:
+; DroughtDamageWindowScene3: 8 [y,tile,attr,x] records @ $96D0, $80 terminator @ $96F0
+;     frame 1 of 3 - posts the same offsets as entries entry $96F1, $9712, so the handler walks them as one animation
+;     x_off $28-$40, y_off $28-$30
+;     digit glyphs drawn: 0, 1
+DroughtDamageWindowScene3:
   .byte $28, $64, $00, $28, $28, $64, $00, $30, $28, $65, $00, $38, $28, $63, $00, $40 ; $96D0: 28 64 00 28 28 64 00 30 28 65 00 38 28 63 00 40
   .byte $30, $74, $00, $28, $30, $64, $00, $30, $30, $75, $00, $38, $30, $73, $00, $40 ; $96E0: 30 74 00 28 30 64 00 30 30 75 00 38 30 73 00 40
   .byte $80                                                               ; $96F0: 80  ; terminator $80
 
-; blob entry 4 (@$96F1): 8 [y,tile,attr,x] records, $80 terminator @ $9711
-MenuOam_1B_4:
+; DroughtDamageWindowScene4: 8 [y,tile,attr,x] records @ $96F1, $80 terminator @ $9711
+;     frame 2 of 3 - posts the same offsets as entries entry $96D0, $9712, so the handler walks them as one animation
+;     x_off $28-$40, y_off $28-$30
+;     digit glyphs drawn: 0, 3
+DroughtDamageWindowScene4:
   .byte $28, $64, $00, $28, $28, $66, $00, $30, $28, $67, $00, $38, $28, $63, $00, $40 ; $96F1: 28 64 00 28 28 66 00 30 28 67 00 38 28 63 00 40
   .byte $30, $74, $00, $28, $30, $64, $00, $30, $30, $77, $00, $38, $30, $73, $00, $40 ; $9701: 30 74 00 28 30 64 00 30 30 77 00 38 30 73 00 40
   .byte $80                                                               ; $9711: 80  ; terminator $80
 
-; blob entry 5 (@$9712): 8 [y,tile,attr,x] records, $80 terminator @ $9732
-MenuOam_1B_5:
+; DroughtDamageWindowScene5: 8 [y,tile,attr,x] records @ $9712, $80 terminator @ $9732
+;     frame 3 of 3 - posts the same offsets as entries entry $96D0, $96F1, so the handler walks them as one animation
+;     x_off $28-$40, y_off $28-$30
+DroughtDamageWindowScene5:
   .byte $28, $60, $00, $28, $28, $61, $00, $30, $28, $62, $00, $38, $28, $63, $00, $40 ; $9712: 28 60 00 28 28 61 00 30 28 62 00 38 28 63 00 40
   .byte $30, $70, $00, $28, $30, $71, $00, $30, $30, $72, $00, $38, $30, $73, $00, $40 ; $9722: 30 70 00 28 30 71 00 30 30 72 00 38 30 73 00 40
   .byte $80                                                               ; $9732: 80  ; terminator $80
 
-; --- MenuAction1C_RiceHarvestWindow: 2 x .word @ $9733, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_1C:
-  .word MenuOam_1C_0+$4000                                                ; $9733: 37 D7  ; entry 0 -> blob $9737, 6 records
-  .word MenuOam_1C_1+$4000                                                ; $9735: 50 D7  ; entry 1 -> blob $9750, 6 records
+; --- RiceHarvestWindowSpriteTable: 2 x .word @ $9733 = the MenuAction1C_RiceHarvestWindow panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 ---
+RiceHarvestWindowSpriteTable:
+  .word RiceHarvestWindowScene0+$4000                                     ; $9733: 37 D7  ; entry 0 -> RiceHarvestWindowScene0 (6 records)
+  .word RiceHarvestWindowScene1+$4000                                     ; $9735: 50 D7  ; entry 1 -> RiceHarvestWindowScene1 (6 records)
 
-; blob entry 0 (@$9737): 6 [y,tile,attr,x] records, $80 terminator @ $974F
-MenuOam_1C_0:
+; RiceHarvestWindowScene0: 6 [y,tile,attr,x] records @ $9737, $80 terminator @ $974F
+;     frame 1 of 2 - posts the same offsets as entry $9750, so the handler walks them as one animation
+;     x_off $38-$40, y_off $18-$28
+RiceHarvestWindowScene0:
   .byte $18, $4A, $00, $38, $18, $4B, $00, $40, $20, $5A, $00, $38, $20, $5B, $00, $40 ; $9737: 18 4A 00 38 18 4B 00 40 20 5A 00 38 20 5B 00 40
   .byte $28, $6A, $00, $38, $28, $6B, $00, $40, $80                       ; $9747: 28 6A 00 38 28 6B 00 40 80  ; terminator $80
 
-; blob entry 1 (@$9750): 6 [y,tile,attr,x] records, $80 terminator @ $9768
-MenuOam_1C_1:
+; RiceHarvestWindowScene1: 6 [y,tile,attr,x] records @ $9750, $80 terminator @ $9768
+;     frame 2 of 2 - posts the same offsets as entry $9737, so the handler walks them as one animation
+;     x_off $38-$40, y_off $18-$28
+RiceHarvestWindowScene1:
   .byte $18, $4C, $00, $38, $18, $4D, $00, $40, $20, $5C, $00, $38, $20, $5D, $00, $40 ; $9750: 18 4C 00 38 18 4D 00 40 20 5C 00 38 20 5D 00 40
   .byte $28, $6C, $00, $38, $28, $6D, $00, $40, $80                       ; $9760: 28 6C 00 38 28 6D 00 40 80  ; terminator $80
 
-; --- MenuAction1D_FloodDamageWindow: 2 x .word @ $9769, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_1D:
-  .word MenuOam_1D_0+$4000                                                ; $9769: 6D D7  ; entry 0 -> blob $976D, 22 records
-  .word MenuOam_1D_1+$4000                                                ; $976B: C6 D7  ; entry 1 -> blob $97C6, 22 records
+; --- FloodDamageWindowSpriteTable: 2 x .word @ $9769 = the MenuAction1D_FloodDamageWindow panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 ---
+FloodDamageWindowSpriteTable:
+  .word FloodDamageWindowScene0+$4000                                     ; $9769: 6D D7  ; entry 0 -> FloodDamageWindowScene0 (22 records)
+  .word FloodDamageWindowScene1+$4000                                     ; $976B: C6 D7  ; entry 1 -> FloodDamageWindowScene1 (22 records)
 
-; blob entry 0 (@$976D): 22 [y,tile,attr,x] records, $80 terminator @ $97C5
-MenuOam_1D_0:
+; FloodDamageWindowScene0: 22 [y,tile,attr,x] records @ $976D, $80 terminator @ $97C5
+;     frame 1 of 2 - posts the same offsets as entry $97C6, so the handler walks them as one animation
+;     x_off $00-$48, y_off $10-$48
+FloodDamageWindowScene0:
   .byte $10, $51, $00, $30, $10, $52, $00, $38, $18, $53, $00, $10, $18, $54, $00, $28 ; $976D: 10 51 00 30 10 52 00 38 18 53 00 10 18 54 00 28
   .byte $18, $55, $00, $30, $18, $56, $00, $38, $20, $57, $00, $28, $28, $58, $00, $20 ; $977D: 18 55 00 30 18 56 00 38 20 57 00 28 28 58 00 20
   .byte $28, $59, $00, $30, $28, $5A, $00, $38, $30, $4B, $00, $00, $30, $4A, $00, $10 ; $978D: 28 59 00 30 28 5A 00 38 30 4B 00 00 30 4A 00 10
@@ -1099,8 +1407,10 @@ MenuOam_1D_0:
   .byte $38, $4B, $00, $18, $40, $4B, $00, $00, $40, $4A, $00, $10, $40, $5E, $00, $20 ; $97AD: 38 4B 00 18 40 4B 00 00 40 4A 00 10 40 5E 00 20
   .byte $48, $4A, $00, $08, $48, $5F, $00, $20, $80                       ; $97BD: 48 4A 00 08 48 5F 00 20 80  ; terminator $80
 
-; blob entry 1 (@$97C6): 22 [y,tile,attr,x] records, $80 terminator @ $981E
-MenuOam_1D_1:
+; FloodDamageWindowScene1: 22 [y,tile,attr,x] records @ $97C6, $80 terminator @ $981E
+;     frame 2 of 2 - posts the same offsets as entry $976D, so the handler walks them as one animation
+;     x_off $00-$48, y_off $10-$48
+FloodDamageWindowScene1:
   .byte $10, $40, $00, $30, $10, $41, $00, $38, $18, $42, $00, $10, $18, $43, $00, $28 ; $97C6: 10 40 00 30 10 41 00 38 18 42 00 10 18 43 00 28
   .byte $18, $44, $00, $30, $18, $45, $00, $38, $20, $46, $00, $28, $28, $47, $00, $20 ; $97D6: 18 44 00 30 18 45 00 38 20 46 00 28 28 47 00 20
   .byte $28, $48, $00, $30, $28, $49, $00, $38, $30, $4A, $00, $00, $30, $4B, $00, $10 ; $97E6: 28 48 00 30 28 49 00 38 30 4A 00 00 30 4B 00 10
@@ -1108,46 +1418,56 @@ MenuOam_1D_1:
   .byte $38, $4A, $00, $18, $40, $4A, $00, $00, $40, $4B, $00, $10, $40, $4F, $00, $20 ; $9806: 38 4A 00 18 40 4A 00 00 40 4B 00 10 40 4F 00 20
   .byte $48, $4B, $00, $08, $48, $50, $00, $20, $80                       ; $9816: 48 4B 00 08 48 50 00 20 80  ; terminator $80
 
-; --- MenuAction1E_RebellionWindow: 4 x .word @ $981F, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_1E:
-  .word MenuOam_1E_0+$4000                                                ; $981F: 27 D8  ; entry 0 -> blob $9827, 8 records
-  .word MenuOam_1E_1+$4000                                                ; $9821: 48 D8  ; entry 1 -> blob $9848, 8 records
-  .word MenuOam_1E_2+$4000                                                ; $9823: 69 D8  ; entry 2 -> blob $9869, 5 records
-  .word MenuOam_1E_3+$4000                                                ; $9825: 7E D8  ; entry 3 -> blob $987E, 5 records
+; --- RebellionWindowSpriteTable: 4 x .word @ $981F = the MenuAction1E_RebellionWindow panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 Scene3 ---
+RebellionWindowSpriteTable:
+  .word RebellionWindowScene0+$4000                                       ; $981F: 27 D8  ; entry 0 -> RebellionWindowScene0 (8 records)
+  .word RebellionWindowScene1+$4000                                       ; $9821: 48 D8  ; entry 1 -> RebellionWindowScene1 (8 records)
+  .word RebellionWindowScene2+$4000                                       ; $9823: 69 D8  ; entry 2 -> RebellionWindowScene2 (5 records)
+  .word RebellionWindowScene3+$4000                                       ; $9825: 7E D8  ; entry 3 -> RebellionWindowScene3 (5 records)
 
-; blob entry 0 (@$9827): 8 [y,tile,attr,x] records, $80 terminator @ $9847
-MenuOam_1E_0:
+; RebellionWindowScene0: 8 [y,tile,attr,x] records @ $9827, $80 terminator @ $9847
+;     frame 1 of 2 - posts the same offsets as entry $9848, so the handler walks them as one animation
+;     x_off $20-$48, y_off $20-$40
+RebellionWindowScene0:
   .byte $20, $42, $00, $20, $20, $43, $00, $28, $28, $52, $00, $20, $28, $53, $00, $28 ; $9827: 20 42 00 20 20 43 00 28 28 52 00 20 28 53 00 28
   .byte $38, $44, $00, $40, $38, $45, $00, $48, $40, $54, $00, $40, $40, $55, $00, $48 ; $9837: 38 44 00 40 38 45 00 48 40 54 00 40 40 55 00 48
   .byte $80                                                               ; $9847: 80  ; terminator $80
 
-; blob entry 1 (@$9848): 8 [y,tile,attr,x] records, $80 terminator @ $9868
-MenuOam_1E_1:
+; RebellionWindowScene1: 8 [y,tile,attr,x] records @ $9848, $80 terminator @ $9868
+;     frame 2 of 2 - posts the same offsets as entry $9827, so the handler walks them as one animation
+;     x_off $20-$48, y_off $20-$40
+RebellionWindowScene1:
   .byte $20, $40, $00, $20, $20, $41, $00, $28, $28, $50, $00, $20, $28, $51, $00, $28 ; $9848: 20 40 00 20 20 41 00 28 28 50 00 20 28 51 00 28
   .byte $38, $46, $00, $40, $38, $47, $00, $48, $40, $56, $00, $40, $40, $57, $00, $48 ; $9858: 38 46 00 40 38 47 00 48 40 56 00 40 40 57 00 48
   .byte $80                                                               ; $9868: 80  ; terminator $80
 
-; blob entry 2 (@$9869): 5 [y,tile,attr,x] records, $80 terminator @ $987D
-MenuOam_1E_2:
+; RebellionWindowScene2: 5 [y,tile,attr,x] records @ $9869, $80 terminator @ $987D
+;     frame 1 of 2 - posts the same offsets as entry $987E, so the handler walks them as one animation
+;     x_off $00-$10, y_off $40-$48
+RebellionWindowScene2:
   .byte $40, $4C, $00, $08, $40, $48, $00, $10, $48, $5B, $00, $00, $48, $5C, $00, $08 ; $9869: 40 4C 00 08 40 48 00 10 48 5B 00 00 48 5C 00 08
   .byte $48, $5A, $00, $10, $80                                           ; $9879: 48 5A 00 10 80  ; terminator $80
 
-; blob entry 3 (@$987E): 5 [y,tile,attr,x] records, $80 terminator @ $9892
-MenuOam_1E_3:
+; RebellionWindowScene3: 5 [y,tile,attr,x] records @ $987E, $80 terminator @ $9892
+;     frame 2 of 2 - posts the same offsets as entry $9869, so the handler walks them as one animation
+;     x_off $00-$10, y_off $40-$48
+RebellionWindowScene3:
   .byte $40, $49, $00, $08, $40, $4A, $00, $10, $48, $58, $00, $00, $48, $59, $00, $08 ; $987E: 40 49 00 08 40 4A 00 10 48 58 00 00 48 59 00 08
   .byte $48, $5A, $00, $10, $80                                           ; $988E: 48 5A 00 10 80  ; terminator $80
 
-; --- MenuAction1F_TaxCollectionWindow: 4 x .word @ $9893, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_1F:
-  .word MenuOam_1F_0+$4000                                                ; $9893: 9B D8  ; entry 0 -> blob $989B, 20 records
-  .word MenuOam_1F_1+$4000                                                ; $9895: EC D8  ; entry 1 -> blob $98EC, 20 records
-  .word MenuOam_1F_2+$4000                                                ; $9897: 3D D9  ; entry 2 -> blob $993D, 20 records
-  .word MenuOam_1F_3+$4000                                                ; $9899: 8E D9  ; entry 3 -> blob $998E, 20 records
+; --- TaxCollectionWindowSpriteTable: 4 x .word @ $9893 = the MenuAction1F_TaxCollectionWindow panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 Scene3 ---
+TaxCollectionWindowSpriteTable:
+  .word TaxCollectionWindowScene0+$4000                                   ; $9893: 9B D8  ; entry 0 -> TaxCollectionWindowScene0 (20 records)
+  .word TaxCollectionWindowScene1+$4000                                   ; $9895: EC D8  ; entry 1 -> TaxCollectionWindowScene1 (20 records)
+  .word TaxCollectionWindowScene2+$4000                                   ; $9897: 3D D9  ; entry 2 -> TaxCollectionWindowScene2 (20 records)
+  .word TaxCollectionWindowScene3+$4000                                   ; $9899: 8E D9  ; entry 3 -> TaxCollectionWindowScene3 (20 records)
 
-; blob entry 0 (@$989B): 20 [y,tile,attr,x] records, $80 terminator @ $98EB
-MenuOam_1F_0:
+; TaxCollectionWindowScene0: 20 [y,tile,attr,x] records @ $989B, $80 terminator @ $98EB
+;     frame 1 of 4 - posts the same offsets as entries entry $98EC, $993D, $998E, so the handler walks them as one animation
+;     x_off $00-$28, y_off $08-$20
+TaxCollectionWindowScene0:
   .byte $08, $44, $00, $00, $08, $45, $00, $08, $08, $46, $00, $18, $08, $47, $00, $20 ; $989B: 08 44 00 00 08 45 00 08 08 46 00 18 08 47 00 20
   .byte $08, $48, $00, $28, $10, $49, $00, $00, $10, $4A, $00, $08, $10, $46, $00, $18 ; $98AB: 08 48 00 28 10 49 00 00 10 4A 00 08 10 46 00 18
   .byte $10, $4B, $00, $20, $10, $4C, $00, $28, $18, $4D, $00, $00, $18, $4E, $00, $08 ; $98BB: 10 4B 00 20 10 4C 00 28 18 4D 00 00 18 4E 00 08
@@ -1155,8 +1475,10 @@ MenuOam_1F_0:
   .byte $20, $53, $00, $08, $20, $54, $00, $10, $20, $55, $00, $18, $20, $56, $00, $20 ; $98DB: 20 53 00 08 20 54 00 10 20 55 00 18 20 56 00 20
   .byte $80                                                               ; $98EB: 80  ; terminator $80
 
-; blob entry 1 (@$98EC): 20 [y,tile,attr,x] records, $80 terminator @ $993C
-MenuOam_1F_1:
+; TaxCollectionWindowScene1: 20 [y,tile,attr,x] records @ $98EC, $80 terminator @ $993C
+;     frame 2 of 4 - posts the same offsets as entries entry $989B, $993D, $998E, so the handler walks them as one animation
+;     x_off $00-$28, y_off $08-$20
+TaxCollectionWindowScene1:
   .byte $08, $44, $00, $00, $08, $45, $00, $08, $08, $46, $00, $18, $08, $57, $00, $20 ; $98EC: 08 44 00 00 08 45 00 08 08 46 00 18 08 57 00 20
   .byte $08, $46, $00, $28, $10, $49, $00, $00, $10, $4A, $00, $08, $10, $46, $00, $18 ; $98FC: 08 46 00 28 10 49 00 00 10 4A 00 08 10 46 00 18
   .byte $10, $58, $00, $20, $10, $59, $00, $28, $18, $4D, $00, $00, $18, $4E, $00, $08 ; $990C: 10 58 00 20 10 59 00 28 18 4D 00 00 18 4E 00 08
@@ -1164,8 +1486,10 @@ MenuOam_1F_1:
   .byte $20, $53, $00, $08, $20, $54, $00, $10, $20, $5E, $00, $18, $20, $56, $00, $20 ; $992C: 20 53 00 08 20 54 00 10 20 5E 00 18 20 56 00 20
   .byte $80                                                               ; $993C: 80  ; terminator $80
 
-; blob entry 2 (@$993D): 20 [y,tile,attr,x] records, $80 terminator @ $998D
-MenuOam_1F_2:
+; TaxCollectionWindowScene2: 20 [y,tile,attr,x] records @ $993D, $80 terminator @ $998D
+;     frame 3 of 4 - posts the same offsets as entries entry $989B, $98EC, $998E, so the handler walks them as one animation
+;     x_off $00-$28, y_off $08-$20
+TaxCollectionWindowScene2:
   .byte $08, $44, $00, $00, $08, $45, $00, $08, $08, $5F, $00, $18, $08, $60, $00, $20 ; $993D: 08 44 00 00 08 45 00 08 08 5F 00 18 08 60 00 20
   .byte $08, $46, $00, $28, $10, $49, $00, $00, $10, $4A, $00, $08, $10, $61, $00, $18 ; $994D: 08 46 00 28 10 49 00 00 10 4A 00 08 10 61 00 18
   .byte $10, $62, $00, $20, $10, $59, $00, $28, $18, $4D, $00, $00, $18, $4E, $00, $08 ; $995D: 10 62 00 20 10 59 00 28 18 4D 00 00 18 4E 00 08
@@ -1173,8 +1497,10 @@ MenuOam_1F_2:
   .byte $20, $53, $00, $08, $20, $54, $00, $10, $20, $5E, $00, $18, $20, $56, $00, $20 ; $997D: 20 53 00 08 20 54 00 10 20 5E 00 18 20 56 00 20
   .byte $80                                                               ; $998D: 80  ; terminator $80
 
-; blob entry 3 (@$998E): 20 [y,tile,attr,x] records, $80 terminator @ $99DE
-MenuOam_1F_3:
+; TaxCollectionWindowScene3: 20 [y,tile,attr,x] records @ $998E, $80 terminator @ $99DE
+;     frame 4 of 4 - posts the same offsets as entries entry $989B, $98EC, $993D, so the handler walks them as one animation
+;     x_off $00-$28, y_off $08-$20
+TaxCollectionWindowScene3:
   .byte $08, $66, $00, $00, $08, $67, $00, $08, $08, $5F, $00, $18, $08, $60, $00, $20 ; $998E: 08 66 00 00 08 67 00 08 08 5F 00 18 08 60 00 20
   .byte $08, $46, $00, $28, $10, $68, $00, $00, $10, $69, $00, $08, $10, $61, $00, $18 ; $999E: 08 46 00 28 10 68 00 00 10 69 00 08 10 61 00 18
   .byte $10, $6A, $00, $20, $10, $59, $00, $28, $18, $6B, $00, $00, $18, $6C, $00, $08 ; $99AE: 10 6A 00 20 10 59 00 28 18 6B 00 00 18 6C 00 08
@@ -1182,15 +1508,18 @@ MenuOam_1F_3:
   .byte $20, $40, $00, $08, $20, $41, $00, $10, $20, $42, $00, $18, $20, $43, $00, $20 ; $99CE: 20 40 00 08 20 41 00 10 20 42 00 18 20 43 00 20
   .byte $80                                                               ; $99DE: 80  ; terminator $80
 
-; --- MenuAction20_MarketPanel: 3 x .word @ $99DF, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_20:
-  .word MenuOam_20_0+$4000                                                ; $99DF: E5 D9  ; entry 0 -> blob $99E5, 21 records
-  .word MenuOam_20_1+$4000                                                ; $99E1: 3A DA  ; entry 1 -> blob $9A3A, 21 records
-  .word MenuOam_20_2+$4000                                                ; $99E3: 8F DA  ; entry 2 -> blob $9A8F, 21 records
+; --- MarketPanelSpriteTable: 3 x .word @ $99DF = the MenuAction20_MarketPanel panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Scene0 Scene1 Scene2 ---
+MarketPanelSpriteTable:
+  .word MarketPanelScene0+$4000                                           ; $99DF: E5 D9  ; entry 0 -> MarketPanelScene0 (21 records)
+  .word MarketPanelScene1+$4000                                           ; $99E1: 3A DA  ; entry 1 -> MarketPanelScene1 (21 records)
+  .word MarketPanelScene2+$4000                                           ; $99E3: 8F DA  ; entry 2 -> MarketPanelScene2 (21 records)
 
-; blob entry 0 (@$99E5): 21 [y,tile,attr,x] records, $80 terminator @ $9A39
-MenuOam_20_0:
+; MarketPanelScene0: 21 [y,tile,attr,x] records @ $99E5, $80 terminator @ $9A39
+;     frame 1 of 3 - posts the same offsets as entries entry $9A3A, $9A8F, so the handler walks them as one animation
+;     x_off $18-$48, y_off $20-$48
+;     digit glyphs drawn: 2
+MarketPanelScene0:
   .byte $20, $43, $00, $28, $20, $44, $00, $30, $20, $B6, $00, $38, $28, $46, $00, $28 ; $99E5: 20 43 00 28 20 44 00 30 20 B6 00 38 28 46 00 28
   .byte $28, $47, $00, $30, $28, $48, $00, $38, $30, $49, $00, $20, $30, $4A, $00, $28 ; $99F5: 28 47 00 30 28 48 00 38 30 49 00 20 30 4A 00 28
   .byte $30, $4B, $00, $30, $30, $4C, $00, $38, $38, $4D, $00, $18, $38, $4E, $00, $20 ; $9A05: 30 4B 00 30 30 4C 00 38 38 4D 00 18 38 4E 00 20
@@ -1198,8 +1527,11 @@ MenuOam_20_0:
   .byte $40, $53, $00, $20, $48, $54, $00, $18, $48, $55, $00, $20, $40, $72, $00, $48 ; $9A25: 40 53 00 20 48 54 00 18 48 55 00 20 40 72 00 48
   .byte $48, $73, $00, $48, $80                                           ; $9A35: 48 73 00 48 80  ; terminator $80
 
-; blob entry 1 (@$9A3A): 21 [y,tile,attr,x] records, $80 terminator @ $9A8E
-MenuOam_20_1:
+; MarketPanelScene1: 21 [y,tile,attr,x] records @ $9A3A, $80 terminator @ $9A8E
+;     frame 2 of 3 - posts the same offsets as entries entry $99E5, $9A8F, so the handler walks them as one animation
+;     x_off $18-$48, y_off $20-$48
+;     digit glyphs drawn: 0, 1, 2
+MarketPanelScene1:
   .byte $20, $43, $00, $28, $20, $44, $00, $30, $20, $B6, $00, $38, $28, $46, $00, $28 ; $9A3A: 20 43 00 28 20 44 00 30 20 B6 00 38 28 46 00 28
   .byte $28, $47, $00, $30, $28, $48, $00, $38, $30, $56, $00, $20, $30, $57, $00, $28 ; $9A4A: 28 47 00 30 28 48 00 38 30 56 00 20 30 57 00 28
   .byte $30, $4B, $00, $30, $30, $4C, $00, $38, $38, $58, $00, $18, $38, $59, $00, $20 ; $9A5A: 30 4B 00 30 30 4C 00 38 38 58 00 18 38 59 00 20
@@ -1207,8 +1539,11 @@ MenuOam_20_1:
   .byte $40, $5C, $00, $20, $48, $5D, $00, $18, $48, $5E, $00, $20, $40, $74, $00, $48 ; $9A7A: 40 5C 00 20 48 5D 00 18 48 5E 00 20 40 74 00 48
   .byte $48, $75, $00, $48, $80                                           ; $9A8A: 48 75 00 48 80  ; terminator $80
 
-; blob entry 2 (@$9A8F): 21 [y,tile,attr,x] records, $80 terminator @ $9AE3
-MenuOam_20_2:
+; MarketPanelScene2: 21 [y,tile,attr,x] records @ $9A8F, $80 terminator @ $9AE3
+;     frame 3 of 3 - posts the same offsets as entries entry $99E5, $9A3A, so the handler walks them as one animation
+;     x_off $18-$48, y_off $20-$48
+;     digit glyphs drawn: 0, 1, 3
+MarketPanelScene2:
   .byte $20, $5F, $00, $28, $20, $60, $00, $30, $20, $B7, $00, $38, $28, $62, $00, $28 ; $9A8F: 20 5F 00 28 20 60 00 30 20 B7 00 38 28 62 00 28
   .byte $28, $63, $00, $30, $28, $64, $00, $38, $30, $65, $00, $20, $30, $66, $00, $28 ; $9A9F: 28 63 00 30 28 64 00 38 30 65 00 20 30 66 00 28
   .byte $30, $67, $00, $30, $30, $68, $00, $38, $38, $69, $00, $18, $38, $6A, $00, $20 ; $9AAF: 30 67 00 30 30 68 00 38 38 69 00 18 38 6A 00 20
@@ -1216,14 +1551,17 @@ MenuOam_20_2:
   .byte $40, $6F, $00, $20, $48, $70, $00, $18, $48, $71, $00, $20, $40, $74, $00, $48 ; $9ACF: 40 6F 00 20 48 70 00 18 48 71 00 20 40 74 00 48
   .byte $48, $75, $00, $48, $80                                           ; $9ADF: 48 75 00 48 80  ; terminator $80
 
-; --- MenuAction21_SupplyTransportResult: 2 x .word @ $9AE4, indexed via DisplayTileData
-;     (Y = $04A1 or $04A4, table index = Y - 1) ---
-MenuOamPtrTable_21:
-  .word MenuOam_21_0+$4000                                                ; $9AE4: E8 DA  ; entry 0 -> blob $9AE8, 21 records
-  .word MenuOam_21_1+$4000                                                ; $9AE6: 3D DB  ; entry 1 -> blob $9B3D, 21 records
+; --- SupplyTransportResultSpriteTable: 2 x .word @ $9AE4 = the MenuAction21_SupplyTransportResult panel's sprite art
+;     (Y = $04A1 or $04A4, table index = Y - 1): Number0 Scene1 ---
+SupplyTransportResultSpriteTable:
+  .word SupplyTransportResultNumber0+$4000                                ; $9AE4: E8 DA  ; entry 0 -> SupplyTransportResultNumber0 (21 records)
+  .word SupplyTransportResultScene1+$4000                                 ; $9AE6: 3D DB  ; entry 1 -> SupplyTransportResultScene1 (21 records)
 
-; blob entry 0 (@$9AE8): 21 [y,tile,attr,x] records, $80 terminator @ $9B3C
-MenuOam_21_0:
+; SupplyTransportResultNumber0: 21 [y,tile,attr,x] records @ $9AE8, $80 terminator @ $9B3C
+;     frame 1 of 2 - posts the same offsets as entry $9B3D, so the handler walks them as one animation
+;     x_off $10-$38, y_off $20-$48
+;     digit glyphs drawn: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100
+SupplyTransportResultNumber0:
   .byte $20, $73, $00, $20, $20, $74, $00, $28, $28, $75, $00, $20, $28, $76, $00, $28 ; $9AE8: 20 73 00 20 20 74 00 28 28 75 00 20 28 76 00 28
   .byte $30, $77, $00, $18, $30, $78, $00, $20, $30, $79, $00, $28, $38, $7A, $00, $18 ; $9AF8: 30 77 00 18 30 78 00 20 30 79 00 28 38 7A 00 18
   .byte $38, $7B, $00, $20, $38, $7C, $00, $28, $38, $7D, $00, $30, $40, $7E, $00, $18 ; $9B08: 38 7B 00 20 38 7C 00 28 38 7D 00 30 40 7E 00 18
@@ -1231,8 +1569,10 @@ MenuOam_21_0:
   .byte $48, $83, $00, $18, $48, $84, $00, $20, $48, $85, $00, $28, $48, $86, $00, $30 ; $9B28: 48 83 00 18 48 84 00 20 48 85 00 28 48 86 00 30
   .byte $48, $87, $00, $38, $80                                           ; $9B38: 48 87 00 38 80  ; terminator $80
 
-; blob entry 1 (@$9B3D): 21 [y,tile,attr,x] records, $80 terminator @ $9B91
-MenuOam_21_1:
+; SupplyTransportResultScene1: 21 [y,tile,attr,x] records @ $9B3D, $80 terminator @ $9B91
+;     frame 2 of 2 - posts the same offsets as entry $9AE8, so the handler walks them as one animation
+;     x_off $10-$38, y_off $20-$48
+SupplyTransportResultScene1:
   .byte $20, $88, $00, $20, $20, $89, $00, $28, $28, $8A, $00, $20, $28, $8B, $00, $28 ; $9B3D: 20 88 00 20 20 89 00 28 28 8A 00 20 28 8B 00 28
   .byte $30, $8C, $00, $18, $30, $8D, $00, $20, $30, $8E, $00, $28, $38, $8F, $00, $18 ; $9B4D: 30 8C 00 18 30 8D 00 20 30 8E 00 28 38 8F 00 18
   .byte $38, $90, $00, $20, $38, $91, $00, $28, $38, $92, $00, $30, $40, $93, $00, $18 ; $9B5D: 38 90 00 20 38 91 00 28 38 92 00 30 40 93 00 18

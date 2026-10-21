@@ -19,7 +19,7 @@ Commands
     roster add|remove|governor ID [PROVINCE] [--slot N]
     check                the invariant report; exit 1 on any problem
     diff PATH            field-level diff against another set of CSVs
-    write-asm            save, re-render asm/banks/data_10_seed.asm + data_11_officer.asm,
+    write-asm            save, re-render asm/banks/data_10_initial_data.asm + data_11_officer.asm,
                          then report the decoded edits (repo only)
     verify               run tools/verify_data_banks.py --allow-edits
 

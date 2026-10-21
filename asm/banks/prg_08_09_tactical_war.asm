@@ -25,7 +25,7 @@ war_scene_phase     = $0501  ; battle scene phase/state index
 war_side_flag       = $0504  ; acting-side flag (bit7: 1=attacker, 0=defender)
 war_action_points   = $0505  ; AI action budget / status panel counter
 war_round_counter   = $0506  ; battle round/day counter
-war_faction_pair    = $0507  ; packed faction pair (lo=side 0, hi=side 1)
+war_faction_pair    = $0507  ; war pair: hi = attacker (turn owner), lo = defender
 war_officer_slot    = $0509  ; acting officer slot / scene variant
 war_scene_index     = $050A  ; scene/command index (result scene $50/$51)
 war_province_idx    = $050E  ; battle province (group) index

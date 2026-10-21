@@ -279,7 +279,7 @@ class OfficerEditor(tk.Tk):
                 ('Save CSVs', self.save_csv,
                  'write every loaded CSV twin (Ctrl+S)'),
                 ('Write ASM', self.write_asm,
-                 'save, then re-render asm/banks/data_10_seed.asm + data_11_officer.asm '
+                 'save, then re-render asm/banks/data_10_initial_data.asm + data_11_officer.asm '
                  'and report the decoded edits (Ctrl+B)'),
                 ('Verify', self.verify,
                  'run tools/verify_data_banks.py --allow-edits'),

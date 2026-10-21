@@ -36,7 +36,7 @@ Armory stock (subs 19-21 of the town dispatch, $C76E-$C9EF):
   grids (5/6/7 剣, 14/15 刀, 22/23 槍, 30/31 防具) are SPECIAL items:
   none appears in the printed manual, and all nine names were decoded
   by rendering each EquipmentNamePatterns record's byte0 CHR code page
-  (asm/banks/data_10_seed.asm $9B52; cross-checked against player records
+  (asm/banks/data_10_initial_data.asm $9B52; cross-checked against player records
   2026-09-30). They are obtainable in-game - duel loot from appointed
   rulers, or battle-time / gated armory stock (22 狼牙鎗 武90+, 30
   聖者の衣 徳90+, 15 関王刀 only in 建業, 23 蛇矛 only as 涪陵's 4th

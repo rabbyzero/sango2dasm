@@ -518,7 +518,7 @@ ReinforceCandidateList_3:  ; $8DAB Country 6, 4 (Officer id, year) pairs, displa
 ; terminated and padded to the record end. Verified 237/237: every
 ; record's tile count is a multiple of 4 and every group obeys the
 ; (+1, +$10, +$11) relation.
-; The bank-$30 EquipmentNamePatterns ($9B52, data_10_seed.asm) store the
+; The bank-$30 EquipmentNamePatterns ($9B52, data_10_initial_data.asm) store the
 ; same kind of glyph data LINE-major instead: 2 lines x 8 tiles, so
 ; there character k = line1[2k], line1[2k+1], line2[2k], line2[2k+1]
 ; and its four tiles are NOT adjacent.

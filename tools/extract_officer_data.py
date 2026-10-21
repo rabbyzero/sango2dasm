@@ -45,7 +45,7 @@ manual (`docs/manual_kb/10-duel-mode.md` gives 呂布 = 方天画戟 + 甲冑, w
 exactly what record 218 decodes to). The nine special items (weapon indices
 5/6/7/14/15/22/23, armor indices 6/7) are not on any starting officer and are
 not in the printed manual; their names were decoded from the
-EquipmentNamePatterns CHR code pages in bank $30 (asm/banks/data_10_seed.asm
+EquipmentNamePatterns CHR code pages in bank $30 (asm/banks/data_10_initial_data.asm
 $9B52; 2026-09-30) and are listed here for completeness.
 
 Simplified-Chinese names are joined in from tools/data/officer_kanji.tsv.
