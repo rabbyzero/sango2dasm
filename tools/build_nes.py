@@ -1,11 +1,32 @@
 #!/usr/bin/env python3
 """
 Build NES ROM from PRG binary.
-Adds iNES header and pads to correct size.
+Adds the iNES header and the CHR banks extracted into rom/chr.
+
+CHR is not written in assembly, so it is copied from rom/chr/chr_*.bin, and the
+header flag bytes are copied from the original ROM when it is present; the
+hardcoded mapper-19 flags below are only a fallback.
 """
 
-import sys
+import glob
 import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CHR_DIR = os.path.join(ROOT, "rom", "chr")
+ORIGINAL = os.path.join(ROOT, "Sangokushi 2 - Haou no Tairiku (J).nes")
+
+
+def read_chr():
+    """Concatenate the CHR banks in page order."""
+    pages = sorted(glob.glob(os.path.join(CHR_DIR, "chr_*.bin")))
+    if not pages:
+        sys.exit(f"no CHR banks in {CHR_DIR} - run: make split")
+    data = b"".join(open(p, "rb").read() for p in pages)
+    if len(data) % 8192:
+        sys.exit(f"{CHR_DIR}: total CHR size {len(data)} is not a multiple of 8KB")
+    return data, len(pages)
+
 
 def build_nes(prg_path, output_path):
     """Create NES ROM with header."""
@@ -19,9 +40,7 @@ def build_nes(prg_path, output_path):
         prg_pages = 16  # Match original ROM size
     prg_data = prg_data.ljust(prg_pages * 16384, b'\xFF')
 
-    # Create CHR ROM (empty, matching original size)
-    chr_pages = 32
-    chr_data = bytes(chr_pages * 8192)
+    chr_data, chr_pages = read_chr()
 
     # Build iNES header (16 bytes)
     # Mapper 19 (Namco-163) = 0x13
@@ -36,6 +55,10 @@ def build_nes(prg_path, output_path):
     header[6] = 0x12  # Mapper 19 (high) | Battery | Horizontal mirror
     header[7] = 0x10  # Mapper 19 (low) | NES 2.0
 
+    original = open(ORIGINAL, 'rb').read() if os.path.exists(ORIGINAL) else None
+    if original:
+        header[6:16] = original[6:16]
+
     # Write ROM
     with open(output_path, 'wb') as f:
         f.write(header)
@@ -44,7 +67,9 @@ def build_nes(prg_path, output_path):
 
     print(f"Created {output_path}")
     print(f"  PRG: {prg_pages} x 16KB = {prg_pages * 16}KB")
-    print(f"  CHR: {chr_pages} x 8KB = {chr_pages * 8}KB")
+    print(f"  CHR: {chr_pages} x 8KB = {chr_pages * 8}KB from {os.path.relpath(CHR_DIR, ROOT)}")
+    print(f"  Header: original flag bytes" if original else
+          f"  Header: hardcoded mapper-19 flags (original ROM not found)")
     print(f"  Mapper: 19 (Namco-163)")
     print(f"  Battery: Yes")
     print(f"  Mirror: Horizontal")

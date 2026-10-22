@@ -23,9 +23,9 @@
 ;
 ; Major functional areas:
 ;   $A000-$A029  Jump table (14 dispatch entries)
-;   $A02A-$A2FF  PPU display kernel: StrategyModeDisplay, SetupDisplayPtrs,
-;                the RLE / raw / tile-offset PPU writers and their source and
-;                tile pointer advances
+;   $A02A-$A2FF  PPU display kernel: StrategyModeDisplay,
+;                SetupStrategyModeDisplayPtrs, the RLE / raw / tile-offset PPU
+;                writers and their source and tile pointer advances
 ;   $A2FF-$A61C  Screen scroll and scene tile render: DisplayScrollLoop,
 ;                DisplayAndChrSetup, SceneRenderDispatch,
 ;                RenderSceneHoriz/Vert, CopyTileRowHoriz/Vert, BankPtrLookup
@@ -73,64 +73,16 @@
 .include "6502_registers.h"
 .include "namco163.h"
 .include "functions.h"
+.include "ram_globals.h"
 
 ;===============================================================================
 ; Global RAM Address Definitions
 ;===============================================================================
 ; These addresses have consistent meaning across the entire bank.
 ; Function-specific aliases are defined within .proc scopes.
-
-; --- Game State ---
-addr_game_state     = $007A                     ; State counter (0-14), indexes VectorTable
-addr_sub_state      = $0078                     ; Sub-state within each major state
-addr_sprite_count   = $007C                     ; Current OAM slot index
-
-; --- PPU ---
-addr_ppu_ctrl_ram   = $008B                     ; RAM copy of PPU control ($2000)
-addr_ppu_mask_ram   = $008C                     ; RAM copy of PPU mask ($2001)
-addr_display_mode   = $0098                     ; Display mode parameter
-addr_display_mode_h = $0099                     ; Display mode parameter (high)
-addr_nmi_ctrl       = $007E                     ; NMI sub-dispatch control bits
-
-; --- Controller ---
-addr_pad1_edge      = $0081                     ; Pad 1 newly-pressed buttons
-addr_pad2_edge      = $0082                     ; Pad 2 newly-pressed buttons
-addr_pad1_raw       = $0083                     ; Pad 1 raw button state
-addr_pad1_prev      = $0084                     ; Pad 1 previous frame state
-addr_pad2_raw       = $0085                     ; Pad 2 raw button state
-addr_pad2_prev      = $0086                     ; Pad 2 previous frame state
-
-; --- Animation ---
-addr_anim_direction = $0087                     ; Palette animation direction
-addr_anim_step      = $0088                     ; Palette animation step
-addr_anim_speed     = $0089                     ; Palette animation speed
-addr_anim_counter   = $008A                     ; Palette animation tick counter
-
-; --- Scroll (actual PPU scroll) ---
-addr_scroll_x       = $008E                     ; Scroll X position
-addr_scroll_x_hi    = $008F                     ; Scroll X high (nametable bit)
-addr_scroll_y       = $0090                     ; Scroll Y position
-addr_scroll_y_hi    = $0091                     ; Scroll Y high
-
-; --- Field-map scroll state ---
-map_row_cache       = $0094                     ; Palette-row cache; $FF forces a palette reload
-map_col_cache       = $0095                     ; Scene-column cache; $FF forces an overlay reload
-map_dir_flags       = $009C                     ; Last field-map scroll step (7=E, 6=W, 4=N, 5=S)
-map_dir_prev        = $009D                     ; Previous-frame copy, snapshotted by the state-3 handler
-
-; --- CHR Banks ---
-addr_chr_bank_0     = $00AE                     ; CHR bank 0 ($8000)
-addr_chr_bank_1     = $00AF                     ; CHR bank 1 ($8800)
-addr_chr_bank_2     = $00B0                     ; CHR bank 2 ($9000)
-addr_chr_bank_3     = $00B1                     ; CHR bank 3 ($9800)
-addr_chr_bank_4     = $00B2                     ; CHR bank 4 ($A000)
-addr_chr_bank_5     = $00B3                     ; CHR bank 5 ($A800)
-addr_chr_bank_6     = $00B4                     ; CHR bank 6 ($B000)
-addr_chr_bank_7     = $00B5                     ; CHR bank 7 ($B800)
-
-; --- RNG ---
-addr_rng_index      = $0050                     ; RNG table index
-addr_trampoline_saved_bank = $0058              ; Trampoline saved bank
+; The bank $1F engine cells this bank reads - state machine, NMI and controller
+; polling, palette animation, PPU mirrors, scroll, field-map caches and CHR bank
+; numbers ($0050-$00B5) - are declared in include/ram_globals.h.
 
 ; --- Game State RAM ($04xx) ---
 ; Shared state variables used across main game dispatch procs.
@@ -146,20 +98,15 @@ card_handshake_hi            = $040D  ; Officer-card renderer handshake hi; $FF 
 ; $040E-$040F - local to OfficerRoll_ScrollList (scroll_src_ptr)
 card_officer_ids_lo          = $0410  ; Officer id(s) handed to the card renderer: phase-4 list base, DuelData_Init single id
 card_officer_ids_hi          = $0411  ; List slot 1 = the Ruler id written by OfficerRoll_BuildList
-; Officer/Selection ($0424-$0435)
-menu_cursor_col      = $0424  ; Troop assignment progress counter lo
-menu_cursor_page      = $0425  ; Troop assignment progress counter hi
+; Officer/Selection ($0424-$0435; the menu cursor pair $0424/$0425 is declared
+; in include/ram_globals.h)
 selected_officer_id          = $042C  ; Active/selected officer ID
 ; $042D - local to DuelStrike_ApplyGauge (officer_id_ext)
 war_result_phase          = $042E  ; Chronicle variant: $FF = death card $D9, else defeat card $D8
 ; $042F-$0431 - local to DuelPursue_ApplyStrike (damage_amount, damage_applied)
 unification_score            = $0435  ; Unification score low byte, written by the ending scene; read once, at the phase-3 roll gate $D905
 menu_blink_timer             = $046C  ; Menu selection blink timer
-; Map/Scroll pointers ($0470-$0473)
-anim_ppu_ptr_lo              = $0470  ; Animation PPU pointer lo
-anim_ppu_ptr_hi              = $0471  ; Animation PPU pointer hi
-map_scroll_ptr_lo            = $0472  ; Map scroll source pointer lo
-map_scroll_ptr_hi            = $0473  ; Map scroll source pointer hi
+; Map/Scroll pointers ($0470-$0473) - declared in include/ram_globals.h
 ; Duel mode state ($04A8-$04C0)
 duel_state                   = $04A8  ; Duel state (0-$15), indexes DuelModeDispatch
 sub_state                    = $04A9  ; Sub-state within each major state
@@ -218,7 +165,6 @@ sram_country_param_0         = $6F3F  ; Country init param 0 (set to $80 on new 
 sram_country_param_1         = $6F41  ; Country init param 1 (set to $F0 on new game)
 sram_scroll_pending          = $6F43  ; Scroll update pending flag (cleared after copy to strategy work ptr)
 sram_player_swap             = $6F44  ; Player 2 / palette swap trigger (non-zero = swap active)
-sram_request_mailbox         = $6F8B  ; Strategy-layer request mailbox ($FF = turn complete; posted by the $08/$0A-$0B engines, consumed by prg_19_1a StrategyRequestDispatch $C773)
 sram_territory_event         = $6FE1  ; Territory event flag (bit 0 = capture officer)
 
 ; --- OAM / Sprite Buffer ($03xx) ---
@@ -252,6 +198,12 @@ event_scene_phase            = $0541  ; Scene phase 0-5; the caller's entry valu
 event_sub_state              = $0542  ; Sub-state index within the officer roll and the epilogue
 event_disp_page              = $0543  ; Panel page / row cursor; the epilogue reuses it as the closing text-card window id $F2
 event_scroll_index           = $0544  ; Sprite-buffer count and wrap parameter for the roll
+
+; --- In-bank targets reached from outside their defining scope ---
+; $A162 is the decrement-and-repeat tail of the run-length copy in
+; PpuWriteRawRows. Its label is a cheap local inside that proc, so
+; RleDecompressHelper enters it through this address equate.
+RleDecrementTail        = $A162
 
 .segment "CODE_BANK17"
 
@@ -314,39 +266,43 @@ StrategyModeDisplay:
   LDY #$21                                            ; $A02A: A0 21
   JSR B1F_SwitchBank8_B                               ; $A02C: 20 5F F2
   LDA #$00                                            ; $A02F: A9 00
-  STA param_byte1                                     ; $A031: 8D 00 00
+  STA a:param_byte1                                     ; $A031: 8D 00 00
   LDA #$20                                            ; $A034: A9 20
-  STA param_byte2                                     ; $A036: 8D 01 00
-  JSR SetupDisplayPtrs                                           ; $A039: 20 4A A0
+  STA a:ppu_addr_hi                                     ; $A036: 8D 01 00
+  JSR SetupStrategyModeDisplayPtrs                    ; $A039: 20 4A A0
   LDA #$00                                            ; $A03C: A9 00
-  STA param_byte1                                     ; $A03E: 8D 00 00
+  STA a:param_byte1                                     ; $A03E: 8D 00 00
   LDA #$24                                            ; $A041: A9 24
-  STA param_byte2                                     ; $A043: 8D 01 00
-  JSR SetupDisplayPtrs                                           ; $A046: 20 4A A0
+  STA a:ppu_addr_hi                                     ; $A043: 8D 01 00
+  JSR SetupStrategyModeDisplayPtrs                    ; $A046: 20 4A A0
   RTS                                                 ; $A049: 60
 .endproc
 
 ;===============================================================================
-; $A04A: SetupDisplayPtrs
-; Setup display pointers from $0544 index
+; $A04A: SetupStrategyModeDisplayPtrs
+; Select the strategy-mode display list for the scene index at $0544. The index
+; is doubled to address a .word pair: StrategyModeTilePtrTable supplies the
+; banked tile nametable address stored in $000A/$000B and
+; StrategyModeAttrPtrTable its attribute table in $000C/$000D, then the PPU
+; write offset is programmed from the caller's target address.
 ;===============================================================================
-.proc SetupDisplayPtrs
+.proc SetupStrategyModeDisplayPtrs
   tile_ptr_lo   = $000A
   tile_ptr_hi   = $000B
   attr_ptr_lo   = $000C
   attr_ptr_hi   = $000D
-SetupDisplayPtrs:
+SetupStrategyModeDisplayPtrs:
   LDA event_scroll_index                              ; $A04A: AD 44 05
   ASL A                                               ; $A04D: 0A
   TAY                                                 ; $A04E: A8
   LDA StrategyModeTilePtrTable,Y                          ; $A04F: B9 6B A0
-  STA tile_ptr_lo                                     ; $A052: 8D 0A 00
+  STA a:tile_ptr_lo                                     ; $A052: 8D 0A 00
   LDA StrategyModeTilePtrTable+1,Y                        ; $A055: B9 6C A0
-  STA tile_ptr_hi                                     ; $A058: 8D 0B 00
+  STA a:tile_ptr_hi                                     ; $A058: 8D 0B 00
   LDA StrategyModeAttrPtrTable,Y                          ; $A05B: B9 79 A0
-  STA attr_ptr_lo                                     ; $A05E: 8D 0C 00
+  STA a:attr_ptr_lo                                     ; $A05E: 8D 0C 00
   LDA StrategyModeAttrPtrTable+1,Y                        ; $A061: B9 7A A0
-  STA attr_ptr_hi                                     ; $A064: 8D 0D 00
+  STA a:attr_ptr_hi                                     ; $A064: 8D 0D 00
   JSR PpuWriteTileOffset                                           ; $A067: 20 4E A2
   RTS                                                 ; $A06A: 60
 
@@ -373,28 +329,28 @@ PpuWriteRle:
   AND #$FB                                            ; $A08A: 29 FB
   STA $2000                                           ; $A08C: 8D 00 20
   LDA $2002                                           ; $A08F: AD 02 20
-  LDA param_byte2                                         ; $A092: AD 01 00
+  LDA a:ppu_addr_hi                                         ; $A092: AD 01 00
   STA $2006                                           ; $A095: 8D 06 20
-  LDA param_byte1                                         ; $A098: AD 00 00
+  LDA a:param_byte1                                         ; $A098: AD 00 00
   STA $2006                                           ; $A09B: 8D 06 20
   LDY #$00                                            ; $A09E: A0 00
-  LDA (ptr_lo),Y                                         ; $A0A0: B1 0A
-  STA rle_marker                                         ; $A0A2: 8D 02 00
+  LDA (overlay_data_ptr),Y                                         ; $A0A0: B1 0A
+  STA a:tile_attr_byte                                         ; $A0A2: 8D 02 00
   JSR AdvanceSrcPtr                                           ; $A0A5: 20 D2 A0
 @process_rle:
-  LDA (ptr_lo),Y                                         ; $A0A8: B1 0A
-  CMP rle_marker                                         ; $A0AA: CD 02 00
+  LDA (overlay_data_ptr),Y                                         ; $A0A8: B1 0A
+  CMP a:tile_attr_byte                                         ; $A0AA: CD 02 00
   BEQ @skip                                           ; $A0AD: F0 09
   STA $2007                                           ; $A0AF: 8D 07 20
   JSR AdvanceSrcPtr                                           ; $A0B2: 20 D2 A0
   JMP @process_rle                                           ; $A0B5: 4C A8 A0
 @skip:
   JSR AdvanceSrcPtr                                           ; $A0B8: 20 D2 A0
-  LDA (ptr_lo),Y                                         ; $A0BB: B1 0A
+  LDA (overlay_data_ptr),Y                                         ; $A0BB: B1 0A
   TAX                                                 ; $A0BD: AA
   BEQ @skip_2                                           ; $A0BE: F0 11
   JSR AdvanceSrcPtr                                           ; $A0C0: 20 D2 A0
-  LDA (ptr_lo),Y                                         ; $A0C3: B1 0A
+  LDA (overlay_data_ptr),Y                                         ; $A0C3: B1 0A
 @loop:
   STA $2007                                           ; $A0C5: 8D 07 20
   DEX                                                 ; $A0C8: CA
@@ -413,13 +369,13 @@ PpuWriteRle:
   overlay_data_ptr          = $000A
   ptr_hi          = $000B
 AdvanceSrcPtr:
-  LDA ptr_lo                                         ; $A0D2: AD 0A 00
+  LDA a:overlay_data_ptr                                         ; $A0D2: AD 0A 00
   CLC                                                 ; $A0D5: 18
   ADC #$01                                            ; $A0D6: 69 01
-  STA ptr_lo                                         ; $A0D8: 8D 0A 00
-  LDA ptr_hi                                         ; $A0DB: AD 0B 00
+  STA a:overlay_data_ptr                                         ; $A0D8: 8D 0A 00
+  LDA a:ptr_hi                                         ; $A0DB: AD 0B 00
   ADC #$00                                            ; $A0DE: 69 00
-  STA ptr_hi                                         ; $A0E0: 8D 0B 00
+  STA a:ptr_hi                                         ; $A0E0: 8D 0B 00
   RTS                                                 ; $A0E3: 60
 .endproc
 
@@ -444,60 +400,60 @@ AdvanceSrcPtr:
   ptr_001e_hi     = $001F
 PpuWriteRawRows:
   LDA #$00                                            ; $A0E4: A9 00
-  STA ptr_001a_lo                                         ; $A0E6: 8D 1A 00
-  STA ptr_001a_hi                                         ; $A0E9: 8D 1B 00
-  STA ptr_001c_lo                                         ; $A0EC: 8D 1C 00
-  STA ptr_001c_hi                                         ; $A0EF: 8D 1D 00
-  STA ptr_001e_lo                                         ; $A0F2: 8D 1E 00
-  STA ptr_001e_hi                                         ; $A0F5: 8D 1F 00
-  STA col_counter_lo                                         ; $A0F8: 8D 04 00
-  STA col_counter_hi                                         ; $A0FB: 8D 05 00
+  STA a:ptr_001a_lo                                         ; $A0E6: 8D 1A 00
+  STA a:ptr_001a_hi                                         ; $A0E9: 8D 1B 00
+  STA a:ptr_001c_lo                                         ; $A0EC: 8D 1C 00
+  STA a:ptr_001c_hi                                         ; $A0EF: 8D 1D 00
+  STA a:ptr_001e_lo                                         ; $A0F2: 8D 1E 00
+  STA a:ptr_001e_hi                                         ; $A0F5: 8D 1F 00
+  STA a:col_counter_lo                                         ; $A0F8: 8D 04 00
+  STA a:tile_col_index                                         ; $A0FB: 8D 05 00
   LDA a:$008B                                         ; $A0FE: AD 8B 00
   AND #$FB                                            ; $A101: 29 FB
   STA $2000                                           ; $A103: 8D 00 20
   LDA $2002                                           ; $A106: AD 02 20
-  LDA param_byte2                                         ; $A109: AD 01 00
+  LDA a:ppu_addr_hi                                         ; $A109: AD 01 00
   STA $2006                                           ; $A10C: 8D 06 20
-  LDA param_byte1                                         ; $A10F: AD 00 00
+  LDA a:param_byte1                                         ; $A10F: AD 00 00
   STA $2006                                           ; $A112: 8D 06 20
   LDY #$00                                            ; $A115: A0 00
-  LDA (ptr_lo),Y                                         ; $A117: B1 0A
-  STA ptr_001a_lo                                         ; $A119: 8D 1A 00
+  LDA (overlay_data_ptr),Y                                         ; $A117: B1 0A
+  STA a:ptr_001a_lo                                         ; $A119: 8D 1A 00
   JSR AdvanceSrcPtr2                                           ; $A11C: 20 09 A2
   JSR ReadRleByte                                           ; $A11F: 20 A5 A1
-  STA rle_marker                                         ; $A122: 8D 02 00
-  LDA row_limit                                         ; $A125: AD 06 00
+  STA a:tile_attr_byte                                         ; $A122: 8D 02 00
+  LDA a:current_row                                         ; $A125: AD 06 00
   BNE RleDecompressHelper                                           ; $A128: D0 3F
-@rle_loop:
-RleDecompressPpuData:
+::RleDecompressPpuData:
   JSR ReadRleByte                                           ; $A12A: 20 A5 A1
-  CMP rle_marker                                         ; $A12D: CD 02 00
+  CMP a:tile_attr_byte                                         ; $A12D: CD 02 00
   BEQ @skip                                           ; $A130: F0 14
   STA $2007                                           ; $A132: 8D 07 20
-  INC col_counter_lo                                         ; $A135: EE 04 00
-  BNE @rle_loop                                           ; $A138: D0 F0
-  INC col_counter_hi                                         ; $A13A: EE 05 00
-  LDY col_counter_hi                                         ; $A13D: AC 05 00
-  CPY row_count                                         ; $A140: CC 07 00
-  BCC @rle_loop                                           ; $A143: 90 E5
+  INC a:col_counter_lo                                         ; $A135: EE 04 00
+  BNE RleDecompressPpuData                                           ; $A138: D0 F0
+  INC a:tile_col_index                                         ; $A13A: EE 05 00
+  LDY a:tile_col_index                                         ; $A13D: AC 05 00
+  CPY a:max_rows                                         ; $A140: CC 07 00
+  BCC RleDecompressPpuData                                           ; $A143: 90 E5
   RTS                                                 ; $A145: 60
 @skip:
   JSR ReadRleByte                                           ; $A146: 20 A5 A1
   TAX                                                 ; $A149: AA
   BEQ @done                                           ; $A14A: F0 1C
   JSR ReadRleByte                                           ; $A14C: 20 A5 A1
+@emit_run_byte:
   STA $2007                                           ; $A14F: 8D 07 20
-  INC col_counter_lo                                         ; $A152: EE 04 00
+  INC a:col_counter_lo                                         ; $A152: EE 04 00
   BNE @decrement_counter                                           ; $A155: D0 0B
-  INC col_counter_hi                                         ; $A157: EE 05 00
-  LDY col_counter_hi                                         ; $A15A: AC 05 00
-  CPY row_count                                         ; $A15D: CC 07 00
+  INC a:tile_col_index                                         ; $A157: EE 05 00
+  LDY a:tile_col_index                                         ; $A15A: AC 05 00
+  CPY a:max_rows                                         ; $A15D: CC 07 00
   BCS @done                                           ; $A160: B0 06
 @decrement_counter:
   DEX                                                 ; $A162: CA
 @write_and_check:
-  BNE @skip                                           ; $A163: D0 EA
-  JMP @rle_loop                                           ; $A165: 4C 2A A1
+  BNE @emit_run_byte                                           ; $A163: D0 EA
+  JMP RleDecompressPpuData                                           ; $A165: 4C 2A A1
 @done:
   RTS                                                 ; $A168: 60
 .endproc
@@ -513,13 +469,13 @@ RleDecompressPpuData:
   current_row       = $0006
 RleDecompressHelper:
   JSR ReadRleByte                                           ; $A169: 20 A5 A1
-  CMP rle_marker                                         ; $A16C: CD 02 00
+  CMP a:tile_attr_byte                                         ; $A16C: CD 02 00
   BEQ @skip                                           ; $A16F: F0 13
-  INC col_counter_lo                                         ; $A171: EE 04 00
+  INC a:col_counter_lo                                         ; $A171: EE 04 00
   BNE RleDecompressHelper                                           ; $A174: D0 F3
-  INC col_counter_hi                                         ; $A176: EE 05 00
-  LDY col_counter_hi                                         ; $A179: AC 05 00
-  CPY row_limit                                         ; $A17C: CC 06 00
+  INC a:tile_col_index                                         ; $A176: EE 05 00
+  LDY a:tile_col_index                                         ; $A179: AC 05 00
+  CPY a:current_row                                         ; $A17C: CC 06 00
   BCC RleDecompressHelper                                           ; $A17F: 90 E8
   JMP RleDecompressPpuData                                           ; $A181: 4C 2A A1
 @skip:
@@ -527,13 +483,13 @@ RleDecompressHelper:
   TAX                                                 ; $A187: AA
   JSR ReadRleByte                                           ; $A188: 20 A5 A1
 @loop:
-  INC col_counter_lo                                         ; $A18B: EE 04 00
+  INC a:col_counter_lo                                         ; $A18B: EE 04 00
   BNE @skip_2                                           ; $A18E: D0 0E
-  INC col_counter_hi                                         ; $A190: EE 05 00
-  LDY col_counter_hi                                         ; $A193: AC 05 00
-  CPY row_limit                                         ; $A196: CC 06 00
+  INC a:tile_col_index                                         ; $A190: EE 05 00
+  LDY a:tile_col_index                                         ; $A193: AC 05 00
+  CPY a:current_row                                         ; $A196: CC 06 00
   BCC @skip_2                                           ; $A199: 90 03
-  JMP Sub_A162                                           ; $A19B: 4C 62 A1
+  JMP RleDecrementTail                                           ; $A19B: 4C 62 A1
 @skip_2:
   DEX                                                 ; $A19E: CA
   BNE @loop                                           ; $A19F: D0 EA
@@ -556,21 +512,21 @@ RleDecompressHelper:
   ptr_001e_hi     = $001F
 ReadRleByte:
   LDY #$00                                            ; $A1A5: A0 00
-  LDA ptr_001a_hi                                         ; $A1A7: AD 1B 00
+  LDA a:ptr_001a_hi                                         ; $A1A7: AD 1B 00
   BNE @skip                                           ; $A1AA: D0 49
-  LDA (ptr_lo),Y                                         ; $A1AC: B1 0A
-  CMP ptr_001a_lo                                         ; $A1AE: CD 1A 00
+  LDA (overlay_data_ptr),Y                                         ; $A1AC: B1 0A
+  CMP a:ptr_001a_lo                                         ; $A1AE: CD 1A 00
   BNE @skip_3                                           ; $A1B1: D0 50
-  LDA ptr_lo                                         ; $A1B3: AD 0A 00
-  STA ptr_001c_lo                                         ; $A1B6: 8D 1C 00
-  LDA ptr_hi                                         ; $A1B9: AD 0B 00
-  STA ptr_001c_hi                                         ; $A1BC: 8D 1D 00
+  LDA a:overlay_data_ptr                                         ; $A1B3: AD 0A 00
+  STA a:ptr_001c_lo                                         ; $A1B6: 8D 1C 00
+  LDA a:ptr_hi                                         ; $A1B9: AD 0B 00
+  STA a:ptr_001c_hi                                         ; $A1BC: 8D 1D 00
   JSR AdvanceSrcPtr2                                           ; $A1BF: 20 09 A2
-  LDA (ptr_lo),Y                                         ; $A1C2: B1 0A
+  LDA (overlay_data_ptr),Y                                         ; $A1C2: B1 0A
   BEQ @skip_3                                           ; $A1C4: F0 3D
   PHA                                                 ; $A1C6: 48
   AND #$0F                                            ; $A1C7: 29 0F
-  STA ptr_001e_hi                                         ; $A1C9: 8D 1F 00
+  STA a:ptr_001e_hi                                         ; $A1C9: 8D 1F 00
   PLA                                                 ; $A1CC: 68
   LSR A                                               ; $A1CD: 4A
   LSR A                                               ; $A1CE: 4A
@@ -578,25 +534,25 @@ ReadRleByte:
   LSR A                                               ; $A1D0: 4A
   CLC                                                 ; $A1D1: 18
   ADC #$03                                            ; $A1D2: 69 03
-  STA ptr_001a_hi                                         ; $A1D4: 8D 1B 00
+  STA a:ptr_001a_hi                                         ; $A1D4: 8D 1B 00
   JSR AdvanceSrcPtr2                                           ; $A1D7: 20 09 A2
-  LDA (ptr_lo),Y                                         ; $A1DA: B1 0A
-  STA ptr_001e_lo                                         ; $A1DC: 8D 1E 00
+  LDA (overlay_data_ptr),Y                                         ; $A1DA: B1 0A
+  STA a:ptr_001e_lo                                         ; $A1DC: 8D 1E 00
   JSR AdvanceSrcPtr2                                           ; $A1DF: 20 09 A2
-  LDA ptr_001c_lo                                         ; $A1E2: AD 1C 00
+  LDA a:ptr_001c_lo                                         ; $A1E2: AD 1C 00
   SEC                                                 ; $A1E5: 38
-  SBC ptr_001e_lo                                         ; $A1E6: ED 1E 00
-  STA ptr_001c_lo                                         ; $A1E9: 8D 1C 00
-  LDA ptr_001c_hi                                         ; $A1EC: AD 1D 00
-  SBC ptr_001e_hi                                         ; $A1EF: ED 1F 00
-  STA ptr_001c_hi                                         ; $A1F2: 8D 1D 00
+  SBC a:ptr_001e_lo                                         ; $A1E6: ED 1E 00
+  STA a:ptr_001c_lo                                         ; $A1E9: 8D 1C 00
+  LDA a:ptr_001c_hi                                         ; $A1EC: AD 1D 00
+  SBC a:ptr_001e_hi                                         ; $A1EF: ED 1F 00
+  STA a:ptr_001c_hi                                         ; $A1F2: 8D 1D 00
 @skip:
   LDA (ptr_001c_lo),Y                                         ; $A1F5: B1 1C
-  INC ptr_001c_lo                                         ; $A1F7: EE 1C 00
+  INC a:ptr_001c_lo                                         ; $A1F7: EE 1C 00
   BNE @skip_2                                           ; $A1FA: D0 03
-  INC ptr_001c_hi                                         ; $A1FC: EE 1D 00
+  INC a:ptr_001c_hi                                         ; $A1FC: EE 1D 00
 @skip_2:
-  DEC ptr_001a_hi                                         ; $A1FF: CE 1B 00
+  DEC a:ptr_001a_hi                                         ; $A1FF: CE 1B 00
   RTS                                                 ; $A202: 60
 @skip_3:
   PHA                                                 ; $A203: 48
@@ -613,9 +569,9 @@ ReadRleByte:
   overlay_data_ptr          = $000A
   ptr_hi          = $000B
 AdvanceSrcPtr2:
-  INC ptr_lo                                         ; $A209: EE 0A 00
+  INC a:overlay_data_ptr                                         ; $A209: EE 0A 00
   BNE @skip                                           ; $A20C: D0 03
-  INC ptr_hi                                         ; $A20E: EE 0B 00
+  INC a:ptr_hi                                         ; $A20E: EE 0B 00
 @skip:
   RTS                                                 ; $A211: 60
 .endproc
@@ -636,25 +592,25 @@ PpuCopyRaw:
   AND #$FB                                            ; $A215: 29 FB
   STA $2000                                           ; $A217: 8D 00 20
   LDA $2002                                           ; $A21A: AD 02 20
-  LDA param_byte2                                         ; $A21D: AD 01 00
+  LDA a:ppu_addr_hi                                         ; $A21D: AD 01 00
   STA $2006                                           ; $A220: 8D 06 20
-  LDA param_byte1                                         ; $A223: AD 00 00
+  LDA a:param_byte1                                         ; $A223: AD 00 00
   STA $2006                                           ; $A226: 8D 06 20
   LDY #$00                                            ; $A229: A0 00
-  STY attr_ptr_lo                                         ; $A22B: 8C 0C 00
-  STY attr_ptr_hi                                         ; $A22E: 8C 0D 00
+  STY a:scene_coord_ptr                                         ; $A22B: 8C 0C 00
+  STY a:work_ptr_hi                                         ; $A22E: 8C 0D 00
 @loop:
-  LDA (ptr_lo),Y                                         ; $A231: B1 0A
+  LDA (overlay_data_ptr),Y                                         ; $A231: B1 0A
   STA $2007                                           ; $A233: 8D 07 20
-  INC ptr_lo                                         ; $A236: EE 0A 00
+  INC a:overlay_data_ptr                                         ; $A236: EE 0A 00
   BNE @skip                                           ; $A239: D0 03
-  INC ptr_hi                                         ; $A23B: EE 0B 00
+  INC a:ptr_hi                                         ; $A23B: EE 0B 00
 @skip:
-  INC attr_ptr_lo                                         ; $A23E: EE 0C 00
+  INC a:scene_coord_ptr                                         ; $A23E: EE 0C 00
   BNE @skip_2                                           ; $A241: D0 03
-  INC attr_ptr_hi                                         ; $A243: EE 0D 00
+  INC a:work_ptr_hi                                         ; $A243: EE 0D 00
 @skip_2:
-  LDA attr_ptr_hi                                         ; $A246: AD 0D 00
+  LDA a:work_ptr_hi                                         ; $A246: AD 0D 00
   CMP #$04                                            ; $A249: C9 04
   BCC @loop                                           ; $A24B: 90 E4
   RTS                                                 ; $A24D: 60
@@ -678,35 +634,35 @@ PpuWriteTileOffset:
   AND #$FB                                            ; $A251: 29 FB
   STA $2000                                           ; $A253: 8D 00 20
   LDA $2002                                           ; $A256: AD 02 20
-  LDA param_byte2                                         ; $A259: AD 01 00
+  LDA a:ppu_addr_hi                                         ; $A259: AD 01 00
   STA $2006                                           ; $A25C: 8D 06 20
-  LDA param_byte1                                         ; $A25F: AD 00 00
+  LDA a:param_byte1                                         ; $A25F: AD 00 00
   STA $2006                                           ; $A262: 8D 06 20
-  LDA ptr_lo                                         ; $A265: AD 0A 00
+  LDA a:overlay_data_ptr                                         ; $A265: AD 0A 00
   SEC                                                 ; $A268: 38
   SBC #$40                                            ; $A269: E9 40
   PHA                                                 ; $A26B: 48
-  LDA ptr_hi                                         ; $A26C: AD 0B 00
+  LDA a:ptr_hi                                         ; $A26C: AD 0B 00
   SBC #$00                                            ; $A26F: E9 00
   PHA                                                 ; $A271: 48
   LDY #$00                                            ; $A272: A0 00
-  STY rle_marker                                         ; $A274: 8C 02 00
-  STY param_0003                                         ; $A277: 8C 03 00
+  STY a:tile_attr_byte                                         ; $A274: 8C 02 00
+  STY a:param_0003                                         ; $A277: 8C 03 00
 @loop:
   LDY #$00                                            ; $A27A: A0 00
-  STY param_byte2                                         ; $A27C: 8C 01 00
-  LDA (ptr_lo),Y                                         ; $A27F: B1 0A
+  STY a:ppu_addr_hi                                         ; $A27C: 8C 01 00
+  LDA (overlay_data_ptr),Y                                         ; $A27F: B1 0A
   ASL A                                               ; $A281: 0A
-  ROL param_byte2                                         ; $A282: 2E 01 00
+  ROL a:ppu_addr_hi                                         ; $A282: 2E 01 00
   ASL A                                               ; $A285: 0A
-  ROL param_byte2                                         ; $A286: 2E 01 00
+  ROL a:ppu_addr_hi                                         ; $A286: 2E 01 00
   CLC                                                 ; $A289: 18
-  ADC attr_ptr_lo                                         ; $A28A: 6D 0C 00
-  STA param_byte1                                         ; $A28D: 8D 00 00
-  LDA param_byte2                                         ; $A290: AD 01 00
-  ADC attr_ptr_hi                                         ; $A293: 6D 0D 00
-  STA param_byte2                                         ; $A296: 8D 01 00
-  LDA rle_marker                                         ; $A299: AD 02 00
+  ADC a:scene_coord_ptr                                         ; $A28A: 6D 0C 00
+  STA a:param_byte1                                         ; $A28D: 8D 00 00
+  LDA a:ppu_addr_hi                                         ; $A290: AD 01 00
+  ADC a:work_ptr_hi                                         ; $A293: 6D 0D 00
+  STA a:ppu_addr_hi                                         ; $A296: 8D 01 00
+  LDA a:tile_attr_byte                                         ; $A299: AD 02 00
   AND #$10                                            ; $A29C: 29 10
   BEQ @skip                                           ; $A29E: F0 02
   LDY #$02                                            ; $A2A0: A0 02
@@ -717,27 +673,27 @@ PpuWriteTileOffset:
   LDA (param_byte1),Y                                         ; $A2A8: B1 00
   STA $2007                                           ; $A2AA: 8D 07 20
   JSR AdvanceTilePtr                                           ; $A2AD: 20 E4 A2
-  INC rle_marker                                         ; $A2B0: EE 02 00
-  LDA rle_marker                                         ; $A2B3: AD 02 00
+  INC a:tile_attr_byte                                         ; $A2B0: EE 02 00
+  LDA a:tile_attr_byte                                         ; $A2B3: AD 02 00
   AND #$0F                                            ; $A2B6: 29 0F
   BNE @skip_2                                           ; $A2B8: D0 0D
-  INC param_0003                                         ; $A2BA: EE 03 00
-  LDA param_0003                                         ; $A2BD: AD 03 00
+  INC a:param_0003                                         ; $A2BA: EE 03 00
+  LDA a:param_0003                                         ; $A2BD: AD 03 00
   AND #$01                                            ; $A2C0: 29 01
   BEQ @skip_2                                           ; $A2C2: F0 03
   JSR RewindTilePtr16                                           ; $A2C4: 20 ED A2
 @skip_2:
-  LDA param_0003                                         ; $A2C7: AD 03 00
+  LDA a:param_0003                                         ; $A2C7: AD 03 00
   CMP #$1E                                            ; $A2CA: C9 1E
   BCC @loop                                           ; $A2CC: 90 AC
   PLA                                                 ; $A2CE: 68
-  STA ptr_hi                                         ; $A2CF: 8D 0B 00
+  STA a:ptr_hi                                         ; $A2CF: 8D 0B 00
   PLA                                                 ; $A2D2: 68
-  STA ptr_lo                                         ; $A2D3: 8D 0A 00
+  STA a:overlay_data_ptr                                         ; $A2D3: 8D 0A 00
   LDX #$40                                            ; $A2D6: A2 40
   LDY #$00                                            ; $A2D8: A0 00
 @loop_2:
-  LDA (ptr_lo),Y                                         ; $A2DA: B1 0A
+  LDA (overlay_data_ptr),Y                                         ; $A2DA: B1 0A
   STA $2007                                           ; $A2DC: 8D 07 20
   INY                                                 ; $A2DF: C8
   DEX                                                 ; $A2E0: CA
@@ -753,9 +709,9 @@ PpuWriteTileOffset:
   overlay_data_ptr          = $000A
   ptr_hi          = $000B
 AdvanceTilePtr:
-  INC ptr_lo                                         ; $A2E4: EE 0A 00
+  INC a:overlay_data_ptr                                         ; $A2E4: EE 0A 00
   BNE @skip                                           ; $A2E7: D0 03
-  INC ptr_hi                                         ; $A2E9: EE 0B 00
+  INC a:ptr_hi                                         ; $A2E9: EE 0B 00
 @skip:
   RTS                                                 ; $A2EC: 60
 .endproc
@@ -768,13 +724,13 @@ AdvanceTilePtr:
   overlay_data_ptr          = $000A
   ptr_hi          = $000B
 RewindTilePtr16:
-  LDA ptr_lo                                         ; $A2ED: AD 0A 00
+  LDA a:overlay_data_ptr                                         ; $A2ED: AD 0A 00
   SEC                                                 ; $A2F0: 38
   SBC #$10                                            ; $A2F1: E9 10
-  STA ptr_lo                                         ; $A2F3: 8D 0A 00
-  LDA ptr_hi                                         ; $A2F6: AD 0B 00
+  STA a:overlay_data_ptr                                         ; $A2F3: 8D 0A 00
+  LDA a:ptr_hi                                         ; $A2F6: AD 0B 00
   SBC #$00                                            ; $A2F9: E9 00
-  STA ptr_hi                                         ; $A2FB: 8D 0B 00
+  STA a:ptr_hi                                         ; $A2FB: 8D 0B 00
   RTS                                                 ; $A2FE: 60
 .endproc
 
@@ -795,16 +751,16 @@ DisplayScrollLoop:
   LDA a:$008F                                         ; $A303: AD 8F 00
   PHA                                                 ; $A306: 48
   LDA a:$0090                                         ; $A307: AD 90 00
-  STA ptr_001e_lo                                         ; $A30A: 8D 1E 00
+  STA a:ptr_001e_lo                                         ; $A30A: 8D 1E 00
   PHA                                                 ; $A30D: 48
   LDA a:$0091                                         ; $A30E: AD 91 00
-  STA ptr_001e_hi                                         ; $A311: 8D 1F 00
+  STA a:ptr_001e_hi                                         ; $A311: 8D 1F 00
   PHA                                                 ; $A314: 48
   INC a:$0091                                         ; $A315: EE 91 00
   LDA #$1E                                            ; $A318: A9 1E
 @loop:
   PHA                                                 ; $A31A: 48
-  JSR RenderSceneVert::SetupRenderVert                                           ; $A31B: 20 85 A4
+  JSR SetupRenderVert                                           ; $A31B: 20 85 A4
   JSR SetScrollWorkOffset4                                           ; $A31E: 20 9F AD
 @loop_2:
   JSR B1F_NmiSubDispatchAlt                           ; $A321: 20 E6 EE
@@ -836,7 +792,7 @@ DisplayScrollLoop:
   LSR A                                               ; $A356: 4A
   LSR A                                               ; $A357: 4A
   LSR A                                               ; $A358: 4A
-  STA ptr_0092_lo                                         ; $A359: 8D 92 00
+  STA a:ptr_0092_lo                                         ; $A359: 8D 92 00
   LDA a:$0090                                         ; $A35C: AD 90 00
   CLC                                                 ; $A35F: 18
   ADC #$08                                            ; $A360: 69 08
@@ -856,7 +812,7 @@ DisplayScrollLoop:
   LSR A                                               ; $A378: 4A
   LSR A                                               ; $A379: 4A
   LSR A                                               ; $A37A: 4A
-  STA ptr_0092_hi                                         ; $A37B: 8D 93 00
+  STA a:ptr_0092_hi                                         ; $A37B: 8D 93 00
   LDA #$90                                            ; $A37E: A9 90
   STA a:$009C                                         ; $A380: 8D 9C 00
   STA a:$009D                                         ; $A383: 8D 9D 00
@@ -880,18 +836,18 @@ DisplayAndChrSetup:
   LSR A                                               ; $A391: 4A
   LSR A                                               ; $A392: 4A
   LSR A                                               ; $A393: 4A
-  CMP ptr_0092_hi                                         ; $A394: CD 93 00
+  CMP a:ptr_0092_hi                                         ; $A394: CD 93 00
   BEQ @skip_2                                           ; $A397: F0 06
-  STA ptr_0092_hi                                         ; $A399: 8D 93 00
+  STA a:ptr_0092_hi                                         ; $A399: 8D 93 00
   JSR DisplayUpdateScroll                                           ; $A39C: 20 B1 A3
 @skip_2:
   LDA a:$0090                                         ; $A39F: AD 90 00
   LSR A                                               ; $A3A2: 4A
   LSR A                                               ; $A3A3: 4A
   LSR A                                               ; $A3A4: 4A
-  CMP ptr_0092_lo                                         ; $A3A5: CD 92 00
+  CMP a:ptr_0092_lo                                         ; $A3A5: CD 92 00
   BEQ @skip_3                                           ; $A3A8: F0 06
-  STA ptr_0092_lo                                         ; $A3AA: 8D 92 00
+  STA a:ptr_0092_lo                                         ; $A3AA: 8D 92 00
   JSR SceneRenderDispatch                                           ; $A3AD: 20 BC A3
 @skip_3:
   RTS                                                 ; $A3B0: 60
@@ -905,9 +861,9 @@ DisplayAndChrSetup:
 DisplayUpdateScroll:
   LDA a:$009C                                         ; $A3B1: AD 9C 00
   BPL @skip                                           ; $A3B4: 10 03
-  JMP RenderSceneHoriz::AdjustScrollAndRender                                           ; $A3B6: 4C 65 A4
+  JMP AdjustScrollAndRender                                           ; $A3B6: 4C 65 A4
 @skip:
-  JMP RenderSceneHoriz::CopyScrollRegs                           ; $A3B9: 4C C9 A3
+  JMP CopyScrollRegs                           ; $A3B9: 4C C9 A3
 .endproc
 ;===============================================================================
 ; $A3BC: SceneRenderDispatch
@@ -924,9 +880,9 @@ SceneRenderDispatch:
   LDA a:$009C                                         ; $A3BC: AD 9C 00
   AND #$20                                            ; $A3BF: 29 20
   BNE @skip                                           ; $A3C1: D0 03
-  JMP RenderSceneVert::SetupRenderVert                                           ; $A3C3: 4C 85 A4
+  JMP SetupRenderVert                                           ; $A3C3: 4C 85 A4
 @skip:
-  JMP RenderSceneVert::AdjustYAndRender                                           ; $A3C6: 4C 1C A5
+  JMP AdjustYAndRender                                           ; $A3C6: 4C 1C A5
 .endproc
 ;===============================================================================
 ; $A3C9: RenderSceneHoriz
@@ -937,11 +893,11 @@ SceneRenderDispatch:
 ;-------------------------------------------------------------------------------
 ; Three entry points:
 ;   CopyScrollRegs ($A3C9): copies $008E-$0091 to $000C-$000F, then renders
-;   @main ($A3E1): assumes $000C-$000F already set up
+;   RenderSceneHorizMain ($A3E1): assumes $000C-$000F already set up
 ;   AdjustScrollAndRender ($A465): adjust scroll X by -8, set up $000C-$000F,
-;                                  then JMP @main
+;                                  then JMP RenderSceneHorizMain
 ; Inputs:  $008E-$0091 = scroll registers (via CopyScrollRegs/AdjustScrollAndRender)
-;          $000C-$000F = scroll registers (via @main entry)
+;          $000C-$000F = scroll registers (via RenderSceneHorizMain entry)
 ;          $007E = NMI control
 ; Output:  tile data written to PPU buffer, NMI bit $80 set
 ; Notes:   16 columns x 16 rows metatile grid
@@ -961,89 +917,89 @@ SceneRenderDispatch:
   ptr_0019_lo     = $0019
   ptr_0019_hi     = $001A
   bank_switch_ptr        = $00A8
-CopyScrollRegs:
+::CopyScrollRegs:
   LDA a:$008E                                         ; $A3C9: AD 8E 00
-  STA attr_ptr_lo                                         ; $A3CC: 8D 0C 00
+  STA a:scene_coord_ptr                                         ; $A3CC: 8D 0C 00
   LDA a:$008F                                         ; $A3CF: AD 8F 00
-  STA attr_ptr_hi                                         ; $A3D2: 8D 0D 00
+  STA a:work_ptr_hi                                         ; $A3D2: 8D 0D 00
   LDA a:$0090                                         ; $A3D5: AD 90 00
-  STA ptr_000e_lo                                         ; $A3D8: 8D 0E 00
+  STA a:coord_ptr_lo                                         ; $A3D8: 8D 0E 00
   LDA a:$0091                                         ; $A3DB: AD 91 00
-  STA ptr_000e_hi                                         ; $A3DE: 8D 0F 00
-@main:
+  STA a:coord_ptr_hi                                         ; $A3DE: 8D 0F 00
+::RenderSceneHorizMain:
   LDA a:$007E                                         ; $A3E1: AD 7E 00
   BPL @skip                                           ; $A3E4: 10 01
   RTS                                                 ; $A3E6: 60
 @skip:
   JSR BankPtrLookup                                           ; $A3E7: 20 04 A6
-  STY ptr_0019_hi                                         ; $A3EA: 8C 1A 00
+  STY a:ptr_0019_hi                                         ; $A3EA: 8C 1A 00
   JSR FieldMapCropResolveIndexed                              ; $A3ED: 20 1F A6
-  LDA ptr_0019_hi                                         ; $A3F0: AD 1A 00
+  LDA a:ptr_0019_hi                                         ; $A3F0: AD 1A 00
   CLC                                                 ; $A3F3: 18
   ADC #$02                                            ; $A3F4: 69 02
   TAY                                                 ; $A3F6: A8
-  LDA (var_00a8),Y                                         ; $A3F7: B1 A8
-  STA work_0010                                         ; $A3F9: 8D 10 00
+  LDA (bank_switch_ptr),Y                                         ; $A3F7: B1 A8
+  STA a:work_0010                                         ; $A3F9: 8D 10 00
   JSR InitTileGridHoriz                               ; $A3FC: 20 3F A9
   LDX #$00                                            ; $A3FF: A2 00
-  STX row_limit                                         ; $A401: 8E 06 00
-  STX row_count                                         ; $A404: 8E 07 00
-  LDA attr_ptr_lo                                         ; $A407: AD 0C 00
+  STX a:current_row                                         ; $A401: 8E 06 00
+  STX a:max_rows                                         ; $A404: 8E 07 00
+  LDA a:scene_coord_ptr                                         ; $A407: AD 0C 00
   LSR A                                               ; $A40A: 4A
   LSR A                                               ; $A40B: 4A
   LSR A                                               ; $A40C: 4A
   LSR A                                               ; $A40D: 4A
-  STA param_0008                                         ; $A40E: 8D 08 00
-  LDA ptr_000e_lo                                         ; $A411: AD 0E 00
+  STA a:attr_base_offset                                         ; $A40E: 8D 08 00
+  LDA a:coord_ptr_lo                                         ; $A411: AD 0E 00
   AND #$F0                                            ; $A414: 29 F0
   CLC                                                 ; $A416: 18
-  ADC param_0008                                         ; $A417: 6D 08 00
-  STA col_counter_hi                                         ; $A41A: 8D 05 00
+  ADC a:attr_base_offset                                         ; $A417: 6D 08 00
+  STA a:tile_col_index                                         ; $A41A: 8D 05 00
 @loop:
-  LDY col_counter_hi                                         ; $A41D: AC 05 00
+  LDY a:tile_col_index                                         ; $A41D: AC 05 00
   LDA (param_byte1),Y                                         ; $A420: B1 00
-  JSR CopyTileRowHoriz::CalcTileAddrHoriz                                           ; $A422: 20 45 A5
-  INC ptr_0019_lo                                         ; $A425: EE 19 00
-  LDA col_counter_hi                                         ; $A428: AD 05 00
+  JSR CalcTileAddrHoriz                                           ; $A422: 20 45 A5
+  INC a:ptr_0019_lo                                         ; $A425: EE 19 00
+  LDA a:tile_col_index                                         ; $A428: AD 05 00
   CLC                                                 ; $A42B: 18
   ADC #$10                                            ; $A42C: 69 10
   CMP #$F0                                            ; $A42E: C9 F0
   BCC @skip_2                                           ; $A430: 90 10
   AND #$0F                                            ; $A432: 29 0F
   PHA                                                 ; $A434: 48
-  LDA work_0010                                         ; $A435: AD 10 00
+  LDA a:work_0010                                         ; $A435: AD 10 00
   JSR FieldMapCropResolveIndexed                              ; $A438: 20 1F A6
-  INC row_count                                         ; $A43B: EE 07 00
-  INC ptr_0019_lo                                         ; $A43E: EE 19 00
+  INC a:max_rows                                         ; $A43B: EE 07 00
+  INC a:ptr_0019_lo                                         ; $A43E: EE 19 00
   PLA                                                 ; $A441: 68
 @skip_2:
-  STA col_counter_hi                                         ; $A442: 8D 05 00
-  INC row_limit                                         ; $A445: EE 06 00
-  LDA row_limit                                         ; $A448: AD 06 00
+  STA a:tile_col_index                                         ; $A442: 8D 05 00
+  INC a:current_row                                         ; $A445: EE 06 00
+  LDA a:current_row                                         ; $A448: AD 06 00
   CMP #$10                                            ; $A44B: C9 10
   BCC @loop                                           ; $A44D: 90 CE
   LDA #$40                                            ; $A44F: A9 40
-  STA param_byte1                                         ; $A451: 8D 00 00
+  STA a:param_byte1                                         ; $A451: 8D 00 00
   LDA #$01                                            ; $A454: A9 01
-  STA param_byte2                                         ; $A456: 8D 01 00
+  STA a:ppu_addr_hi                                         ; $A456: 8D 01 00
   JSR FieldMapAttrHelpers                                            ; $A459: 20 9A A8
   LDA a:$007E                                         ; $A45C: AD 7E 00
   ORA #$80                                            ; $A45F: 09 80
   STA a:$007E                                         ; $A461: 8D 7E 00
   RTS                                                 ; $A464: 60
-AdjustScrollAndRender:
+::AdjustScrollAndRender:
   LDA a:$008E                                         ; $A465: AD 8E 00
   CLC                                                 ; $A468: 18
   ADC #$F8                                            ; $A469: 69 F8
-  STA attr_ptr_lo                                         ; $A46B: 8D 0C 00
+  STA a:scene_coord_ptr                                         ; $A46B: 8D 0C 00
   LDA a:$008F                                         ; $A46E: AD 8F 00
   ADC #$00                                            ; $A471: 69 00
-  STA attr_ptr_hi                                         ; $A473: 8D 0D 00
+  STA a:work_ptr_hi                                         ; $A473: 8D 0D 00
   LDA a:$0090                                         ; $A476: AD 90 00
-  STA ptr_000e_lo                                         ; $A479: 8D 0E 00
+  STA a:coord_ptr_lo                                         ; $A479: 8D 0E 00
   LDA a:$0091                                         ; $A47C: AD 91 00
-  STA ptr_000e_hi                                         ; $A47F: 8D 0F 00
-  JMP @main                                           ; $A482: 4C E1 A3
+  STA a:coord_ptr_hi                                         ; $A47F: 8D 0F 00
+  JMP RenderSceneHorizMain                                           ; $A482: 4C E1 A3
 .endproc
 ;===============================================================================
 ; $A485: RenderSceneVert
@@ -1053,11 +1009,11 @@ AdjustScrollAndRender:
 ;-------------------------------------------------------------------------------
 ; Three entry points:
 ;   SetupRenderVert ($A485): copies $008E-$0091 to $000C-$000F, then renders
-;   @main ($A49A): assumes $000C-$000F already set up
+;   RenderSceneVertMain ($A49A): assumes $000C-$000F already set up
 ;   AdjustYAndRender ($A51C): adjust Y by +$F0 (-16), set up $000C-$000F,
-;                             then JMP @main
+;                             then JMP RenderSceneVertMain
 ; Inputs:  $008E-$0091 = scroll registers (via SetupRenderVert/AdjustYAndRender)
-;          $000C-$000F = scroll registers (via @main entry)
+;          $000C-$000F = scroll registers (via RenderSceneVertMain entry)
 ;          $007E = NMI control
 ; Output:  tile data written to PPU buffer, NMI bit $40 set
 ; Notes:   17 columns metatile grid
@@ -1076,139 +1032,143 @@ AdjustScrollAndRender:
   adjacency_ptr_offset       = $0018
   work_001a       = $001A
   bank_switch_ptr        = $00A8
-SetupRenderVert:
+::SetupRenderVert:
   LDA a:$008E                                         ; $A485: AD 8E 00
-  STA attr_ptr_lo                                         ; $A488: 8D 0C 00
+  STA a:scene_coord_ptr                                         ; $A488: 8D 0C 00
   LDA a:$008F                                         ; $A48B: AD 8F 00
-  STA attr_ptr_hi                                         ; $A48E: 8D 0D 00
+  STA a:work_ptr_hi                                         ; $A48E: 8D 0D 00
   LDA a:$0091                                         ; $A491: AD 91 00
-  STA ptr_000e_hi                                         ; $A494: 8D 0F 00
+  STA a:coord_ptr_hi                                         ; $A494: 8D 0F 00
   LDA a:$0090                                         ; $A497: AD 90 00
-  ; NOTE: falls through into @main (no RTS)
-@main:
-  STA ptr_000e_lo                                         ; $A49A: 8D 0E 00
+  ; NOTE: falls through into RenderSceneVertMain (no RTS)
+::RenderSceneVertMain:
+  STA a:coord_ptr_lo                                         ; $A49A: 8D 0E 00
   LDA a:$007E                                         ; $A49D: AD 7E 00
   ASL A                                               ; $A4A0: 0A
   BPL @skip                                           ; $A4A1: 10 01
   RTS                                                 ; $A4A3: 60
 @skip:
   JSR BankPtrLookup                                           ; $A4A4: 20 04 A6
-  STY work_001a                                         ; $A4A7: 8C 1A 00
+  STY a:work_001a                                         ; $A4A7: 8C 1A 00
   JSR FieldMapCropResolveIndexed                              ; $A4AA: 20 1F A6
-  LDY work_001a                                         ; $A4AD: AC 1A 00
+  LDY a:work_001a                                         ; $A4AD: AC 1A 00
   INY                                                 ; $A4B0: C8
-  LDA (var_00a8),Y                                         ; $A4B1: B1 A8
-  STA work_0010                                         ; $A4B3: 8D 10 00
+  LDA (bank_switch_ptr),Y                                         ; $A4B1: B1 A8
+  STA a:work_0010                                         ; $A4B3: 8D 10 00
   JSR InitTileGridVert                                ; $A4B6: 20 61 A9
-  LDA attr_ptr_lo                                         ; $A4B9: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $A4B9: AD 0C 00
   LSR A                                               ; $A4BC: 4A
   LSR A                                               ; $A4BD: 4A
   LSR A                                               ; $A4BE: 4A
   LSR A                                               ; $A4BF: 4A
-  STA param_0008                                         ; $A4C0: 8D 08 00
-  LDA ptr_000e_lo                                         ; $A4C3: AD 0E 00
+  STA a:attr_base_offset                                         ; $A4C0: 8D 08 00
+  LDA a:coord_ptr_lo                                         ; $A4C3: AD 0E 00
   AND #$F0                                            ; $A4C6: 29 F0
   CLC                                                 ; $A4C8: 18
-  ADC param_0008                                         ; $A4C9: 6D 08 00
-  STA col_counter_hi                                         ; $A4CC: 8D 05 00
+  ADC a:attr_base_offset                                         ; $A4C9: 6D 08 00
+  STA a:tile_col_index                                         ; $A4CC: 8D 05 00
   LDX #$00                                            ; $A4CF: A2 00
-  STX row_limit                                         ; $A4D1: 8E 06 00
+  STX a:current_row                                         ; $A4D1: 8E 06 00
 @loop:
-  LDY col_counter_hi                                         ; $A4D4: AC 05 00
+  LDY a:tile_col_index                                         ; $A4D4: AC 05 00
   LDA (param_byte1),Y                                         ; $A4D7: B1 00
-  JSR CopyTileRowVert::CalcTileAddrVert                                           ; $A4D9: 20 A5 A5
-  INC temp_0018                                         ; $A4DC: EE 18 00
-  LDA col_counter_hi                                         ; $A4DF: AD 05 00
-  INC col_counter_hi                                         ; $A4E2: EE 05 00
+  JSR CalcTileAddrVert                                           ; $A4D9: 20 A5 A5
+  INC a:adjacency_ptr_offset                                         ; $A4DC: EE 18 00
+  LDA a:tile_col_index                                         ; $A4DF: AD 05 00
+  INC a:tile_col_index                                         ; $A4E2: EE 05 00
   AND #$0F                                            ; $A4E5: 29 0F
   CMP #$0F                                            ; $A4E7: C9 0F
   BNE @skip_2                                           ; $A4E9: D0 11
-  LDA work_0010                                         ; $A4EB: AD 10 00
+  LDA a:work_0010                                         ; $A4EB: AD 10 00
   JSR FieldMapCropResolveIndexed                              ; $A4EE: 20 1F A6
-  DEC col_counter_hi                                         ; $A4F1: CE 05 00
-  LDA col_counter_hi                                         ; $A4F4: AD 05 00
+  DEC a:tile_col_index                                         ; $A4F1: CE 05 00
+  LDA a:tile_col_index                                         ; $A4F4: AD 05 00
   AND #$F0                                            ; $A4F7: 29 F0
-  STA col_counter_hi                                         ; $A4F9: 8D 05 00
+  STA a:tile_col_index                                         ; $A4F9: 8D 05 00
 @skip_2:
-  INC row_limit                                         ; $A4FC: EE 06 00
-  LDA row_limit                                         ; $A4FF: AD 06 00
+  INC a:current_row                                         ; $A4FC: EE 06 00
+  LDA a:current_row                                         ; $A4FF: AD 06 00
   CMP #$11                                            ; $A502: C9 11
   BCC @loop                                           ; $A504: 90 CE
   LDA #$64                                            ; $A506: A9 64
-  STA param_byte1                                         ; $A508: 8D 00 00
+  STA a:param_byte1                                         ; $A508: 8D 00 00
   LDA #$01                                            ; $A50B: A9 01
-  STA param_byte2                                         ; $A50D: 8D 01 00
+  STA a:ppu_addr_hi                                         ; $A50D: 8D 01 00
   JSR FieldMapAttrHelpers                                            ; $A510: 20 9A A8
   LDA a:$007E                                         ; $A513: AD 7E 00
   ORA #$40                                            ; $A516: 09 40
   STA a:$007E                                         ; $A518: 8D 7E 00
   RTS                                                 ; $A51B: 60
-AdjustYAndRender:
+::AdjustYAndRender:
   LDA a:$008E                                         ; $A51C: AD 8E 00
-  STA attr_ptr_lo                                         ; $A51F: 8D 0C 00
+  STA a:scene_coord_ptr                                         ; $A51F: 8D 0C 00
   LDA a:$008F                                         ; $A522: AD 8F 00
-  STA attr_ptr_hi                                         ; $A525: 8D 0D 00
+  STA a:work_ptr_hi                                         ; $A525: 8D 0D 00
   LDA a:$0091                                         ; $A528: AD 91 00
-  STA ptr_000e_hi                                         ; $A52B: 8D 0F 00
-  INC ptr_000e_hi                                         ; $A52E: EE 0F 00
+  STA a:coord_ptr_hi                                         ; $A52B: 8D 0F 00
+  INC a:coord_ptr_hi                                         ; $A52E: EE 0F 00
   LDA a:$0090                                         ; $A531: AD 90 00
   CLC                                                 ; $A534: 18
   ADC #$F0                                            ; $A535: 69 F0
   BCS @skip_3                                           ; $A537: B0 06
   SEC                                                 ; $A539: 38
   SBC #$10                                            ; $A53A: E9 10
-  DEC ptr_000e_hi                                         ; $A53C: CE 0F 00
+  DEC a:coord_ptr_hi                                         ; $A53C: CE 0F 00
 @skip_3:
-  STA ptr_000e_lo                                         ; $A53F: 8D 0E 00
-  JMP @main                                           ; $A542: 4C 9A A4
+  STA a:coord_ptr_lo                                         ; $A53F: 8D 0E 00
+  JMP RenderSceneVertMain                                           ; $A542: 4C 9A A4
 .endproc
 
 ;===============================================================================
-; $A545: CopyTileRowHoriz
-; Computes VRAM tile address and copies one metatile row (2 bytes) to sprite
-; buffer at $0142+X. Handles horizontal attribute mirroring based on $0006
-; and $000E bit 3.
-;-------------------------------------------------------------------------------
-; Two entry points:
-;   CalcTileAddrHoriz ($A545): computes VRAM addr from metatile index, then copies
-;   CopyTileRowHoriz ($A565): assumes $0008/$0009 already set, copies directly
-; Inputs:  A = metatile index, $0002/$0003 = base address (via CalcTileAddrHoriz)
-;          $0008/$0009 = source tile address (via CopyTileRowHoriz)
-;          X = dest buffer offset
+; $A545: CalcTileAddrHoriz
+; Compute the metatile's tile address into $0008/$0009, then fall through into
+; CopyTileRowHoriz.
+; Input:  A = metatile index, $0002/$0003 = base address
+; Output: $0008/$0009 = source tile address
+;===============================================================================
+.proc CalcTileAddrHoriz
+  tile_attr_byte      = $0002
+  param_0003      = $0003
+  ptr_0008_lo     = $0008
+  ptr_0008_hi     = $0009
+CalcTileAddrHoriz:
+  JSR DispatchTileRowHoriz                                     ; $A545: 20 FD A8
+  LDY #$00                                            ; $A548: A0 00
+  STY a:ptr_0008_hi                                         ; $A54A: 8C 09 00
+  ASL A                                               ; $A54D: 0A
+  ROL a:ptr_0008_hi                                         ; $A54E: 2E 09 00
+  ASL A                                               ; $A551: 0A
+  ROL a:ptr_0008_hi                                         ; $A552: 2E 09 00
+  CLC                                                 ; $A555: 18
+  ADC a:tile_attr_byte                                         ; $A556: 6D 02 00
+  STA a:ptr_0008_lo                                         ; $A559: 8D 08 00
+  LDA a:ptr_0008_hi                                         ; $A55C: AD 09 00
+  ADC a:param_0003                                         ; $A55F: 6D 03 00
+  STA a:ptr_0008_hi                                         ; $A562: 8D 09 00
+.endproc
+
+;===============================================================================
+; $A565: CopyTileRowHoriz
+; Copy one metatile row (2 bytes) from ($0008),Y into the buffer at $0142+X.
+; Entered with $0008/$0009 already set, and by fallthrough from CalcTileAddrHoriz.
+; Inputs:  $0008/$0009 = source tile address, X = dest buffer offset
 ; Output:  2 bytes written to $0142+X, X advanced by 2
 ; Notes:   mirroring controlled by $0006 and $000E bit 3
 ;===============================================================================
 .proc CopyTileRowHoriz
-  tile_attr_byte      = $0002
-  param_0003      = $0003
   current_row       = $0006
   ptr_0008_lo     = $0008
-  ptr_0008_hi     = $0009
   scene_coord_ptr     = $000C
   coord_high_bits      = $000E
   var_0142        = $0142
-CalcTileAddrHoriz:
-  JSR CHRDataTable                                     ; $A545: 20 FD A8
-  LDY #$00                                            ; $A548: A0 00
-  STY ptr_0008_hi                                         ; $A54A: 8C 09 00
-  ASL A                                               ; $A54D: 0A
-  ROL ptr_0008_hi                                         ; $A54E: 2E 09 00
-  ASL A                                               ; $A551: 0A
-  ROL ptr_0008_hi                                         ; $A552: 2E 09 00
-  CLC                                                 ; $A555: 18
-  ADC rle_marker                                         ; $A556: 6D 02 00
-  STA ptr_0008_lo                                         ; $A559: 8D 08 00
-  LDA ptr_0008_hi                                         ; $A55C: AD 09 00
-  ADC param_0003                                         ; $A55F: 6D 03 00
-  STA ptr_0008_hi                                         ; $A562: 8D 09 00
 CopyTileRowHoriz:
   LDY #$00                                            ; $A565: A0 00
-  LDA attr_ptr_lo                                         ; $A567: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $A567: AD 0C 00
   AND #$08                                            ; $A56A: 29 08
   BNE @skip_3                                           ; $A56C: D0 1B
-  LDA row_limit                                         ; $A56E: AD 06 00
+  LDA a:current_row                                         ; $A56E: AD 06 00
   BNE @skip                                           ; $A571: D0 07
-  LDA param_000e                                         ; $A573: AD 0E 00
+  LDA a:coord_high_bits                                         ; $A573: AD 0E 00
   AND #$08                                            ; $A576: 29 08
   BNE @skip_2                                           ; $A578: D0 06
 @skip:
@@ -1224,9 +1184,9 @@ CopyTileRowHoriz:
   RTS                                                 ; $A588: 60
 @skip_3:
   INY                                                 ; $A589: C8
-  LDA row_limit                                         ; $A58A: AD 06 00
+  LDA a:current_row                                         ; $A58A: AD 06 00
   BNE @skip_4                                           ; $A58D: D0 07
-  LDA param_000e                                         ; $A58F: AD 0E 00
+  LDA a:coord_high_bits                                         ; $A58F: AD 0E 00
   AND #$08                                            ; $A592: 29 08
   BNE @skip_5                                           ; $A594: D0 06
 @skip_4:
@@ -1243,51 +1203,55 @@ CopyTileRowHoriz:
 .endproc
 
 ;===============================================================================
-; $A5A5: CopyTileRowVert
-; Computes VRAM tile address and copies one metatile row (2 bytes) to sprite
-; buffer at $0166+X. Handles vertical attribute mirroring based on $0006
-; and $000C bit 3.
-;-------------------------------------------------------------------------------
-; Two entry points:
-;   CalcTileAddrVert ($A5A5): computes VRAM addr from metatile index, then copies
-;   CopyTileRowVert ($A5C5): assumes $0008/$0009 already set, copies directly
-; Inputs:  A = metatile index, $0002/$0003 = base address (via CalcTileAddrVert)
-;          $0008/$0009 = source tile address (via CopyTileRowVert)
-;          X = dest buffer offset
+; $A5A5: CalcTileAddrVert
+; Compute the metatile's tile address into $0008/$0009, then fall through into
+; CopyTileRowVert.
+; Input:  A = metatile index, $0002/$0003 = base address
+; Output: $0008/$0009 = source tile address
+;===============================================================================
+.proc CalcTileAddrVert
+  tile_attr_byte      = $0002
+  param_0003      = $0003
+  ptr_0008_lo     = $0008
+  ptr_0008_hi     = $0009
+CalcTileAddrVert:
+  JSR DispatchTileRowVert                             ; $A5A5: 20 1E A9
+  LDY #$00                                            ; $A5A8: A0 00
+  STY a:ptr_0008_hi                                         ; $A5AA: 8C 09 00
+  ASL A                                               ; $A5AD: 0A
+  ROL a:ptr_0008_hi                                         ; $A5AE: 2E 09 00
+  ASL A                                               ; $A5B1: 0A
+  ROL a:ptr_0008_hi                                         ; $A5B2: 2E 09 00
+  CLC                                                 ; $A5B5: 18
+  ADC a:tile_attr_byte                                         ; $A5B6: 6D 02 00
+  STA a:ptr_0008_lo                                         ; $A5B9: 8D 08 00
+  LDA a:ptr_0008_hi                                         ; $A5BC: AD 09 00
+  ADC a:param_0003                                         ; $A5BF: 6D 03 00
+  STA a:ptr_0008_hi                                         ; $A5C2: 8D 09 00
+.endproc
+
+;===============================================================================
+; $A5C5: CopyTileRowVert
+; Copy one metatile row (2 bytes) from ($0008),Y into the buffer at $0166+X.
+; Entered with $0008/$0009 already set, and by fallthrough from CalcTileAddrVert.
+; Inputs:  $0008/$0009 = source tile address, X = dest buffer offset
 ; Output:  2 bytes written to $0166+X, X advanced by 2
 ; Notes:   mirroring controlled by $0006 and $000C bit 3
 ;===============================================================================
 .proc CopyTileRowVert
-  tile_attr_byte      = $0002
-  param_0003      = $0003
   current_row       = $0006
   ptr_0008_lo     = $0008
-  ptr_0008_hi     = $0009
   scene_coord_ptr     = $000C
   coord_high_bits      = $000E
   var_0166        = $0166
-CalcTileAddrVert:
-  JSR DispatchTileRowVert                             ; $A5A5: 20 1E A9
-  LDY #$00                                            ; $A5A8: A0 00
-  STY ptr_0008_hi                                         ; $A5AA: 8C 09 00
-  ASL A                                               ; $A5AD: 0A
-  ROL ptr_0008_hi                                         ; $A5AE: 2E 09 00
-  ASL A                                               ; $A5B1: 0A
-  ROL ptr_0008_hi                                         ; $A5B2: 2E 09 00
-  CLC                                                 ; $A5B5: 18
-  ADC rle_marker                                         ; $A5B6: 6D 02 00
-  STA ptr_0008_lo                                         ; $A5B9: 8D 08 00
-  LDA ptr_0008_hi                                         ; $A5BC: AD 09 00
-  ADC param_0003                                         ; $A5BF: 6D 03 00
-  STA ptr_0008_hi                                         ; $A5C2: 8D 09 00
 CopyTileRowVert:
   LDY #$00                                            ; $A5C5: A0 00
-  LDA param_000e                                         ; $A5C7: AD 0E 00
+  LDA a:coord_high_bits                                         ; $A5C7: AD 0E 00
   AND #$08                                            ; $A5CA: 29 08
   BNE @skip_3                                           ; $A5CC: D0 1A
-  LDA row_limit                                         ; $A5CE: AD 06 00
+  LDA a:current_row                                         ; $A5CE: AD 06 00
   BNE @skip                                           ; $A5D1: D0 07
-  LDA attr_ptr_lo                                         ; $A5D3: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $A5D3: AD 0C 00
   AND #$08                                            ; $A5D6: 29 08
   BNE @skip_2                                           ; $A5D8: D0 06
 @skip:
@@ -1303,9 +1267,9 @@ CopyTileRowVert:
 @skip_3:
   INY                                                 ; $A5E8: C8
   INY                                                 ; $A5E9: C8
-  LDA row_limit                                         ; $A5EA: AD 06 00
+  LDA a:current_row                                         ; $A5EA: AD 06 00
   BNE @skip_4                                           ; $A5ED: D0 07
-  LDA attr_ptr_lo                                         ; $A5EF: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $A5EF: AD 0C 00
   AND #$08                                            ; $A5F2: 29 08
   BNE @skip_5                                           ; $A5F4: D0 06
 @skip_4:
@@ -1333,12 +1297,12 @@ CopyTileRowVert:
   param_000f      = $000F
   bank_switch_ptr        = $00A8
 BankPtrLookup:
-  LDA param_000f                                         ; $A604: AD 0F 00
+  LDA a:param_000f                                         ; $A604: AD 0F 00
   ASL A                                               ; $A607: 0A
   CLC                                                 ; $A608: 18
-  ADC attr_ptr_hi                                         ; $A609: 6D 0D 00
+  ADC a:work_ptr_hi                                         ; $A609: 6D 0D 00
   TAY                                                 ; $A60C: A8
-  LDA (var_00a8),Y                                         ; $A60D: B1 A8
+  LDA (bank_switch_ptr),Y                                         ; $A60D: B1 A8
   RTS                                                 ; $A60F: 60
 .endproc
 ;===============================================================================
@@ -1354,12 +1318,12 @@ BankPtrLookup:
   var_001f        = $001F
   bank_switch_ptr        = $00A8
 BankPtrLookupAlt:
-  LDA var_001f                                         ; $A610: AD 1F 00
+  LDA a:var_001f                                         ; $A610: AD 1F 00
   ASL A                                               ; $A613: 0A
   CLC                                                 ; $A614: 18
-  ADC var_001d                                         ; $A615: 6D 1D 00
+  ADC a:var_001d                                         ; $A615: 6D 1D 00
   TAY                                                 ; $A618: A8
-  LDA (var_00a8),Y                                         ; $A619: B1 A8
+  LDA (bank_switch_ptr),Y                                         ; $A619: B1 A8
   RTS                                                 ; $A61B: 60
 .endproc
 
@@ -1385,22 +1349,22 @@ BankPtrLookupAlt:
   tile_attr_byte      = $0002
   param_0003      = $0003
 FieldMapCropResolve:
-  LDA param_byte1                                         ; $A61C: AD 00 00
+  LDA a:param_byte1                                         ; $A61C: AD 00 00
 ;-------------------------------------------------------------------------------
 ; Sub-entry: crop resolve from A (pointer lookup + bank switch)
 ;-------------------------------------------------------------------------------
-FieldMapCropResolveIndexed:
+::FieldMapCropResolveIndexed:
   PHA                                                 ; $A61F: 48
   ASL A                                               ; $A620: 0A
   TAY                                                 ; $A621: A8
   LDA FieldMapCropPtrTable,Y                          ; $A622: B9 42 A6
-  STA param_byte1                                         ; $A625: 8D 00 00
+  STA a:param_byte1                                         ; $A625: 8D 00 00
   LDA FieldMapCropPtrTable+1,Y                        ; $A628: B9 43 A6
-  STA param_byte2                                         ; $A62B: 8D 01 00
+  STA a:ppu_addr_hi                                         ; $A62B: 8D 01 00
   LDA #$77                                            ; $A62E: A9 77
-  STA rle_marker                                         ; $A630: 8D 02 00
+  STA a:tile_attr_byte                                         ; $A630: 8D 02 00
   LDA #$F4                                            ; $A633: A9 F4
-  STA param_0003                                         ; $A635: 8D 03 00
+  STA a:param_0003                                         ; $A635: 8D 03 00
   PLA                                                 ; $A638: 68
   TAY                                                 ; $A639: A8
   LDA FieldMapCropBankTable,Y                         ; $A63A: B9 22 A8
@@ -1447,7 +1411,7 @@ FieldMapCropPtrTableTail:
 ; Field-map overlay window pointer table (120 entries)
 ; Used by LoadOverlayPrimary and LoadOverlaySecondary for overlay dispatch
 ;-------------------------------------------------------------------------------
-FieldMapOverlayPtrTable:
+::FieldMapOverlayPtrTable:
   ; Bank $20 — indices 0-31
   .word $8000,$8130,$81C0,$82F0,$8380,$84B0,$8540,$8670; $A732: 00 80 30 81 C0 81 F0 82 80 83 B0 84 40 85 70 86
   .word $8700,$8830,$88C0,$89F0,$8A80,$8BB0,$8C40,$8D70; $A742: 00 87 30 88 C0 88 F0 89 80 8A B0 8B 40 8C 70 8D
@@ -1496,7 +1460,7 @@ FieldMapCropBankTable:
   coord_ptr_hi     = $000F
 FieldMapAttrHelpers:
   LDY #$00                                            ; $A89A: A0 00
-  LDA attr_ptr_hi                                         ; $A89C: AD 0D 00
+  LDA a:work_ptr_hi                                         ; $A89C: AD 0D 00
   LDX #$20                                            ; $A89F: A2 20
   LSR A                                               ; $A8A1: 4A
   BCS @skip                                           ; $A8A2: B0 02
@@ -1505,26 +1469,26 @@ FieldMapAttrHelpers:
   TXA                                                 ; $A8A6: 8A
   STA (param_byte1),Y                                         ; $A8A7: 91 00
   INY                                                 ; $A8A9: C8
-  LDA attr_ptr_lo                                         ; $A8AA: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $A8AA: AD 0C 00
   LSR A                                               ; $A8AD: 4A
   LSR A                                               ; $A8AE: 4A
   LSR A                                               ; $A8AF: 4A
   STA (param_byte1),Y                                         ; $A8B0: 91 00
   LDA #$00                                            ; $A8B2: A9 00
-  STA ptr_000e_hi                                         ; $A8B4: 8D 0F 00
-  LDA ptr_000e_lo                                         ; $A8B7: AD 0E 00
+  STA a:coord_ptr_hi                                         ; $A8B4: 8D 0F 00
+  LDA a:coord_ptr_lo                                         ; $A8B7: AD 0E 00
   AND #$F8                                            ; $A8BA: 29 F8
   ASL A                                               ; $A8BC: 0A
-  ROL ptr_000e_hi                                         ; $A8BD: 2E 0F 00
+  ROL a:coord_ptr_hi                                         ; $A8BD: 2E 0F 00
   ASL A                                               ; $A8C0: 0A
-  ROL ptr_000e_hi                                         ; $A8C1: 2E 0F 00
+  ROL a:coord_ptr_hi                                         ; $A8C1: 2E 0F 00
   CLC                                                 ; $A8C4: 18
   ADC (param_byte1),Y                                         ; $A8C5: 71 00
   STA (param_byte1),Y                                         ; $A8C7: 91 00
   DEY                                                 ; $A8C9: 88
   LDA (param_byte1),Y                                         ; $A8CA: B1 00
   CLC                                                 ; $A8CC: 18
-  ADC ptr_000e_hi                                         ; $A8CD: 6D 0F 00
+  ADC a:coord_ptr_hi                                         ; $A8CD: 6D 0F 00
   STA (param_byte1),Y                                         ; $A8D0: 91 00
   RTS                                                 ; $A8D2: 60
 .endproc
@@ -1551,7 +1515,7 @@ FieldMapAttrHelpers:
   coord_high_bits      = $000E
 ComputeAttributeByte:
   LDY #$00                                            ; $A8D3: A0 00
-  LDA attr_ptr_hi                                         ; $A8D5: AD 0D 00
+  LDA a:work_ptr_hi                                         ; $A8D5: AD 0D 00
   LDX #$23                                            ; $A8D8: A2 23
   LSR A                                               ; $A8DA: 4A
   BCS @skip                                           ; $A8DB: B0 02
@@ -1560,7 +1524,7 @@ ComputeAttributeByte:
   TXA                                                 ; $A8DF: 8A
   STA (param_byte1),Y                                         ; $A8E0: 91 00
   INY                                                 ; $A8E2: C8
-  LDA attr_ptr_lo                                         ; $A8E3: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $A8E3: AD 0C 00
   LSR A                                               ; $A8E6: 4A
   LSR A                                               ; $A8E7: 4A
   LSR A                                               ; $A8E8: 4A
@@ -1569,7 +1533,7 @@ ComputeAttributeByte:
   CLC                                                 ; $A8EB: 18
   ADC #$C0                                            ; $A8EC: 69 C0
   STA (param_byte1),Y                                         ; $A8EE: 91 00
-  LDA param_000e                                         ; $A8F0: AD 0E 00
+  LDA a:coord_high_bits                                         ; $A8F0: AD 0E 00
   AND #$E0                                            ; $A8F3: 29 E0
   LSR A                                               ; $A8F5: 4A
   LSR A                                               ; $A8F6: 4A
@@ -1610,7 +1574,7 @@ ComputeAttributeByte:
   ptr_0008_hi     = $0009
   var_0019        = $0019
   PHA                                                 ; $A8FD: 48     ; Save A (caller's tile data)
-  LDY var_0019                                         ; $A8FE: AC 19 00 ; Y = row index (horizontal mode)
+  LDY a:var_0019                                         ; $A8FE: AC 19 00 ; Y = row index (horizontal mode)
   LDA tile_index_grid,Y                                         ; $A901: B9 80 06 ; Lookup tile index from grid
   CMP #$FF                                            ; $A904: C9 FF  ; Check if empty ($FF = no tile)
   BEQ @empty                                          ; $A906: F0 14  ; Branch if empty
@@ -1618,11 +1582,11 @@ ComputeAttributeByte:
   PLA                                                 ; $A909: 68     ; Discard return address (3 bytes - skip caller's RTS)
   PLA                                                 ; $A90A: 68
   PLA                                                 ; $A90B: 68
-  JSR SetupAdvisorTiles                                   ; $A90C: 20 86 A9 ; Setup advisor tiles
+  JSR SetupAdvisorTilesWithIndex                                   ; $A90C: 20 86 A9 ; Setup advisor tiles
   LDA #$B0                                            ; $A90F: A9 B0  ; Set destination pointer low byte
-  STA ptr_0008_lo                                         ; $A911: 8D 08 00 ; $0008 = $B0
+  STA a:ptr_0008_lo                                         ; $A911: 8D 08 00 ; $0008 = $B0
   LDA #$01                                            ; $A914: A9 01  ; Set destination pointer high byte
-  STA ptr_0008_hi                                         ; $A916: 8D 09 00 ; $0009 = $01 → dest = $01B0
+  STA a:ptr_0008_hi                                         ; $A916: 8D 09 00 ; $0009 = $01 → dest = $01B0
   JMP CopyTileRowHoriz                                ; $A919: 4C 65 A5 ; Jump to horizontal tile copy ($A565)
 @empty:
   PLA                                                 ; $A91C: 68     ; Restore A
@@ -1635,7 +1599,7 @@ ComputeAttributeByte:
   ptr_0008_hi     = $0009
   var_0018        = $0018
   PHA                                                 ; $A91E: 48     ; Save A
-  LDY var_0018                                         ; $A91F: AC 18 00 ; Y = column index (vertical mode)
+  LDY a:var_0018                                         ; $A91F: AC 18 00 ; Y = column index (vertical mode)
   LDA tile_index_grid,Y                                         ; $A922: B9 80 06 ; Lookup tile index from grid
   CMP #$FF                                            ; $A925: C9 FF  ; Check if empty
   BEQ @empty                                          ; $A927: F0 14
@@ -1643,11 +1607,11 @@ ComputeAttributeByte:
   PLA                                                 ; $A92A: 68     ; Discard return address
   PLA                                                 ; $A92B: 68
   PLA                                                 ; $A92C: 68
-  JSR SetupAdvisorTiles                                   ; $A92D: 20 86 A9 ; Setup advisor tiles
+  JSR SetupAdvisorTilesWithIndex                                   ; $A92D: 20 86 A9 ; Setup advisor tiles
   LDA #$B0                                            ; $A930: A9 B0  ; Set destination pointer
-  STA ptr_0008_lo                                         ; $A932: 8D 08 00
+  STA a:ptr_0008_lo                                         ; $A932: 8D 08 00
   LDA #$01                                            ; $A935: A9 01
-  STA ptr_0008_hi                                         ; $A937: 8D 09 00 ; dest = $01B0
+  STA a:ptr_0008_hi                                         ; $A937: 8D 09 00 ; dest = $01B0
   JMP CopyTileRowVert                                 ; $A93A: 4C C5 A5 ; Jump to vertical tile copy ($A5C5)
 @empty:
   PLA                                                 ; $A93D: 68
@@ -1668,7 +1632,7 @@ ComputeAttributeByte:
   LDY #$13                                            ; $A94C: A0 13  ; Y = 19 (loop 20 times, indices 0-19)
 @populate_loop:
   LDA tile_grid_coord_x,Y                                         ; $A94E: B9 00 06 ; Load X coordinate
-  CMP var_0018                                         ; $A951: CD 18 00 ; Compare with target column
+  CMP a:var_0018                                         ; $A951: CD 18 00 ; Compare with target column
   BNE @skip                                           ; $A954: D0 07  ; Skip if no match
   LDX tile_grid_coord_y,Y                                         ; $A956: BE 14 06 ; Load grid position
   TYA                                                 ; $A959: 98     ; A = Y (tile index)
@@ -1692,7 +1656,7 @@ ComputeAttributeByte:
   LDY #$13                                            ; $A96E: A0 13
 @populate_loop:
   LDA tile_grid_coord_y,Y                                         ; $A970: B9 14 06 ; Load Y coordinate (swapped!)
-  CMP var_0019                                         ; $A973: CD 19 00 ; Compare with target row (swapped!)
+  CMP a:var_0019                                         ; $A973: CD 19 00 ; Compare with target row (swapped!)
   BNE @skip                                           ; $A976: D0 07
   LDX tile_grid_coord_x,Y                                         ; $A978: BE 00 06 ; Load grid position (swapped!)
   TYA                                                 ; $A97B: 98
@@ -1710,7 +1674,8 @@ ComputeAttributeByte:
 ; to one of three cases (type 0/1/2), and writes four CHR tile indices into the
 ; $01B0-$01B3 metatile buffer. Special overrides for ruler index 0 and 10.
 ; Sub-tile overrides based on $0628[Y] bits 0-1.
-; Input:  Y = ruler index (loaded from $0000 at entry)
+; Entry:  $A983 loads Y from $0000; callers that already hold the index in Y
+;         enter at $A986 (SetupAdvisorTilesWithIndex).
 ; Output: $01B0-$01B3 = 4 CHR tile indices for advisor metatile
 ;===============================================================================
 .proc SetupAdvisorTiles
@@ -1724,7 +1689,8 @@ ComputeAttributeByte:
   var_0628        = $0628
   var_063c        = $063C
 SetupAdvisorTiles:
-  LDY param_byte1                                         ; $A983: AC 00 00
+  LDY a:param_byte1                                         ; $A983: AC 00 00
+::SetupAdvisorTilesWithIndex:
   TYA                                                 ; $A986: 98
   PHA                                                 ; $A987: 48
   LDA param_0507                                           ; $A988: AD 07 05
@@ -1748,9 +1714,9 @@ SetupAdvisorTiles:
   JMP @type2                                          ; $A9A5: 4C 84 AA
 @GetRulerDialogueType:
   TAY                                                 ; $A9A8: A8
-  LDA param_byte1                                         ; $A9A9: AD 00 00
+  LDA a:param_byte1                                         ; $A9A9: AD 00 00
   PHA                                                 ; $A9AC: 48
-  LDA param_byte2                                         ; $A9AD: AD 01 00
+  LDA a:ppu_addr_hi                                         ; $A9AD: AD 01 00
   PHA                                                 ; $A9B0: 48
   TYA                                                 ; $A9B1: 98
   JSR B1F_GetCountryDataPtr                             ; $A9B2: 20 68 F3
@@ -1758,9 +1724,9 @@ SetupAdvisorTiles:
   LDA (param_byte1),Y                                         ; $A9B7: B1 00
   TAY                                                 ; $A9B9: A8
   PLA                                                 ; $A9BA: 68
-  STA param_byte2                                         ; $A9BB: 8D 01 00
+  STA a:ppu_addr_hi                                         ; $A9BB: 8D 01 00
   PLA                                                 ; $A9BE: 68
-  STA param_byte1                                         ; $A9BF: 8D 00 00
+  STA a:param_byte1                                         ; $A9BF: 8D 00 00
   TYA                                                 ; $A9C2: 98
   RTS                                                 ; $A9C3: 60
 @type0:
@@ -1770,9 +1736,9 @@ SetupAdvisorTiles:
   LDA var_063c,Y                                         ; $A9C7: B9 3C 06
   TAY                                                 ; $A9CA: A8
   LDA AdvisorTileTbl0_Lo,Y                            ; $A9CB: B9 E4 AA
-  STA param_byte2B0                                           ; $A9CE: 8D B0 01
+  STA ptr_01b0_lo                                           ; $A9CE: 8D B0 01
   LDA AdvisorTileTbl0_Hi,Y                            ; $A9D1: B9 EF AA
-  STA param_byte2B1                                           ; $A9D4: 8D B1 01
+  STA ptr_01b0_hi                                           ; $A9D4: 8D B1 01
   PLA                                                 ; $A9D7: 68
   TAY                                                 ; $A9D8: A8
   BEQ @type0_ruler_special                            ; $A9D9: F0 04
@@ -1780,35 +1746,35 @@ SetupAdvisorTiles:
   BNE @type0_overrides_done                           ; $A9DD: D0 16
 @type0_ruler_special:
   LDA #$BB                                            ; $A9DF: A9 BB
-  STA param_byte2B0                                           ; $A9E1: 8D B0 01
+  STA ptr_01b0_lo                                           ; $A9E1: 8D B0 01
   LDA var_063c,Y                                         ; $A9E4: B9 3C 06
   CMP #$0A                                            ; $A9E7: C9 0A
   BNE @type0_overrides_done                           ; $A9E9: D0 0A
   LDA #$BA                                            ; $A9EB: A9 BA
-  STA param_byte2B0                                           ; $A9ED: 8D B0 01
+  STA ptr_01b0_lo                                           ; $A9ED: 8D B0 01
   LDA #$AB                                            ; $A9F0: A9 AB
-  STA param_byte2B1                                           ; $A9F2: 8D B1 01
+  STA ptr_01b0_hi                                           ; $A9F2: 8D B1 01
 @type0_overrides_done:
   LDA #$AE                                            ; $A9F5: A9 AE
-  STA param_byte2B2                                           ; $A9F7: 8D B2 01
+  STA ptr_01b2_lo                                           ; $A9F7: 8D B2 01
   LDA #$AF                                            ; $A9FA: A9 AF
-  STA param_byte2B3                                           ; $A9FC: 8D B3 01
+  STA ptr_01b2_hi                                           ; $A9FC: 8D B3 01
   LDA var_0628,Y                                         ; $A9FF: B9 28 06
   AND #$03                                            ; $AA02: 29 03
   BNE @type0_subtile_not0                             ; $AA04: D0 0A
   LDA #$BD                                            ; $AA06: A9 BD
-  STA param_byte2B2                                           ; $AA08: 8D B2 01
+  STA ptr_01b2_lo                                           ; $AA08: 8D B2 01
   LDA #$BE                                            ; $AA0B: A9 BE
-  STA param_byte2B3                                           ; $AA0D: 8D B3 01
+  STA ptr_01b2_hi                                           ; $AA0D: 8D B3 01
 @type0_subtile_not0:
   LDA var_0628,Y                                         ; $AA10: B9 28 06
   AND #$03                                            ; $AA13: 29 03
   CMP #$01                                            ; $AA15: C9 01
   BNE @type0_subtile_not1                             ; $AA17: D0 0A
   LDA #$AC                                            ; $AA19: A9 AC
-  STA param_byte2B2                                           ; $AA1B: 8D B2 01
+  STA ptr_01b2_lo                                           ; $AA1B: 8D B2 01
   LDA #$AD                                            ; $AA1E: A9 AD
-  STA param_byte2B3                                           ; $AA20: 8D B3 01
+  STA ptr_01b2_hi                                           ; $AA20: 8D B3 01
 @type0_subtile_not1:
   RTS                                                 ; $AA23: 60
 @type1:
@@ -1818,9 +1784,9 @@ SetupAdvisorTiles:
   LDA var_063c,Y                                         ; $AA27: B9 3C 06
   TAY                                                 ; $AA2A: A8
   LDA AdvisorTileTbl1_Lo,Y                            ; $AA2B: B9 FA AA
-  STA param_byte2B0                                           ; $AA2E: 8D B0 01
+  STA ptr_01b0_lo                                           ; $AA2E: 8D B0 01
   LDA AdvisorTileTbl1_Hi,Y                            ; $AA31: B9 05 AB
-  STA param_byte2B1                                           ; $AA34: 8D B1 01
+  STA ptr_01b0_hi                                           ; $AA34: 8D B1 01
   PLA                                                 ; $AA37: 68
   TAY                                                 ; $AA38: A8
   BEQ @type1_ruler_special                            ; $AA39: F0 04
@@ -1828,35 +1794,35 @@ SetupAdvisorTiles:
   BNE @type1_overrides_done                           ; $AA3D: D0 16
 @type1_ruler_special:
   LDA #$B1                                            ; $AA3F: A9 B1
-  STA param_byte2B0                                           ; $AA41: 8D B0 01
+  STA ptr_01b0_lo                                           ; $AA41: 8D B0 01
   LDA var_063c,Y                                         ; $AA44: B9 3C 06
   CMP #$0A                                            ; $AA47: C9 0A
   BNE @type1_overrides_done                           ; $AA49: D0 0A
   LDA #$B0                                            ; $AA4B: A9 B0
-  STA param_byte2B0                                           ; $AA4D: 8D B0 01
+  STA ptr_01b0_lo                                           ; $AA4D: 8D B0 01
   LDA #$8B                                            ; $AA50: A9 8B
-  STA param_byte2B1                                           ; $AA52: 8D B1 01
+  STA ptr_01b0_hi                                           ; $AA52: 8D B1 01
 @type1_overrides_done:
   LDA #$8C                                            ; $AA55: A9 8C
-  STA param_byte2B2                                           ; $AA57: 8D B2 01
+  STA ptr_01b2_lo                                           ; $AA57: 8D B2 01
   LDA #$8D                                            ; $AA5A: A9 8D
-  STA param_byte2B3                                           ; $AA5C: 8D B3 01
+  STA ptr_01b2_hi                                           ; $AA5C: 8D B3 01
   LDA var_0628,Y                                         ; $AA5F: B9 28 06
   AND #$03                                            ; $AA62: 29 03
   BNE @type1_subtile_not0                             ; $AA64: D0 0A
   LDA #$B3                                            ; $AA66: A9 B3
-  STA param_byte2B2                                           ; $AA68: 8D B2 01
+  STA ptr_01b2_lo                                           ; $AA68: 8D B2 01
   LDA #$B4                                            ; $AA6B: A9 B4
-  STA param_byte2B3                                           ; $AA6D: 8D B3 01
+  STA ptr_01b2_hi                                           ; $AA6D: 8D B3 01
 @type1_subtile_not0:
   LDA var_0628,Y                                         ; $AA70: B9 28 06
   AND #$03                                            ; $AA73: 29 03
   CMP #$02                                            ; $AA75: C9 02
   BNE @type1_subtile_not2                             ; $AA77: D0 0A
   LDA #$8E                                            ; $AA79: A9 8E
-  STA param_byte2B2                                           ; $AA7B: 8D B2 01
+  STA ptr_01b2_lo                                           ; $AA7B: 8D B2 01
   LDA #$8F                                            ; $AA7E: A9 8F
-  STA param_byte2B3                                           ; $AA80: 8D B3 01
+  STA ptr_01b2_hi                                           ; $AA80: 8D B3 01
 @type1_subtile_not2:
   RTS                                                 ; $AA83: 60
 @type2:
@@ -1866,9 +1832,9 @@ SetupAdvisorTiles:
   LDA var_063c,Y                                         ; $AA87: B9 3C 06
   TAY                                                 ; $AA8A: A8
   LDA AdvisorTileTbl2_Lo,Y                            ; $AA8B: B9 10 AB
-  STA param_byte2B0                                           ; $AA8E: 8D B0 01
+  STA ptr_01b0_lo                                           ; $AA8E: 8D B0 01
   LDA AdvisorTileTbl2_Hi,Y                            ; $AA91: B9 1B AB
-  STA param_byte2B1                                           ; $AA94: 8D B1 01
+  STA ptr_01b0_hi                                           ; $AA94: 8D B1 01
   PLA                                                 ; $AA97: 68
   TAY                                                 ; $AA98: A8
   BEQ @type2_ruler_special                            ; $AA99: F0 04
@@ -1876,35 +1842,35 @@ SetupAdvisorTiles:
   BNE @type2_overrides_done                           ; $AA9D: D0 16
 @type2_ruler_special:
   LDA #$B6                                            ; $AA9F: A9 B6
-  STA param_byte2B0                                           ; $AAA1: 8D B0 01
+  STA ptr_01b0_lo                                           ; $AAA1: 8D B0 01
   LDA var_063c,Y                                         ; $AAA4: B9 3C 06
   CMP #$0A                                            ; $AAA7: C9 0A
   BNE @type2_overrides_done                           ; $AAA9: D0 0A
   LDA #$B5                                            ; $AAAB: A9 B5
-  STA param_byte2B0                                           ; $AAAD: 8D B0 01
+  STA ptr_01b0_lo                                           ; $AAAD: 8D B0 01
   LDA #$9B                                            ; $AAB0: A9 9B
-  STA param_byte2B1                                           ; $AAB2: 8D B1 01
+  STA ptr_01b0_hi                                           ; $AAB2: 8D B1 01
 @type2_overrides_done:
   LDA #$9C                                            ; $AAB5: A9 9C
-  STA param_byte2B2                                           ; $AAB7: 8D B2 01
+  STA ptr_01b2_lo                                           ; $AAB7: 8D B2 01
   LDA #$9D                                            ; $AABA: A9 9D
-  STA param_byte2B3                                           ; $AABC: 8D B3 01
+  STA ptr_01b2_hi                                           ; $AABC: 8D B3 01
   LDA var_0628,Y                                         ; $AABF: B9 28 06
   AND #$03                                            ; $AAC2: 29 03
   BNE @type2_subtile_not0                             ; $AAC4: D0 0A
   LDA #$B8                                            ; $AAC6: A9 B8
-  STA param_byte2B2                                           ; $AAC8: 8D B2 01
+  STA ptr_01b2_lo                                           ; $AAC8: 8D B2 01
   LDA #$B9                                            ; $AACB: A9 B9
-  STA param_byte2B3                                           ; $AACD: 8D B3 01
+  STA ptr_01b2_hi                                           ; $AACD: 8D B3 01
 @type2_subtile_not0:
   LDA var_0628,Y                                         ; $AAD0: B9 28 06
   AND #$03                                            ; $AAD3: 29 03
   CMP #$02                                            ; $AAD5: C9 02
   BNE @type2_subtile_not2                             ; $AAD7: D0 0A
   LDA #$9E                                            ; $AAD9: A9 9E
-  STA param_byte2B2                                           ; $AADB: 8D B2 01
+  STA ptr_01b2_lo                                           ; $AADB: 8D B2 01
   LDA #$9F                                            ; $AADE: A9 9F
-  STA param_byte2B3                                           ; $AAE0: 8D B3 01
+  STA ptr_01b2_hi                                           ; $AAE0: 8D B3 01
 @type2_subtile_not2:
   RTS                                                 ; $AAE3: 60
 ; Dialogue type 0 tile tables
@@ -1935,22 +1901,22 @@ AdvisorTileTbl2_Hi:                                   ; $AB1B
   ptr_0018_lo     = $0018
   ptr_0018_hi     = $0019
 CalcTileGridOrigin:
-  LDA attr_ptr_lo                                         ; $AB26: AD 0C 00
-  STA ptr_0018_lo                                         ; $AB29: 8D 18 00
-  LDA attr_ptr_hi                                         ; $AB2C: AD 0D 00
+  LDA a:scene_coord_ptr                                         ; $AB26: AD 0C 00
+  STA a:ptr_0018_lo                                         ; $AB29: 8D 18 00
+  LDA a:work_ptr_hi                                         ; $AB2C: AD 0D 00
   LSR A                                               ; $AB2F: 4A
-  ROR ptr_0018_lo                                         ; $AB30: 6E 18 00
-  LSR ptr_0018_lo                                         ; $AB33: 4E 18 00
-  LSR ptr_0018_lo                                         ; $AB36: 4E 18 00
-  LSR ptr_0018_lo                                         ; $AB39: 4E 18 00
-  LDA ptr_000e_lo                                         ; $AB3C: AD 0E 00
-  STA ptr_0018_hi                                         ; $AB3F: 8D 19 00
-  LDA ptr_000e_hi                                         ; $AB42: AD 0F 00
+  ROR a:ptr_0018_lo                                         ; $AB30: 6E 18 00
+  LSR a:ptr_0018_lo                                         ; $AB33: 4E 18 00
+  LSR a:ptr_0018_lo                                         ; $AB36: 4E 18 00
+  LSR a:ptr_0018_lo                                         ; $AB39: 4E 18 00
+  LDA a:coord_ptr_lo                                         ; $AB3C: AD 0E 00
+  STA a:ptr_0018_hi                                         ; $AB3F: 8D 19 00
+  LDA a:coord_ptr_hi                                         ; $AB42: AD 0F 00
   LSR A                                               ; $AB45: 4A
-  ROR ptr_0018_hi                                         ; $AB46: 6E 19 00
-  LSR ptr_0018_hi                                         ; $AB49: 4E 19 00
-  LSR ptr_0018_hi                                         ; $AB4C: 4E 19 00
-  LSR ptr_0018_hi                                         ; $AB4F: 4E 19 00
+  ROR a:ptr_0018_hi                                         ; $AB46: 6E 19 00
+  LSR a:ptr_0018_hi                                         ; $AB49: 4E 19 00
+  LSR a:ptr_0018_hi                                         ; $AB4C: 4E 19 00
+  LSR a:ptr_0018_hi                                         ; $AB4F: 4E 19 00
   RTS                                                 ; $AB52: 60
 .endproc
 
@@ -2079,69 +2045,69 @@ DispatchPaletteSetup:
 FieldMapOverlayRender:
   ; Set up 4 source pointers from scene coordinates.
   LDA a:$008E                                         ; $AB94: AD 8E 00
-  STA attr_ptr_lo                                         ; $AB97: 8D 0C 00
+  STA a:scene_coord_ptr                                         ; $AB97: 8D 0C 00
   LDA a:$008F                                         ; $AB9A: AD 8F 00
-  STA attr_ptr_hi                                         ; $AB9D: 8D 0D 00
+  STA a:work_ptr_hi                                         ; $AB9D: 8D 0D 00
   LDA a:$0090                                         ; $ABA0: AD 90 00
-  STA ptr_000e_lo                                         ; $ABA3: 8D 0E 00
+  STA a:coord_ptr_lo                                         ; $ABA3: 8D 0E 00
   LDA a:$0091                                         ; $ABA6: AD 91 00
-  STA ptr_000e_hi                                         ; $ABA9: 8D 0F 00
+  STA a:coord_ptr_hi                                         ; $ABA9: 8D 0F 00
   LDA a:$008E                                         ; $ABAC: AD 8E 00
-  STA ptr_001c_lo                                         ; $ABAF: 8D 1C 00
+  STA a:ptr_001c_lo                                         ; $ABAF: 8D 1C 00
   LDA a:$008F                                         ; $ABB2: AD 8F 00
-  STA ptr_001c_hi                                         ; $ABB5: 8D 1D 00
-  INC ptr_001c_hi                                         ; $ABB8: EE 1D 00 (next row: $008F + 1)
+  STA a:ptr_001c_hi                                         ; $ABB5: 8D 1D 00
+  INC a:ptr_001c_hi                                         ; $ABB8: EE 1D 00 (next row: $008F + 1)
   LDA a:$0090                                         ; $ABBB: AD 90 00
-  STA ptr_001e_lo                                         ; $ABBE: 8D 1E 00
+  STA a:ptr_001e_lo                                         ; $ABBE: 8D 1E 00
   LDA a:$0091                                         ; $ABC1: AD 91 00
-  STA ptr_001e_hi                                         ; $ABC4: 8D 1F 00
+  STA a:ptr_001e_hi                                         ; $ABC4: 8D 1F 00
 ;-------------------------------------------------------------------------------
 ; Shared entry: FieldMapOverlayLoop
 ; Also jumped to from FieldMapOverlayCopy after its pointer setup.
 ;-------------------------------------------------------------------------------
-FieldMapOverlayLoop:
+::FieldMapOverlayLoop:
   ; Look up primary overlay index from ($000C-$000F) via bank pointer table,
   ; then switch bank and load overlay graphics pointer into ($0000).
   JSR BankPtrLookup                                   ; $ABC7: 20 04 A6
-  STY ptr_lo                                         ; $ABCA: 8C 0A 00
+  STY a:overlay_data_ptr                                         ; $ABCA: 8C 0A 00
   JSR LoadOverlayPrimary                              ; $ABCD: 20 F3 AE
   ; Advance to next table entry (+2 bytes) and read next overlay index.
-  LDA ptr_lo                                         ; $ABD0: AD 0A 00
+  LDA a:overlay_data_ptr                                         ; $ABD0: AD 0A 00
   CLC                                                 ; $ABD3: 18
   ADC #$02                                            ; $ABD4: 69 02
   TAY                                                 ; $ABD6: A8
-  LDA (var_00a8),Y                                         ; $ABD7: B1 A8
-  STA ptr_lo                                         ; $ABD9: 8D 0A 00
+  LDA (bank_switch_ptr),Y                                         ; $ABD7: B1 A8
+  STA a:overlay_data_ptr                                         ; $ABD9: 8D 0A 00
   ; Look up secondary overlay from ($001C-$001F) and load pointer into ($0010).
   JSR BankPtrLookupAlt                                ; $ABDC: 20 10 A6
-  STY ptr_0019_hi                                         ; $ABDF: 8C 1A 00
+  STY a:ptr_0019_hi                                         ; $ABDF: 8C 1A 00
   JSR LoadOverlaySecondary                            ; $ABE2: 20 0C AF
-  LDA ptr_0019_hi                                         ; $ABE5: AD 1A 00
+  LDA a:ptr_0019_hi                                         ; $ABE5: AD 1A 00
   CLC                                                 ; $ABE8: 18
   ADC #$02                                            ; $ABE9: 69 02
   TAY                                                 ; $ABEB: A8
-  LDA (var_00a8),Y                                         ; $ABEC: B1 A8
-  STA ptr_0019_hi                                         ; $ABEE: 8D 1A 00
+  LDA (bank_switch_ptr),Y                                         ; $ABEC: B1 A8
+  STA a:ptr_0019_hi                                         ; $ABEE: 8D 1A 00
   ; Initialize column counter to 0.
   LDX #$00                                            ; $ABF1: A2 00
-  STX row_limit                                         ; $ABF3: 8E 06 00
+  STX a:current_row                                         ; $ABF3: 8E 06 00
   ; Compute starting tile index:
   ;   tile_idx = ($000C >> 5) + (($000E & $E0) >> 2)
   ; Maps scene coordinates to a position in the PPU attribute table.
-  LDA attr_ptr_lo                                         ; $ABF6: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $ABF6: AD 0C 00
   LSR A                                               ; $ABF9: 4A
   LSR A                                               ; $ABFA: 4A
   LSR A                                               ; $ABFB: 4A
   LSR A                                               ; $ABFC: 4A
   LSR A                                               ; $ABFD: 4A
-  STA param_0008                                         ; $ABFE: 8D 08 00
-  LDA ptr_000e_lo                                         ; $AC01: AD 0E 00
+  STA a:attr_base_offset                                         ; $ABFE: 8D 08 00
+  LDA a:coord_ptr_lo                                         ; $AC01: AD 0E 00
   AND #$E0                                            ; $AC04: 29 E0
   LSR A                                               ; $AC06: 4A
   LSR A                                               ; $AC07: 4A
   CLC                                                 ; $AC08: 18
-  ADC param_0008                                         ; $AC09: 6D 08 00
-  STA col_counter_hi                                         ; $AC0C: 8D 05 00
+  ADC a:attr_base_offset                                         ; $AC09: 6D 08 00
+  STA a:tile_col_index                                         ; $AC0C: 8D 05 00
   ; Build adjacency map: clear $0680-$06FF, then populate from sprite
   ; data in $0600-$0613 (20 OAM entries).
   JSR BuildAdjacencyMap                               ; $AC0F: 20 F9 AF
@@ -2149,32 +2115,32 @@ FieldMapOverlayLoop:
   ; (scene straddles a tile boundary).
   LDX #$00                                            ; $AC12: A2 00
   LDA #$08                                            ; $AC14: A9 08
-  STA row_count                                         ; $AC16: 8D 07 00
-  LDA ptr_000e_lo                                         ; $AC19: AD 0E 00
+  STA a:max_rows                                         ; $AC16: 8D 07 00
+  LDA a:coord_ptr_lo                                         ; $AC19: AD 0E 00
   AND #$10                                            ; $AC1C: 29 10
   BEQ @loop_2                                         ; $AC1E: F0 03
-  INC row_count                                         ; $AC20: EE 07 00
+  INC a:max_rows                                         ; $AC20: EE 07 00
 @loop_2:
   ; Inner loop: process one tile in the current row.
   ; Load primary overlay attribute byte from ($0000),Y.
-  LDY col_counter_hi                                         ; $AC23: AC 05 00
+  LDY a:tile_col_index                                         ; $AC23: AC 05 00
   LDA (param_byte1),Y                                         ; $AC26: B1 00
-  STA rle_marker                                         ; $AC28: 8D 02 00
+  STA a:tile_attr_byte                                         ; $AC28: 8D 02 00
   ; Load secondary overlay attribute from ($0010),Y.
   LDA (var_0010),Y                                         ; $AC2B: B1 10
-  STA param_0003                                         ; $AC2D: 8D 03 00
+  STA a:param_0003                                         ; $AC2D: 8D 03 00
   ; Patch attribute based on adjacency map ($0680-$06FF).
   JSR PatchAttrAdjacency                              ; $AC30: 20 1B AF
   ; Advance source data pointers by 2 (next entry pair).
-  INC temp_0017                                         ; $AC33: EE 17 00
-  INC temp_0017                                         ; $AC36: EE 17 00
-  INC ptr_0019_lo                                         ; $AC39: EE 19 00
-  INC ptr_0019_lo                                         ; $AC3C: EE 19 00
+  INC a:temp_0017                                         ; $AC33: EE 17 00
+  INC a:temp_0017                                         ; $AC36: EE 17 00
+  INC a:ptr_0019_lo                                         ; $AC39: EE 19 00
+  INC a:ptr_0019_lo                                         ; $AC3C: EE 19 00
   ; Write patched attribute to PPU buffer $018A+X, handling 2x2 block
   ; splitting at tile column 8.
   JSR WriteFieldMapAttribute                          ; $AC3F: 20 80 AC
   ; Advance tile index by 8 (next row in attribute table space).
-  LDA col_counter_hi                                         ; $AC42: AD 05 00
+  LDA a:tile_col_index                                         ; $AC42: AD 05 00
   CLC                                                 ; $AC45: 18
   ADC #$08                                            ; $AC46: 69 08
   CMP #$40                                            ; $AC48: C9 40 (past end of attr table?)
@@ -2182,24 +2148,24 @@ FieldMapOverlayLoop:
   ; Wrapped past $40: reload overlay data for next attribute page.
   AND #$07                                            ; $AC4C: 29 07 (keep low 3 bits)
   PHA                                                 ; $AC4E: 48
-  LDA ptr_lo                                         ; $AC4F: AD 0A 00
+  LDA a:overlay_data_ptr                                         ; $AC4F: AD 0A 00
   JSR LoadOverlayPrimary                              ; $AC52: 20 F3 AE (reload primary)
-  LDA ptr_0019_hi                                         ; $AC55: AD 1A 00
+  LDA a:ptr_0019_hi                                         ; $AC55: AD 1A 00
   JSR LoadOverlaySecondary                            ; $AC58: 20 0C AF (reload secondary)
   PLA                                                 ; $AC5B: 68
 @skip_6:
-  STA col_counter_hi                                         ; $AC5C: 8D 05 00
+  STA a:tile_col_index                                         ; $AC5C: 8D 05 00
   ; Increment column counter; continue inner loop if not done.
-  INC row_limit                                         ; $AC5F: EE 06 00
-  LDA row_limit                                         ; $AC62: AD 06 00
-  CMP row_count                                         ; $AC65: CD 07 00
+  INC a:current_row                                         ; $AC5F: EE 06 00
+  LDA a:current_row                                         ; $AC62: AD 06 00
+  CMP a:max_rows                                         ; $AC65: CD 07 00
   BCC @loop_2                                         ; $AC68: 90 B9
   ; Row complete: stage the attribute bytes and their VRAM target through
   ; ($0000) = $0188, then arm the NMI attribute upload.
   LDA #$88                                            ; $AC6A: A9 88
-  STA param_byte1                                         ; $AC6C: 8D 00 00
+  STA a:param_byte1                                         ; $AC6C: 8D 00 00
   LDA #$01                                            ; $AC6F: A9 01
-  STA param_byte2                                         ; $AC71: 8D 01 00
+  STA a:ppu_addr_hi                                         ; $AC71: 8D 01 00
   JSR ComputeAttributeByte                            ; $AC74: 20 D3 A8
   ; Set bit 5 of $007E: bank $1F NmiDoAttrWrite $EE98 then flushes $0188/$0189
   ; (VRAM target) and $018A+X (data) with PpuAttrTileWrite $EFC0.
@@ -2231,21 +2197,21 @@ WriteFieldMapAttribute:
   BPL @static_path                                    ; $AC84: 10 6E (bit 7 clear → static)
   ; === Animated attribute path (bit 7 set) ===
   ; Check bit 4 of $000C: left or right half of attribute byte.
-  LDA attr_ptr_lo                                         ; $AC86: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $AC86: AD 0C 00
   AND #$10                                            ; $AC89: 29 10
   BNE @anim_right                                     ; $AC8B: D0 2B
   ; Left half: at column 8 + Y boundary, merge low nibble into existing.
-  LDA row_limit                                         ; $AC8D: AD 06 00
+  LDA a:current_row                                         ; $AC8D: AD 06 00
   CMP #$08                                            ; $AC90: C9 08 (at column boundary?)
   BNE @anim_simple                                    ; $AC92: D0 1C
-  LDA param_000e                                         ; $AC94: AD 0E 00
+  LDA a:coord_high_bits                                         ; $AC94: AD 0E 00
   AND #$10                                            ; $AC97: 29 10 (check Y boundary)
   BEQ @anim_simple                                    ; $AC99: F0 15
   ; Merge low nibble of new attr into high nibble of existing $018A byte.
   LDA var_018a                                           ; $AC9B: AD 8A 01
   AND #$F0                                            ; $AC9E: 29 F0 (keep high nibble)
   STA var_018a                                           ; $ACA0: 8D 8A 01
-  LDA rle_marker                                         ; $ACA3: AD 02 00
+  LDA a:tile_attr_byte                                         ; $ACA3: AD 02 00
   AND #$0F                                            ; $ACA6: 29 0F (take low nibble)
   ORA var_018a                                           ; $ACA8: 0D 8A 01
   STA var_018a                                           ; $ACAB: 8D 8A 01
@@ -2253,13 +2219,13 @@ WriteFieldMapAttribute:
   RTS                                                 ; $ACAF: 60
 @anim_simple:
   ; Simple write: store attribute byte directly.
-  LDA rle_marker                                         ; $ACB0: AD 02 00
+  LDA a:tile_attr_byte                                         ; $ACB0: AD 02 00
   STA var_018a,X                                         ; $ACB3: 9D 8A 01
   INX                                                 ; $ACB6: E8
   RTS                                                 ; $ACB7: 60
 @anim_right:
   ; Right half: merge palette bits at column-8 boundary.
-  LDA row_limit                                         ; $ACB8: AD 06 00
+  LDA a:current_row                                         ; $ACB8: AD 06 00
   CMP #$08                                            ; $ACBB: C9 08
   BNE @anim_masked                                    ; $ACBD: D0 20 (not at boundary)
   ; At boundary: combine bits 3-2 from primary, bits 1-0 from secondary,
@@ -2267,24 +2233,24 @@ WriteFieldMapAttribute:
   LDA var_018a                                           ; $ACBF: AD 8A 01
   AND #$F0                                            ; $ACC2: 29 F0 (keep high nibble)
   STA var_018a                                           ; $ACC4: 8D 8A 01
-  LDA rle_marker                                         ; $ACC7: AD 02 00
+  LDA a:tile_attr_byte                                         ; $ACC7: AD 02 00
   AND #$0C                                            ; $ACCA: 29 0C (bits 3-2 from primary)
-  STA rle_marker                                         ; $ACCC: 8D 02 00
-  LDA param_0003                                         ; $ACCF: AD 03 00
+  STA a:tile_attr_byte                                         ; $ACCC: 8D 02 00
+  LDA a:param_0003                                         ; $ACCF: AD 03 00
   AND #$03                                            ; $ACD2: 29 03 (bits 1-0 from secondary)
-  ORA rle_marker                                         ; $ACD4: 0D 02 00
+  ORA a:tile_attr_byte                                         ; $ACD4: 0D 02 00
   ORA var_018a                                           ; $ACD7: 0D 8A 01
   STA var_018a                                           ; $ACDA: 8D 8A 01
   INX                                                 ; $ACDD: E8
   RTS                                                 ; $ACDE: 60
 @anim_masked:
   ; Masked write: bits 7,6,3,2 from primary; bits 5,4,1,0 from secondary.
-  LDA rle_marker                                         ; $ACDF: AD 02 00
+  LDA a:tile_attr_byte                                         ; $ACDF: AD 02 00
   AND #$CC                                            ; $ACE2: 29 CC (mask primary)
-  STA rle_marker                                         ; $ACE4: 8D 02 00
-  LDA param_0003                                         ; $ACE7: AD 03 00
+  STA a:tile_attr_byte                                         ; $ACE4: 8D 02 00
+  LDA a:param_0003                                         ; $ACE7: AD 03 00
   AND #$33                                            ; $ACEA: 29 33 (mask secondary)
-  ORA rle_marker                                         ; $ACEC: 0D 02 00
+  ORA a:tile_attr_byte                                         ; $ACEC: 0D 02 00
   STA var_018a,X                                         ; $ACEF: 9D 8A 01
   INX                                                 ; $ACF2: E8
   RTS                                                 ; $ACF3: 60
@@ -2293,21 +2259,21 @@ WriteFieldMapAttribute:
 ; Same structure as animated path but with complementary masks ($33/$CC).
 ;-------------------------------------------------------------------------------
 @static_path:
-  LDA attr_ptr_lo                                         ; $ACF4: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $ACF4: AD 0C 00
   AND #$10                                            ; $ACF7: 29 10
   BEQ @static_left                                    ; $ACF9: F0 2B
   ; Right half.
-  LDA row_limit                                         ; $ACFB: AD 06 00
+  LDA a:current_row                                         ; $ACFB: AD 06 00
   CMP #$08                                            ; $ACFE: C9 08
   BNE @static_right_masked                            ; $AD00: D0 1C
-  LDA param_000e                                         ; $AD02: AD 0E 00
+  LDA a:coord_high_bits                                         ; $AD02: AD 0E 00
   AND #$10                                            ; $AD05: 29 10
   BEQ @static_right_masked                            ; $AD07: F0 15
   ; Column-8 + Y boundary: merge low nibble.
   LDA var_018a                                           ; $AD09: AD 8A 01
   AND #$F0                                            ; $AD0C: 29 F0
   STA var_018a                                           ; $AD0E: 8D 8A 01
-  LDA rle_marker                                         ; $AD11: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AD11: AD 02 00
   AND #$0F                                            ; $AD14: 29 0F
   ORA var_018a                                           ; $AD16: 0D 8A 01
   STA var_018a                                           ; $AD19: 8D 8A 01
@@ -2315,39 +2281,39 @@ WriteFieldMapAttribute:
   RTS                                                 ; $AD1D: 60
 @static_right_masked:
   ; Simple write at $018A+X.
-  LDA rle_marker                                         ; $AD1E: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AD1E: AD 02 00
   STA var_018a,X                                         ; $AD21: 9D 8A 01
   INX                                                 ; $AD24: E8
   RTS                                                 ; $AD25: 60
 @static_left:
   ; Left half: at column 8 + Y boundary, merge complementary bits.
-  LDA row_limit                                         ; $AD26: AD 06 00
+  LDA a:current_row                                         ; $AD26: AD 06 00
   CMP #$08                                            ; $AD29: C9 08
   BNE @static_left_masked                             ; $AD2B: D0 27
-  LDA param_000e                                         ; $AD2D: AD 0E 00
+  LDA a:coord_high_bits                                         ; $AD2D: AD 0E 00
   AND #$10                                            ; $AD30: 29 10
   BEQ @static_left_masked                             ; $AD32: F0 20
   LDA var_018a                                           ; $AD34: AD 8A 01
   AND #$F0                                            ; $AD37: 29 F0
   STA var_018a                                           ; $AD39: 8D 8A 01
-  LDA rle_marker                                         ; $AD3C: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AD3C: AD 02 00
   AND #$03                                            ; $AD3F: 29 03 (bits 1-0 from primary)
-  STA rle_marker                                         ; $AD41: 8D 02 00
-  LDA param_0003                                         ; $AD44: AD 03 00
+  STA a:tile_attr_byte                                         ; $AD41: 8D 02 00
+  LDA a:param_0003                                         ; $AD44: AD 03 00
   AND #$0C                                            ; $AD47: 29 0C (bits 3-2 from secondary)
-  ORA rle_marker                                         ; $AD49: 0D 02 00
+  ORA a:tile_attr_byte                                         ; $AD49: 0D 02 00
   ORA var_018a                                           ; $AD4C: 0D 8A 01
   STA var_018a                                           ; $AD4F: 8D 8A 01
   INX                                                 ; $AD52: E8
   RTS                                                 ; $AD53: 60
 @static_left_masked:
   ; Masked write: complementary masks ($33/$CC vs animated $CC/$33).
-  LDA rle_marker                                         ; $AD54: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AD54: AD 02 00
   AND #$33                                            ; $AD57: 29 33 (bits 5,4,1,0 of primary)
-  STA rle_marker                                         ; $AD59: 8D 02 00
-  LDA param_0003                                         ; $AD5C: AD 03 00
+  STA a:tile_attr_byte                                         ; $AD59: 8D 02 00
+  LDA a:param_0003                                         ; $AD5C: AD 03 00
   AND #$CC                                            ; $AD5F: 29 CC (bits 7,6,3,2 of secondary)
-  ORA rle_marker                                         ; $AD61: 0D 02 00
+  ORA a:tile_attr_byte                                         ; $AD61: 0D 02 00
   STA var_018a,X                                         ; $AD64: 9D 8A 01
   INX                                                 ; $AD67: E8
   RTS                                                 ; $AD68: 60
@@ -2372,22 +2338,22 @@ WriteFieldMapAttribute:
   ptr_001e_hi     = $001F
 FieldMapOverlayCopy:
   LDA a:$008E                                         ; $AD69: AD 8E 00
-  STA attr_ptr_lo                                         ; $AD6C: 8D 0C 00
+  STA a:scene_coord_ptr                                         ; $AD6C: 8D 0C 00
   LDA a:$008F                                         ; $AD6F: AD 8F 00
-  STA attr_ptr_hi                                         ; $AD72: 8D 0D 00
-  INC attr_ptr_hi                                         ; $AD75: EE 0D 00 (shifted copy: $008F + 1)
+  STA a:work_ptr_hi                                         ; $AD72: 8D 0D 00
+  INC a:work_ptr_hi                                         ; $AD75: EE 0D 00 (shifted copy: $008F + 1)
   LDA a:$0090                                         ; $AD78: AD 90 00
-  STA ptr_000e_lo                                         ; $AD7B: 8D 0E 00
+  STA a:coord_ptr_lo                                         ; $AD7B: 8D 0E 00
   LDA a:$0091                                         ; $AD7E: AD 91 00
-  STA ptr_000e_hi                                         ; $AD81: 8D 0F 00
+  STA a:coord_ptr_hi                                         ; $AD81: 8D 0F 00
   LDA a:$008E                                         ; $AD84: AD 8E 00
-  STA ptr_001c_lo                                         ; $AD87: 8D 1C 00
+  STA a:ptr_001c_lo                                         ; $AD87: 8D 1C 00
   LDA a:$008F                                         ; $AD8A: AD 8F 00
-  STA ptr_001c_hi                                         ; $AD8D: 8D 1D 00
+  STA a:ptr_001c_hi                                         ; $AD8D: 8D 1D 00
   LDA a:$0090                                         ; $AD90: AD 90 00
-  STA ptr_001e_lo                                         ; $AD93: 8D 1E 00
+  STA a:ptr_001e_lo                                         ; $AD93: 8D 1E 00
   LDA a:$0091                                         ; $AD96: AD 91 00
-  STA ptr_001e_hi                                         ; $AD99: 8D 1F 00
+  STA a:ptr_001e_hi                                         ; $AD99: 8D 1F 00
   JMP FieldMapOverlayLoop                             ; $AD9C: 4C C7 AB
 .endproc
 ;===============================================================================
@@ -2402,14 +2368,14 @@ SetScrollWorkOffset4:
   LDA a:$008E                                         ; $AD9F: AD 8E 00
   CLC                                                 ; $ADA2: 18
   ADC #$04                                            ; $ADA3: 69 04
-  STA attr_ptr_lo                                         ; $ADA5: 8D 0C 00
+  STA a:scene_coord_ptr                                         ; $ADA5: 8D 0C 00
   LDA a:$008F                                         ; $ADA8: AD 8F 00
   ADC #$00                                            ; $ADAB: 69 00
-  STA attr_ptr_hi                                         ; $ADAD: 8D 0D 00
+  STA a:work_ptr_hi                                         ; $ADAD: 8D 0D 00
   LDA a:$0090                                         ; $ADB0: AD 90 00
-  STA ptr_000e_lo                                         ; $ADB3: 8D 0E 00
+  STA a:coord_ptr_lo                                         ; $ADB3: 8D 0E 00
   LDA a:$0091                                         ; $ADB6: AD 91 00
-  STA ptr_000e_hi                                         ; $ADB9: 8D 0F 00
+  STA a:coord_ptr_hi                                         ; $ADB9: 8D 0F 00
 .endproc
 ;===============================================================================
 ; $ADBC: LoadFieldMapOverlay
@@ -2441,66 +2407,66 @@ SetScrollWorkOffset4:
   attr_accumulator        = $019E
 LoadFieldMapOverlay:
   JSR BankPtrLookup                                           ; $ADBC: 20 04 A6
-  STY overlay_data_ptr                                         ; $ADBF: 8C 0A 00
+  STY a:overlay_data_ptr                                         ; $ADBF: 8C 0A 00
   JSR LoadOverlayPrimary                                 ; $ADC2: 20 F3 AE
-  LDY overlay_data_ptr                                         ; $ADC5: AC 0A 00
+  LDY a:overlay_data_ptr                                         ; $ADC5: AC 0A 00
   INY                                                 ; $ADC8: C8
-  LDA (var_00a8),Y                                         ; $ADC9: B1 A8
-  STA overlay_data_ptr                                         ; $ADCB: 8D 0A 00
+  LDA (bank_switch_ptr),Y                                         ; $ADC9: B1 A8
+  STA a:overlay_data_ptr                                         ; $ADCB: 8D 0A 00
   LDA #$00                                            ; $ADCE: A9 00
-  STA current_row                                         ; $ADD0: 8D 06 00
-  LDA scene_coord_ptr                                         ; $ADD3: AD 0C 00
+  STA a:current_row                                         ; $ADD0: 8D 06 00
+  LDA a:scene_coord_ptr                                         ; $ADD3: AD 0C 00
   LSR A                                               ; $ADD6: 4A
   LSR A                                               ; $ADD7: 4A
   LSR A                                               ; $ADD8: 4A
   LSR A                                               ; $ADD9: 4A
   LSR A                                               ; $ADDA: 4A
-  STA attr_base_offset                                         ; $ADDB: 8D 08 00
-  LDA coord_high_bits                                         ; $ADDE: AD 0E 00
+  STA a:attr_base_offset                                         ; $ADDB: 8D 08 00
+  LDA a:coord_high_bits                                         ; $ADDE: AD 0E 00
   AND #$E0                                            ; $ADE1: 29 E0
   LSR A                                               ; $ADE3: 4A
   LSR A                                               ; $ADE4: 4A
   CLC                                                 ; $ADE5: 18
-  ADC attr_base_offset                                         ; $ADE6: 6D 08 00
-  STA tile_col_index                                         ; $ADE9: 8D 05 00
+  ADC a:attr_base_offset                                         ; $ADE6: 6D 08 00
+  STA a:tile_col_index                                         ; $ADE9: 8D 05 00
   JSR BuildAdjacencyMapSmall                             ; $ADEC: 20 55 B0
   LDX #$00                                            ; $ADEF: A2 00
   LDA #$08                                            ; $ADF1: A9 08
-  STA max_rows                                         ; $ADF3: 8D 07 00
-  LDA scene_coord_ptr                                         ; $ADF6: AD 0C 00
+  STA a:max_rows                                         ; $ADF3: 8D 07 00
+  LDA a:scene_coord_ptr                                         ; $ADF6: AD 0C 00
   AND #$10                                            ; $ADF9: 29 10
   BEQ @loop                                           ; $ADFB: F0 03
-  INC max_rows                                         ; $ADFD: EE 07 00
+  INC a:max_rows                                         ; $ADFD: EE 07 00
 @loop:
-  LDY tile_col_index                                         ; $AE00: AC 05 00
+  LDY a:tile_col_index                                         ; $AE00: AC 05 00
   LDA (ppu_addr_lo),Y                                         ; $AE03: B1 00
-  STA tile_attr_byte                                         ; $AE05: 8D 02 00
+  STA a:tile_attr_byte                                         ; $AE05: 8D 02 00
   JSR PatchSingleAdjacency                               ; $AE08: 20 B5 AF
-  INC data_ptr_offset                                         ; $AE0B: EE 16 00
-  INC data_ptr_offset                                         ; $AE0E: EE 16 00
-  INC adjacency_ptr_offset                                         ; $AE11: EE 18 00
-  INC adjacency_ptr_offset                                         ; $AE14: EE 18 00
+  INC a:data_ptr_offset                                         ; $AE0B: EE 16 00
+  INC a:data_ptr_offset                                         ; $AE0E: EE 16 00
+  INC a:adjacency_ptr_offset                                         ; $AE11: EE 18 00
+  INC a:adjacency_ptr_offset                                         ; $AE14: EE 18 00
   JSR MergeAttrBits                                           ; $AE17: 20 58 AE
-  LDA tile_col_index                                         ; $AE1A: AD 05 00
-  INC tile_col_index                                         ; $AE1D: EE 05 00
+  LDA a:tile_col_index                                         ; $AE1A: AD 05 00
+  INC a:tile_col_index                                         ; $AE1D: EE 05 00
   AND #$07                                            ; $AE20: 29 07
   CMP #$07                                            ; $AE22: C9 07
   BNE @skip                                           ; $AE24: D0 11
-  LDA overlay_data_ptr                                         ; $AE26: AD 0A 00
+  LDA a:overlay_data_ptr                                         ; $AE26: AD 0A 00
   JSR LoadOverlayPrimary                                 ; $AE29: 20 F3 AE
-  DEC tile_col_index                                         ; $AE2C: CE 05 00
-  LDA tile_col_index                                         ; $AE2F: AD 05 00
+  DEC a:tile_col_index                                         ; $AE2C: CE 05 00
+  LDA a:tile_col_index                                         ; $AE2F: AD 05 00
   AND #$F8                                            ; $AE32: 29 F8
-  STA tile_col_index                                         ; $AE34: 8D 05 00
+  STA a:tile_col_index                                         ; $AE34: 8D 05 00
 @skip:
-  INC current_row                                         ; $AE37: EE 06 00
-  LDA current_row                                         ; $AE3A: AD 06 00
-  CMP max_rows                                         ; $AE3D: CD 07 00
+  INC a:current_row                                         ; $AE37: EE 06 00
+  LDA a:current_row                                         ; $AE3A: AD 06 00
+  CMP a:max_rows                                         ; $AE3D: CD 07 00
   BCC @loop                                           ; $AE40: 90 BE
   LDA #$9C                                            ; $AE42: A9 9C
-  STA ppu_addr_lo                                         ; $AE44: 8D 00 00
+  STA a:ppu_addr_lo                                         ; $AE44: 8D 00 00
   LDA #$01                                            ; $AE47: A9 01
-  STA ppu_addr_hi                                         ; $AE49: 8D 01 00
+  STA a:ppu_addr_hi                                         ; $AE49: 8D 01 00
   JSR ComputeAttributeByte                            ; $AE4C: 20 D3 A8
   ; Bit 4 of $007E: the alternate attribute flush, NmiDoAttrWriteAlt.
   LDA a:$007E                                         ; $AE4F: AD 7E 00
@@ -2511,44 +2477,44 @@ MergeAttrBits:
   LDA a:$009C                                         ; $AE58: AD 9C 00
   AND #$10                                            ; $AE5B: 29 10
   BEQ @skip_3                                           ; $AE5D: F0 2B
-  LDA current_row                                         ; $AE5F: AD 06 00
+  LDA a:current_row                                         ; $AE5F: AD 06 00
   CMP #$08                                            ; $AE62: C9 08
   BNE @skip_2                                           ; $AE64: D0 1C
-  LDA scene_coord_ptr                                         ; $AE66: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $AE66: AD 0C 00
   AND #$10                                            ; $AE69: 29 10
   BEQ @skip_2                                           ; $AE6B: F0 15
   LDA attr_accumulator                                           ; $AE6D: AD 9E 01
   AND #$CC                                            ; $AE70: 29 CC
   STA attr_accumulator                                           ; $AE72: 8D 9E 01
-  LDA tile_attr_byte                                         ; $AE75: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AE75: AD 02 00
   AND #$33                                            ; $AE78: 29 33
   ORA attr_accumulator                                           ; $AE7A: 0D 9E 01
   STA attr_accumulator                                           ; $AE7D: 8D 9E 01
   INX                                                 ; $AE80: E8
   RTS                                                 ; $AE81: 60
 @skip_2:
-  LDA tile_attr_byte                                         ; $AE82: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AE82: AD 02 00
   STA attr_accumulator,X                                         ; $AE85: 9D 9E 01
   INX                                                 ; $AE88: E8
   RTS                                                 ; $AE89: 60
 @skip_3:
-  LDA current_row                                         ; $AE8A: AD 06 00
+  LDA a:current_row                                         ; $AE8A: AD 06 00
   CMP #$08                                            ; $AE8D: C9 08
   BNE @skip_4                                           ; $AE8F: D0 1C
-  LDA scene_coord_ptr                                         ; $AE91: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $AE91: AD 0C 00
   AND #$10                                            ; $AE94: 29 10
   BEQ @skip_4                                           ; $AE96: F0 15
   LDA attr_accumulator                                           ; $AE98: AD 9E 01
   AND #$CC                                            ; $AE9B: 29 CC
   STA attr_accumulator                                           ; $AE9D: 8D 9E 01
-  LDA tile_attr_byte                                         ; $AEA0: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AEA0: AD 02 00
   AND #$33                                            ; $AEA3: 29 33
   ORA attr_accumulator                                           ; $AEA5: 0D 9E 01
   STA attr_accumulator                                           ; $AEA8: 8D 9E 01
   INX                                                 ; $AEAB: E8
   RTS                                                 ; $AEAC: 60
 @skip_4:
-  LDA tile_attr_byte                                         ; $AEAD: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AEAD: AD 02 00
   STA attr_accumulator,X                                         ; $AEB0: 9D 9E 01
   INX                                                 ; $AEB3: E8
   RTS                                                 ; $AEB4: 60
@@ -2575,28 +2541,28 @@ LoadFieldMapOverlayWithOffset:
   LDA a:$008E                                         ; $AEB5: AD 8E 00
   CLC                                                 ; $AEB8: 18
   ADC #$04                                            ; $AEB9: 69 04
-  STA work_ptr_lo                                         ; $AEBB: 8D 0C 00
+  STA a:work_ptr_lo                                         ; $AEBB: 8D 0C 00
   LDA a:$008F                                         ; $AEBE: AD 8F 00
   ADC #$00                                            ; $AEC1: 69 00
-  STA work_ptr_hi                                         ; $AEC3: 8D 0D 00
+  STA a:work_ptr_hi                                         ; $AEC3: 8D 0D 00
   LDA a:$0090                                         ; $AEC6: AD 90 00
   CLC                                                 ; $AEC9: 18
   ADC #$A0                                            ; $AECA: 69 A0
-  STA coord_ptr_lo                                         ; $AECC: 8D 0E 00
+  STA a:coord_ptr_lo                                         ; $AECC: 8D 0E 00
   BCS @skip                                           ; $AECF: B0 04
   CMP #$F0                                            ; $AED1: C9 F0
   BCC @skip_2                                           ; $AED3: 90 12
 @skip:
   CLC                                                 ; $AED5: 18
   ADC #$10                                            ; $AED6: 69 10
-  STA coord_ptr_lo                                         ; $AED8: 8D 0E 00
+  STA a:coord_ptr_lo                                         ; $AED8: 8D 0E 00
   LDA a:$0091                                         ; $AEDB: AD 91 00
-  STA coord_ptr_hi                                         ; $AEDE: 8D 0F 00
-  INC coord_ptr_hi                                         ; $AEE1: EE 0F 00
+  STA a:coord_ptr_hi                                         ; $AEDE: 8D 0F 00
+  INC a:coord_ptr_hi                                         ; $AEE1: EE 0F 00
   JMP LoadFieldMapOverlay                                         ; $AEE4: 4C BC AD
 @skip_2:
   LDA a:$0091                                         ; $AEE7: AD 91 00
-  STA coord_ptr_hi                                         ; $AEEA: 8D 0F 00
+  STA a:coord_ptr_hi                                         ; $AEEA: 8D 0F 00
   JMP LoadFieldMapOverlay                                         ; $AEED: 4C BC AD
 .endproc
 
@@ -2615,15 +2581,15 @@ LoadFieldMapOverlayWithOffset:
   param_byte1     = $0000
   ppu_addr_hi     = $0001
 OverlayWindow:
-  LDA param_byte1                                         ; $AEF0: AD 00 00
-LoadOverlayPrimary:
+  LDA a:param_byte1                                         ; $AEF0: AD 00 00
+::LoadOverlayPrimary:
   PHA                                                 ; $AEF3: 48
   ASL A                                               ; $AEF4: 0A
   TAY                                                 ; $AEF5: A8
-  LDA FieldMapCropResolve::FieldMapOverlayPtrTable,Y                  ; $AEF6: B9 32 A7
-  STA param_byte1                                         ; $AEF9: 8D 00 00
-  LDA FieldMapCropResolve::FieldMapOverlayPtrTable+1,Y                ; $AEFC: B9 33 A7
-  STA param_byte2                                         ; $AEFF: 8D 01 00
+  LDA FieldMapOverlayPtrTable,Y                  ; $AEF6: B9 32 A7
+  STA a:param_byte1                                         ; $AEF9: 8D 00 00
+  LDA FieldMapOverlayPtrTable+1,Y                ; $AEFC: B9 33 A7
+  STA a:ppu_addr_hi                                         ; $AEFF: 8D 01 00
   PLA                                                 ; $AF02: 68
   TAY                                                 ; $AF03: A8
   LDA FieldMapCropResolve::FieldMapCropBankTable,Y                    ; $AF04: B9 22 A8
@@ -2645,9 +2611,9 @@ LoadOverlaySecondary:
   ASL A                                               ; $AF0C: 0A
   TAY                                                 ; $AF0D: A8
   LDA FieldMapOverlayPtrTable,Y                       ; $AF0E: B9 32 A7
-  STA ptr_0010_lo                                         ; $AF11: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $AF11: 8D 10 00
   LDA FieldMapOverlayPtrTable+1,Y                     ; $AF14: B9 33 A7
-  STA ptr_0010_hi                                         ; $AF17: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $AF17: 8D 11 00
   RTS                                                 ; $AF1A: 60
 .endproc
 ;===============================================================================
@@ -2659,7 +2625,7 @@ LoadOverlaySecondary:
 .proc PatchAttrAdjacency
   scene_coord_ptr     = $000C
 PatchAttrAdjacency:
-  LDA attr_ptr_lo                                         ; $AF1B: AD 0C 00
+  LDA a:scene_coord_ptr                                         ; $AF1B: AD 0C 00
   CLC                                                 ; $AF1E: 18
   ADC #$08                                            ; $AF1F: 69 08
   AND #$10                                            ; $AF21: 29 10
@@ -2682,35 +2648,35 @@ PatchAttrAdjacency:
   var_0019        = $0019
   adj_col_right       = $06A0  ; Primary layer: left-right neighbor column (tile_index_grid+32)
 PatchPrimaryAdjacency:
-  LDY var_0019                                         ; $AF30: AC 19 00
+  LDY a:var_0019                                         ; $AF30: AC 19 00
   LDA tile_index_grid,Y                                         ; $AF33: B9 80 06
   BMI @skip                                           ; $AF36: 30 0A
-  LDA rle_marker                                         ; $AF38: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AF38: AD 02 00
   AND #$FC                                            ; $AF3B: 29 FC
   ORA #$02                                            ; $AF3D: 09 02
-  STA rle_marker                                         ; $AF3F: 8D 02 00
+  STA a:tile_attr_byte                                         ; $AF3F: 8D 02 00
 @skip:
   LDA adj_col_right,Y                                         ; $AF42: B9 A0 06
   BMI @skip_2                                           ; $AF45: 30 0A
-  LDA rle_marker                                         ; $AF47: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AF47: AD 02 00
   AND #$F3                                            ; $AF4A: 29 F3
   ORA #$08                                            ; $AF4C: 09 08
-  STA rle_marker                                         ; $AF4E: 8D 02 00
+  STA a:tile_attr_byte                                         ; $AF4E: 8D 02 00
 @skip_2:
   INY                                                 ; $AF51: C8
   LDA tile_index_grid,Y                                         ; $AF52: B9 80 06
   BMI @skip_3                                           ; $AF55: 30 0A
-  LDA rle_marker                                         ; $AF57: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AF57: AD 02 00
   AND #$CF                                            ; $AF5A: 29 CF
   ORA #$20                                            ; $AF5C: 09 20
-  STA rle_marker                                         ; $AF5E: 8D 02 00
+  STA a:tile_attr_byte                                         ; $AF5E: 8D 02 00
 @skip_3:
   LDA adj_col_right,Y                                         ; $AF61: B9 A0 06
   BMI @skip_4                                           ; $AF64: 30 0A
-  LDA rle_marker                                         ; $AF66: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AF66: AD 02 00
   AND #$3F                                            ; $AF69: 29 3F
   ORA #$80                                            ; $AF6B: 09 80
-  STA rle_marker                                         ; $AF6D: 8D 02 00
+  STA a:tile_attr_byte                                         ; $AF6D: 8D 02 00
 @skip_4:
   RTS                                                 ; $AF70: 60
 .endproc
@@ -2727,37 +2693,37 @@ PatchPrimaryAdjacency:
   adj_sec_col_left    = $06C0  ; Secondary layer: up-down neighbor column (tile_index_grid+64)
   adj_sec_col_right   = $06E0  ; Secondary layer: left-right neighbor column (tile_index_grid+96)
 PatchSecondaryAdjacency:
-  LDY var_0019                                         ; $AF71: AC 19 00
+  LDY a:var_0019                                         ; $AF71: AC 19 00
   LDA adj_sec_col_left,Y                                         ; $AF74: B9 C0 06
   BMI @skip_5                                           ; $AF77: 30 0A
-  LDA param_0003                                         ; $AF79: AD 03 00
+  LDA a:param_0003                                         ; $AF79: AD 03 00
   AND #$FC                                            ; $AF7C: 29 FC
   ORA #$02                                            ; $AF7E: 09 02
-  STA param_0003                                         ; $AF80: 8D 03 00
+  STA a:param_0003                                         ; $AF80: 8D 03 00
 @skip_5:
   LDA adj_sec_col_right,Y                                         ; $AF83: B9 E0 06
   BMI @skip_6                                           ; $AF86: 30 0A
-  LDA param_0003                                         ; $AF88: AD 03 00
+  LDA a:param_0003                                         ; $AF88: AD 03 00
   AND #$F3                                            ; $AF8B: 29 F3
   ORA #$08                                            ; $AF8D: 09 08
-  STA param_0003                                         ; $AF8F: 8D 03 00
+  STA a:param_0003                                         ; $AF8F: 8D 03 00
 @skip_6:
   INY                                                 ; $AF92: C8
   LDA adj_sec_col_left,Y                                         ; $AF93: B9 C0 06
   BMI @skip_7                                           ; $AF96: 30 0A
-  LDA param_0003                                         ; $AF98: AD 03 00
+  LDA a:param_0003                                         ; $AF98: AD 03 00
   AND #$CF                                            ; $AF9B: 29 CF
   ORA #$20                                            ; $AF9D: 09 20
-  STA param_0003                                         ; $AF9F: 8D 03 00
+  STA a:param_0003                                         ; $AF9F: 8D 03 00
 @skip_7:
   LDA adj_sec_col_right,Y                                         ; $AFA2: B9 E0 06
   BMI @skip_8                                           ; $AFA5: 30 0A
-  LDA param_0003                                         ; $AFA7: AD 03 00
+  LDA a:param_0003                                         ; $AFA7: AD 03 00
   AND #$3F                                            ; $AFAA: 29 3F
   ORA #$80                                            ; $AFAC: 09 80
-  STA param_0003                                         ; $AFAE: 8D 03 00
+  STA a:param_0003                                         ; $AFAE: 8D 03 00
 @skip_8:
-  DEC temp_0017                                         ; $AFB1: CE 17 00
+  DEC a:temp_0017                                         ; $AFB1: CE 17 00
   RTS                                                 ; $AFB4: 60
 .endproc
 ;===============================================================================
@@ -2771,37 +2737,37 @@ PatchSecondaryAdjacency:
   ptr_0017_hi     = $0018
   adj_col_right       = $06A0  ; Primary layer: left-right neighbor column (tile_index_grid+32)
 PatchSingleAdjacency:
-  LDY ptr_0017_hi                                         ; $AFB5: AC 18 00
+  LDY a:ptr_0017_hi                                         ; $AFB5: AC 18 00
   LDA tile_index_grid,Y                                         ; $AFB8: B9 80 06
   BMI @skip_9                                           ; $AFBB: 30 0A
-  LDA rle_marker                                         ; $AFBD: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AFBD: AD 02 00
   AND #$FC                                            ; $AFC0: 29 FC
   ORA #$02                                            ; $AFC2: 09 02
-  STA rle_marker                                         ; $AFC4: 8D 02 00
+  STA a:tile_attr_byte                                         ; $AFC4: 8D 02 00
 @skip_9:
   LDA adj_col_right,Y                                         ; $AFC7: B9 A0 06
   BMI @skip_10                                           ; $AFCA: 30 0A
-  LDA rle_marker                                         ; $AFCC: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AFCC: AD 02 00
   AND #$CF                                            ; $AFCF: 29 CF
   ORA #$20                                            ; $AFD1: 09 20
-  STA rle_marker                                         ; $AFD3: 8D 02 00
+  STA a:tile_attr_byte                                         ; $AFD3: 8D 02 00
 @skip_10:
   INY                                                 ; $AFD6: C8
-  LDA var_0680,Y                                         ; $AFD7: B9 80 06
+  LDA tile_index_grid,Y                                         ; $AFD7: B9 80 06
   BMI @skip_11                                           ; $AFDA: 30 0A
-  LDA rle_marker                                         ; $AFDC: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AFDC: AD 02 00
   AND #$F3                                            ; $AFDF: 29 F3
   ORA #$08                                            ; $AFE1: 09 08
-  STA rle_marker                                         ; $AFE3: 8D 02 00
+  STA a:tile_attr_byte                                         ; $AFE3: 8D 02 00
 @skip_11:
-  LDA var_06a0,Y                                         ; $AFE6: B9 A0 06
+  LDA adj_col_right,Y                                         ; $AFE6: B9 A0 06
   BMI @skip_12                                           ; $AFE9: 30 0A
-  LDA rle_marker                                         ; $AFEB: AD 02 00
+  LDA a:tile_attr_byte                                         ; $AFEB: AD 02 00
   AND #$3F                                            ; $AFEE: 29 3F
   ORA #$80                                            ; $AFF0: 09 80
-  STA rle_marker                                         ; $AFF2: 8D 02 00
+  STA a:tile_attr_byte                                         ; $AFF2: 8D 02 00
 @skip_12:
-  DEC ptr_0017_lo                                         ; $AFF5: CE 17 00
+  DEC a:ptr_0017_lo                                         ; $AFF5: CE 17 00
   RTS                                                 ; $AFF8: 60
 .endproc
 ;===============================================================================
@@ -2841,7 +2807,7 @@ BuildAdjacencyMap:
   adj_sec_col_right = $06E0  ; Secondary layer: left-right neighbor column (tile_index_grid+96)
 PopulateAdjacencyEntries:
   LDA oam_y_pos,Y                                         ; $B00F: B9 00 06
-  CMP work_0018                                         ; $B012: CD 18 00
+  CMP a:work_0018                                         ; $B012: CD 18 00
   BNE @skip_13                                           ; $B015: D0 09
   PHA                                                 ; $B017: 48
   LDX oam_x_pos,Y                                         ; $B018: BE 14 06
@@ -2849,8 +2815,8 @@ PopulateAdjacencyEntries:
   STA tile_index_grid,X                                         ; $B01C: 9D 80 06
   PLA                                                 ; $B01F: 68
 @skip_13:
-  INC work_0018                                         ; $B020: EE 18 00
-  CMP work_0018                                         ; $B023: CD 18 00
+  INC a:work_0018                                         ; $B020: EE 18 00
+  CMP a:work_0018                                         ; $B023: CD 18 00
   BNE @skip_14                                           ; $B026: D0 09
   PHA                                                 ; $B028: 48
   LDX oam_x_pos,Y                                         ; $B029: BE 14 06
@@ -2858,7 +2824,7 @@ PopulateAdjacencyEntries:
   STA adj_col_right,X                                         ; $B02D: 9D A0 06
   PLA                                                 ; $B030: 68
 @skip_14:
-  CMP work_0016                                         ; $B031: CD 16 00
+  CMP a:work_0016                                         ; $B031: CD 16 00
   BNE @skip_15                                           ; $B034: D0 09
   PHA                                                 ; $B036: 48
   LDX oam_x_pos,Y                                         ; $B037: BE 14 06
@@ -2866,15 +2832,15 @@ PopulateAdjacencyEntries:
   STA adj_sec_col_left,X                                         ; $B03B: 9D C0 06
   PLA                                                 ; $B03E: 68
 @skip_15:
-  INC work_0016                                         ; $B03F: EE 16 00
-  CMP work_0016                                         ; $B042: CD 16 00
+  INC a:work_0016                                         ; $B03F: EE 16 00
+  CMP a:work_0016                                         ; $B042: CD 16 00
   BNE @skip_16                                           ; $B045: D0 07
   LDX oam_x_pos,Y                                         ; $B047: BE 14 06
   TYA                                                 ; $B04A: 98
   STA adj_sec_col_right,X                                         ; $B04B: 9D E0 06
 @skip_16:
-  DEC work_0016                                         ; $B04E: CE 16 00
-  DEC work_0018                                         ; $B051: CE 18 00
+  DEC a:work_0016                                         ; $B04E: CE 16 00
+  DEC a:work_0018                                         ; $B051: CE 18 00
   RTS                                                 ; $B054: 60
 .endproc
 ;===============================================================================
@@ -2910,7 +2876,7 @@ BuildAdjacencyMapSmall:
   adj_col_right     = $06A0  ; Primary layer: left-right neighbor column (tile_index_grid+32)
 PopulateAdjacencyEntriesSmall:
   LDA oam_y_pos,Y                                         ; $B06B: B9 14 06
-  CMP work_0019                                         ; $B06E: CD 19 00
+  CMP a:work_0019                                         ; $B06E: CD 19 00
   BNE @skip_17                                           ; $B071: D0 09
   PHA                                                 ; $B073: 48
   LDX oam_x_pos,Y                                         ; $B074: BE 00 06
@@ -2918,14 +2884,14 @@ PopulateAdjacencyEntriesSmall:
   STA tile_index_grid,X                                         ; $B078: 9D 80 06
   PLA                                                 ; $B07B: 68
 @skip_17:
-  INC work_0019                                         ; $B07C: EE 19 00
-  CMP work_0019                                         ; $B07F: CD 19 00
+  INC a:work_0019                                         ; $B07C: EE 19 00
+  CMP a:work_0019                                         ; $B07F: CD 19 00
   BNE @skip_18                                           ; $B082: D0 07
   LDX oam_x_pos,Y                                         ; $B084: BE 00 06
   TYA                                                 ; $B087: 98
   STA adj_col_right,X                                         ; $B088: 9D A0 06
 @skip_18:
-  DEC work_0019                                         ; $B08B: CE 19 00
+  DEC a:work_0019                                         ; $B08B: CE 19 00
   RTS                                                 ; $B08E: 60
 .endproc
 ;===============================================================================
@@ -2947,46 +2913,46 @@ PopulateAdjacencyEntriesSmall:
   scene_byte_ptr_lo = $001C
   scene_byte_ptr_hi = $001D
 PrepareAdjacencyPtrs:
-  LDA attr_byte_ptr_lo                                    ; $B08F: AD 0C 00
-  STA tile_attr_ptr_lo                                    ; $B092: 8D 18 00
-  LDA attr_byte_ptr_hi                                    ; $B095: AD 0D 00
+  LDA a:attr_byte_ptr_lo                                    ; $B08F: AD 0C 00
+  STA a:tile_attr_ptr_lo                                    ; $B092: 8D 18 00
+  LDA a:attr_byte_ptr_hi                                    ; $B095: AD 0D 00
   LSR A                                                   ; $B098: 4A
-  ROR tile_attr_ptr_lo                                    ; $B099: 6E 18 00
-  LSR tile_attr_ptr_lo                                    ; $B09C: 4E 18 00
-  LSR tile_attr_ptr_lo                                    ; $B09F: 4E 18 00
-  LSR tile_attr_ptr_lo                                    ; $B0A2: 4E 18 00
-  LSR tile_attr_ptr_lo                                    ; $B0A5: 4E 18 00
-  ASL tile_attr_ptr_lo                                    ; $B0A8: 0E 18 00
-  LDA coord_byte_ptr_lo                                   ; $B0AB: AD 0E 00
-  STA tile_attr_ptr_hi                                    ; $B0AE: 8D 19 00
-  LDA coord_byte_ptr_hi                                   ; $B0B1: AD 0F 00
+  ROR a:tile_attr_ptr_lo                                    ; $B099: 6E 18 00
+  LSR a:tile_attr_ptr_lo                                    ; $B09C: 4E 18 00
+  LSR a:tile_attr_ptr_lo                                    ; $B09F: 4E 18 00
+  LSR a:tile_attr_ptr_lo                                    ; $B0A2: 4E 18 00
+  LSR a:tile_attr_ptr_lo                                    ; $B0A5: 4E 18 00
+  ASL a:tile_attr_ptr_lo                                    ; $B0A8: 0E 18 00
+  LDA a:coord_byte_ptr_lo                                   ; $B0AB: AD 0E 00
+  STA a:tile_attr_ptr_hi                                    ; $B0AE: 8D 19 00
+  LDA a:coord_byte_ptr_hi                                   ; $B0B1: AD 0F 00
   LSR A                                                   ; $B0B4: 4A
-  ROR tile_attr_ptr_hi                                    ; $B0B5: 6E 19 00
-  LSR tile_attr_ptr_hi                                    ; $B0B8: 4E 19 00
-  LSR tile_attr_ptr_hi                                    ; $B0BB: 4E 19 00
-  LSR tile_attr_ptr_hi                                    ; $B0BE: 4E 19 00
-  LSR tile_attr_ptr_hi                                    ; $B0C1: 4E 19 00
-  ASL tile_attr_ptr_hi                                    ; $B0C4: 0E 19 00
-  LDA scene_byte_ptr_lo                                   ; $B0C7: AD 1C 00
-  STA tile_col_ptr_lo                                     ; $B0CA: 8D 16 00
-  LDA scene_byte_ptr_hi                                   ; $B0CD: AD 1D 00
+  ROR a:tile_attr_ptr_hi                                    ; $B0B5: 6E 19 00
+  LSR a:tile_attr_ptr_hi                                    ; $B0B8: 4E 19 00
+  LSR a:tile_attr_ptr_hi                                    ; $B0BB: 4E 19 00
+  LSR a:tile_attr_ptr_hi                                    ; $B0BE: 4E 19 00
+  LSR a:tile_attr_ptr_hi                                    ; $B0C1: 4E 19 00
+  ASL a:tile_attr_ptr_hi                                    ; $B0C4: 0E 19 00
+  LDA a:scene_byte_ptr_lo                                   ; $B0C7: AD 1C 00
+  STA a:tile_col_ptr_lo                                     ; $B0CA: 8D 16 00
+  LDA a:scene_byte_ptr_hi                                   ; $B0CD: AD 1D 00
   LSR A                                                   ; $B0D0: 4A
-  ROR tile_col_ptr_lo                                     ; $B0D1: 6E 16 00
-  LSR tile_col_ptr_lo                                     ; $B0D4: 4E 16 00
-  LSR tile_col_ptr_lo                                     ; $B0D7: 4E 16 00
-  LSR tile_col_ptr_lo                                     ; $B0DA: 4E 16 00
-  LSR tile_col_ptr_lo                                     ; $B0DD: 4E 16 00
-  ASL tile_col_ptr_lo                                     ; $B0E0: 0E 16 00
-  LDA coord_byte_ptr_lo                                   ; $B0E3: AD 0E 00
-  STA tile_col_ptr_hi                                     ; $B0E6: 8D 17 00
-  LDA coord_byte_ptr_hi                                   ; $B0E9: AD 0F 00
+  ROR a:tile_col_ptr_lo                                     ; $B0D1: 6E 16 00
+  LSR a:tile_col_ptr_lo                                     ; $B0D4: 4E 16 00
+  LSR a:tile_col_ptr_lo                                     ; $B0D7: 4E 16 00
+  LSR a:tile_col_ptr_lo                                     ; $B0DA: 4E 16 00
+  LSR a:tile_col_ptr_lo                                     ; $B0DD: 4E 16 00
+  ASL a:tile_col_ptr_lo                                     ; $B0E0: 0E 16 00
+  LDA a:coord_byte_ptr_lo                                   ; $B0E3: AD 0E 00
+  STA a:tile_col_ptr_hi                                     ; $B0E6: 8D 17 00
+  LDA a:coord_byte_ptr_hi                                   ; $B0E9: AD 0F 00
   LSR A                                                   ; $B0EC: 4A
-  ROR tile_col_ptr_hi                                     ; $B0ED: 6E 17 00
-  LSR tile_col_ptr_hi                                     ; $B0F0: 4E 17 00
-  LSR tile_col_ptr_hi                                     ; $B0F3: 4E 17 00
-  LSR tile_col_ptr_hi                                     ; $B0F6: 4E 17 00
-  LSR tile_col_ptr_hi                                     ; $B0F9: 4E 17 00
-  ASL tile_col_ptr_hi                                     ; $B0FC: 0E 17 00
+  ROR a:tile_col_ptr_hi                                     ; $B0ED: 6E 17 00
+  LSR a:tile_col_ptr_hi                                     ; $B0F0: 4E 17 00
+  LSR a:tile_col_ptr_hi                                     ; $B0F3: 4E 17 00
+  LSR a:tile_col_ptr_hi                                     ; $B0F6: 4E 17 00
+  LSR a:tile_col_ptr_hi                                     ; $B0F9: 4E 17 00
+  ASL a:tile_col_ptr_hi                                     ; $B0FC: 0E 17 00
   RTS                                                     ; $B0FF: 60
 .endproc
 
@@ -3095,7 +3061,7 @@ DuelScene_InitOfficers:
   CPX #$02                                            ; $B176: E0 02
   BCC @loop                                           ; $B178: 90 EB
   LDA #$43                                            ; $B17A: A9 43
-  STA officer_data_ptr                                         ; $B17C: 8D 00 00
+  STA a:officer_data_ptr                                         ; $B17C: 8D 00 00
   LDA name_tile_index                                           ; $B17F: AD AF 04
   CLC                                                 ; $B182: 18
   ADC #$01                                            ; $B183: 69 01
@@ -3134,7 +3100,7 @@ DuelScene_ShowMsg:
   AND #$04                                            ; $B1A9: 29 04
   BNE @skip                                           ; $B1AB: D0 0D
   LDA #$E3                                            ; $B1AD: A9 E3
-  STA officer_data_ptr                                         ; $B1AF: 8D 00 00
+  STA a:officer_data_ptr                                         ; $B1AF: 8D 00 00
   LDA #$04                                            ; $B1B2: A9 04
   JSR BuildPPUTileBuffer                                           ; $B1B4: 20 FD CD
   INC sub_state                                           ; $B1B7: EE A9 04
@@ -3151,7 +3117,7 @@ DuelScene_ShowDialog:
   AND #$04                                            ; $B1BE: 29 04
   BNE @skip                                           ; $B1C0: D0 11
   LDA #$55                                            ; $B1C2: A9 55
-  STA officer_data_ptr                                         ; $B1C4: 8D 00 00
+  STA a:officer_data_ptr                                         ; $B1C4: 8D 00 00
   LDA strategy_action_index                                           ; $B1C7: AD B0 04
   CLC                                                 ; $B1CA: 18
   ADC #$05                                            ; $B1CB: 69 05
@@ -3170,7 +3136,7 @@ DuelScene_LoadPortrait:
   AND #$04                                            ; $B1D7: 29 04
   BNE @skip                                           ; $B1D9: D0 12
   LDA #$F5                                            ; $B1DB: A9 F5
-  STA officer_data_ptr                                         ; $B1DD: 8D 00 00
+  STA a:officer_data_ptr                                         ; $B1DD: 8D 00 00
   LDA #$08                                            ; $B1E0: A9 08
   JSR BuildPPUTileBuffer                                           ; $B1E2: 20 FD CD
   INC sub_state                                           ; $B1E5: EE A9 04
@@ -3189,11 +3155,11 @@ DuelScene_BuildRiderSprites:
   JSR B1F_SwitchBank8_B                               ; $B1F0: 20 5F F2
   LDX #$00                                            ; $B1F3: A2 00
   LDA #$44                                            ; $B1F5: A9 44
-  STA sprite_row_count                                         ; $B1F7: 8D 03 00
+  STA a:sprite_row_count                                         ; $B1F7: 8D 03 00
   LDA player_officer_id_0                                           ; $B1FA: AD AD 04
   JSR ExpandMetatileToSprites                            ; $B1FD: 20 A3 CF
   LDA #$52                                            ; $B200: A9 52
-  STA sprite_row_count                                         ; $B202: 8D 03 00
+  STA a:sprite_row_count                                         ; $B202: 8D 03 00
   LDA player_officer_id_1                                           ; $B205: AD AE 04
   JSR ExpandMetatileToSprites                            ; $B208: 20 A3 CF
   LDA #$FF                                            ; $B20B: A9 FF
@@ -3326,25 +3292,25 @@ DuelScene_EquipWeightTable:
 DuelScene_ShowChallenge:
   LDY name_tile_index                                           ; $B2E0: AC AF 04
   LDA DuelScene_NameTileLookup+9,Y                                         ; $B2E3: B9 4C B3
-  STA officer_data_ptr                                         ; $B2E6: 8D 00 00
+  STA a:officer_data_ptr                                         ; $B2E6: 8D 00 00
   LDY strategy_action_index                                           ; $B2E9: AC B0 04
   LDA DuelScene_NameTileLookup+9,Y                                         ; $B2EC: B9 4C B3
-  STA ppu_tile_lo                                         ; $B2EF: 8D 01 00
-  LDA officer_data_ptr                                         ; $B2F2: AD 00 00
+  STA a:ppu_tile_lo                                         ; $B2EF: 8D 01 00
+  LDA a:officer_data_ptr                                         ; $B2F2: AD 00 00
   ASL A                                               ; $B2F5: 0A
   CLC                                                 ; $B2F6: 18
-  ADC officer_data_ptr                                         ; $B2F7: 6D 00 00
+  ADC a:officer_data_ptr                                         ; $B2F7: 6D 00 00
   CLC                                                 ; $B2FA: 18
-  ADC ppu_tile_lo                                         ; $B2FB: 6D 01 00
+  ADC a:ppu_tile_lo                                         ; $B2FB: 6D 01 00
   TAY                                                 ; $B2FE: A8
   LDA DuelScene_NameTileLookup,Y                                         ; $B2FF: B9 43 B3
   STA name_tile_ptr_lo                                           ; $B302: 8D C5 04
-  LDA ppu_tile_lo                                         ; $B305: AD 01 00
+  LDA a:ppu_tile_lo                                         ; $B305: AD 01 00
   ASL A                                               ; $B308: 0A
   CLC                                                 ; $B309: 18
-  ADC ppu_tile_lo                                         ; $B30A: 6D 01 00
+  ADC a:ppu_tile_lo                                         ; $B30A: 6D 01 00
   CLC                                                 ; $B30D: 18
-  ADC officer_data_ptr                                         ; $B30E: 6D 00 00
+  ADC a:officer_data_ptr                                         ; $B30E: 6D 00 00
   TAY                                                 ; $B311: A8
   LDA DuelScene_NameTileLookup,Y                                         ; $B312: B9 43 B3
   STA name_tile_ptr_hi                                           ; $B315: 8D C6 04
@@ -3440,7 +3406,7 @@ DuelCmd_RoundSetup:
 @skip_4:
   LDY active_player_slot                                           ; $B39F: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B3A2: B9 AD 04
-  STA officer_data_ptr                                         ; $B3A5: 8D 00 00
+  STA a:officer_data_ptr                                         ; $B3A5: 8D 00 00
   LDY #$3D                                            ; $B3A8: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $B3AA: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -3451,7 +3417,7 @@ DuelCmd_RoundSetup:
   BEQ @skip_5                                           ; $B3B7: F0 02
   LDA #$02                                            ; $B3B9: A9 02
 @skip_5:
-  STA a:zp_a4                                         ; $B3BB: 8D A4 00
+  STA a:callback_result                                         ; $B3BB: 8D A4 00
   INC sub_state                                           ; $B3BE: EE A9 04
   LDA #$2B                                            ; $B3C1: A9 2B
   JMP B1F_OpenMsgWindow0                              ; $B3C3: 4C 6D F2
@@ -3516,27 +3482,27 @@ DuelCmd_RenderStats:
 DuelCmd_CommandMenu:
   JSR SetupMenuPtr                                           ; $B407: 20 66 D1
   LDA #<DuelCommandMenuTable                              ; $B40A: A9 61  ; ($0010) = menu grid
-  STA ptr_0010_lo                                         ; $B40C: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $B40C: 8D 10 00
   LDA #>DuelCommandMenuTable                              ; $B40F: A9 B4
-  STA ptr_0010_hi                                         ; $B411: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $B411: 8D 11 00
   LDA #$00                                            ; $B414: A9 00
-  STA menu_index                                         ; $B416: 8D 12 00
+  STA a:menu_index                                         ; $B416: 8D 12 00
   JSR B1F_MenuStep2                                   ; $B419: 20 1E ED
   LDA #<DuelCommandCursorPosTable                         ; $B41C: A9 6B  ; ($0010) = cursor pos table
-  STA ptr_0010_lo                                         ; $B41E: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $B41E: 8D 10 00
   LDA #>DuelCommandCursorPosTable                         ; $B421: A9 B4
-  STA ptr_0010_hi                                         ; $B423: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $B423: 8D 11 00
   LDA #<DuelCommandCursorSprite                           ; $B426: A9 79  ; ($0000) = cursor blob
-  STA cursor_data_ptr_lo                                  ; $B428: 8D 00 00
+  STA a:cursor_data_ptr_lo                                  ; $B428: 8D 00 00
   LDA #>DuelCommandCursorSprite                           ; $B42B: A9 B4
-  STA cursor_data_ptr_hi                                  ; $B42D: 8D 01 00
-  LDA menu_index                                         ; $B430: AD 12 00
+  STA a:cursor_data_ptr_hi                                  ; $B42D: 8D 01 00
+  LDA a:menu_index                                         ; $B430: AD 12 00
   JSR B1F_PointerTableLookup                          ; $B433: 20 F5 ED
   LDA a:$0081                                         ; $B436: AD 81 00
   LSR A                                               ; $B439: 4A
   BCC @skip_2                                           ; $B43A: 90 24
   INC sub_state                                           ; $B43C: EE A9 04
-  LDA menu_index                                         ; $B43F: AD 12 00
+  LDA a:menu_index                                         ; $B43F: AD 12 00
   STA duel_command_code                                           ; $B442: 8D BF 04
   CMP #$04                                            ; $B445: C9 04
   BNE @skip_2                                           ; $B447: D0 17
@@ -3708,26 +3674,26 @@ DuelCmd_TacticConfirm:
 DuelCmd_TacticSelect:
   JSR SetupMenuPtr                                           ; $B569: 20 66 D1
   LDA #<DuelTacticMenuTable                             ; $B56C: A9 BB  ; ($0010) = submenu grid
-  STA ptr_0010_lo                                         ; $B56E: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $B56E: 8D 10 00
   LDA #>DuelTacticMenuTable                               ; $B571: A9 B5
-  STA ptr_0010_hi                                         ; $B573: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $B573: 8D 11 00
   LDA #$00                                            ; $B576: A9 00
-  STA menu_index                                         ; $B578: 8D 12 00
+  STA a:menu_index                                         ; $B578: 8D 12 00
   JSR B1F_MenuStep2                                   ; $B57B: 20 1E ED
   LDA #<DuelTacticCursorPosTable                        ; $B57E: A9 BF  ; ($0010) = cursor pos table
-  STA ptr_0010_lo                                         ; $B580: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $B580: 8D 10 00
   LDA #>DuelTacticCursorPosTable                        ; $B583: A9 B5
-  STA ptr_0010_hi                                         ; $B585: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $B585: 8D 11 00
   LDA #<DuelTacticCursorSprite                          ; $B588: A9 C3  ; ($0000) = cursor blob
-  STA cursor_data_ptr_lo                                  ; $B58A: 8D 00 00
+  STA a:cursor_data_ptr_lo                                  ; $B58A: 8D 00 00
   LDA #>DuelTacticCursorSprite                          ; $B58D: A9 B5
-  STA cursor_data_ptr_hi                                  ; $B58F: 8D 01 00
-  LDA menu_index                                         ; $B592: AD 12 00
+  STA a:cursor_data_ptr_hi                                  ; $B58F: 8D 01 00
+  LDA a:menu_index                                         ; $B592: AD 12 00
   JSR B1F_PointerTableLookup                          ; $B595: 20 F5 ED
   LDA a:$0081                                         ; $B598: AD 81 00
   LSR A                                               ; $B59B: 4A
   BCC @skip                                           ; $B59C: 90 0F
-  LDA menu_index                                         ; $B59E: AD 12 00
+  LDA a:menu_index                                         ; $B59E: AD 12 00
   CLC                                                 ; $B5A1: 18
   ADC #$07                                            ; $B5A2: 69 07
   STA duel_command_code                                           ; $B5A4: 8D BF 04
@@ -3794,26 +3760,26 @@ DuelAi_SurrenderCheck:
   EOR #$01                                            ; $B5DB: 49 01
   TAY                                                 ; $B5DD: A8
   LDA war_side_strength_0,Y                                         ; $B5DE: B9 B1 04
-  STA gate_threshold                                         ; $B5E1: 8D 10 00
+  STA a:gate_threshold                                         ; $B5E1: 8D 10 00
   LDY active_player_slot                                           ; $B5E4: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B5E7: B9 AD 04
   JSR B1F_GetOfficerRomRecordAddr                     ; $B5EA: 20 87 F3
   LDY #$00                                            ; $B5ED: A0 00
   LDA (officer_data_ptr),Y                                         ; $B5EF: B1 00
   LSR A                                               ; $B5F1: 4A
-  STA vitality_half_threshold                                         ; $B5F2: 8D 11 00
+  STA a:vitality_half_threshold                                         ; $B5F2: 8D 11 00
   LDY active_player_slot                                           ; $B5F5: AC AA 04
   LDA war_side_strength_0,Y                                         ; $B5F8: B9 B1 04
-  CMP vitality_half_threshold                                         ; $B5FB: CD 11 00
+  CMP a:vitality_half_threshold                                         ; $B5FB: CD 11 00
   BCS @GaugeHealthy                                           ; $B5FE: B0 1F
-  CMP gate_threshold                                         ; $B600: CD 10 00
+  CMP a:gate_threshold                                         ; $B600: CD 10 00
   BCS @NextCheck                                           ; $B603: B0 1D
   JSR CheckPlayerIsRuler                                           ; $B605: 20 62 D2
   BCS @NextCheck                                           ; $B608: B0 18
   JSR DuelAi_SurrenderThreshold                                           ; $B60A: 20 B3 B7
-  CMP gate_threshold                                         ; $B60D: CD 10 00
+  CMP a:gate_threshold                                         ; $B60D: CD 10 00
   BCS @NextCheck                                           ; $B610: B0 10
-  LDA gate_threshold                                         ; $B612: AD 10 00
+  LDA a:gate_threshold                                         ; $B612: AD 10 00
   BEQ @NextCheck                                           ; $B615: F0 0B
   LDA #$03                                            ; $B617: A9 03
   STA duel_command_code                                           ; $B619: 8D BF 04
@@ -3837,17 +3803,17 @@ DuelAi_DesperateCheck:
   EOR #$01                                            ; $B629: 49 01
   TAY                                                 ; $B62B: A8
   LDA war_side_strength_0,Y                                         ; $B62C: B9 B1 04
-  STA gate_threshold                                         ; $B62F: 8D 10 00
+  STA a:gate_threshold                                         ; $B62F: 8D 10 00
   LDY active_player_slot                                           ; $B632: AC AA 04
   LDA war_side_strength_0,Y                                         ; $B635: B9 B1 04
   CLC                                                 ; $B638: 18
   ADC #$1E                                            ; $B639: 69 1E
-  CMP gate_threshold                                         ; $B63B: CD 10 00
+  CMP a:gate_threshold                                         ; $B63B: CD 10 00
   BCS @NextCheck                                           ; $B63E: B0 15
   JSR DuelAi_DesperateThreshold                                           ; $B640: 20 DD B7
-  CMP gate_threshold                                         ; $B643: CD 10 00
+  CMP a:gate_threshold                                         ; $B643: CD 10 00
   BCS @NextCheck                                           ; $B646: B0 0D
-  LDA gate_threshold                                         ; $B648: AD 10 00
+  LDA a:gate_threshold                                         ; $B648: AD 10 00
   BEQ @NextCheck                                           ; $B64B: F0 08
   LDA #$06                                            ; $B64D: A9 06
   STA duel_command_code                                           ; $B64F: 8D BF 04
@@ -3876,9 +3842,9 @@ DuelAi_StrikeCheck:
   CMP #$32                                            ; $B66C: C9 32
   BCC @NextCheck                                           ; $B66E: 90 15
   JSR DuelAi_StrikeThreshold                                           ; $B670: 20 16 B8
-  CMP strike_threshold                                         ; $B673: CD 10 00
+  CMP a:strike_threshold                                         ; $B673: CD 10 00
   BCS @NextCheck                                           ; $B676: B0 0D
-  LDA strike_threshold                                         ; $B678: AD 10 00
+  LDA a:strike_threshold                                         ; $B678: AD 10 00
   BEQ @NextCheck                                           ; $B67B: F0 08
   LDA #$02                                            ; $B67D: A9 02
   STA duel_command_code                                           ; $B67F: 8D BF 04
@@ -3909,7 +3875,7 @@ DuelAi_TacticCheck:
   JSR B1F_GetOfficerRecordAddr                        ; $B699: 20 D7 F2
   LDY #$02                                            ; $B69C: A0 02
   LDA (officer_data_ptr),Y                                         ; $B69E: B1 00
-  STA gate_value                                         ; $B6A0: 8D 10 00
+  STA a:gate_value                                         ; $B6A0: 8D 10 00
   LDA active_player_slot                                           ; $B6A3: AD AA 04
   EOR #$01                                            ; $B6A6: 49 01
   TAY                                                 ; $B6A8: A8
@@ -3917,12 +3883,12 @@ DuelAi_TacticCheck:
   JSR B1F_GetOfficerRecordAddr                        ; $B6AC: 20 D7 F2
   LDY #$02                                            ; $B6AF: A0 02
   LDA (officer_data_ptr),Y                                         ; $B6B1: B1 00
-  CMP gate_value                                         ; $B6B3: CD 10 00
+  CMP a:gate_value                                         ; $B6B3: CD 10 00
   BCS @InsultGate                                           ; $B6B6: B0 15
   JSR DuelAi_PersuadeThreshold                                           ; $B6B8: 20 51 B8
-  CMP gate_value                                         ; $B6BB: CD 10 00
+  CMP a:gate_value                                         ; $B6BB: CD 10 00
   BCS @InsultGate                                           ; $B6BE: B0 0D
-  LDA gate_value                                         ; $B6C0: AD 10 00
+  LDA a:gate_value                                         ; $B6C0: AD 10 00
   BEQ @InsultGate                                           ; $B6C3: F0 08
   LDA #$07                                            ; $B6C5: A9 07
   STA duel_command_code                                           ; $B6C7: 8D BF 04
@@ -3933,7 +3899,7 @@ DuelAi_TacticCheck:
   JSR B1F_GetOfficerRecordAddr                        ; $B6D3: 20 D7 F2
   LDY #$01                                            ; $B6D6: A0 01
   LDA (officer_data_ptr),Y                                         ; $B6D8: B1 00
-  STA gate_value                                         ; $B6DA: 8D 10 00
+  STA a:gate_value                                         ; $B6DA: 8D 10 00
   LDA active_player_slot                                           ; $B6DD: AD AA 04
   EOR #$01                                            ; $B6E0: 49 01
   TAY                                                 ; $B6E2: A8
@@ -3941,10 +3907,10 @@ DuelAi_TacticCheck:
   JSR B1F_GetOfficerRecordAddr                        ; $B6E6: 20 D7 F2
   LDY #$01                                            ; $B6E9: A0 01
   LDA (officer_data_ptr),Y                                         ; $B6EB: B1 00
-  CMP gate_value                                         ; $B6ED: CD 10 00
+  CMP a:gate_value                                         ; $B6ED: CD 10 00
   BCC @NextCheck                                           ; $B6F0: 90 23
   JSR DuelAi_InsultThreshold                                           ; $B6F2: 20 9B B8
-  CMP gate_value                                         ; $B6F5: CD 10 00
+  CMP a:gate_value                                         ; $B6F5: CD 10 00
   BCS @NextCheck                                           ; $B6F8: B0 1B
   LDY active_player_slot                                           ; $B6FA: AC AA 04
   LDA player_action_timer_0,Y                                         ; $B6FD: B9 B5 04
@@ -4001,10 +3967,10 @@ DuelAi_PickFeintStrike:
   TAX                                                 ; $B74A: AA
 @TierIndexSet:
   JSR B1F_RandomMod8                                  ; $B74B: 20 56 E8
-  STA rand_roll                                         ; $B74E: 8D 00 00
+  STA a:rand_roll                                         ; $B74E: 8D 00 00
   TXA                                                 ; $B751: 8A
   CLC                                                 ; $B752: 18
-  ADC rand_roll                                         ; $B753: 6D 00 00
+  ADC a:rand_roll                                         ; $B753: 6D 00 00
   TAX                                                 ; $B756: AA
   LDA DuelAi_FeintStrikeTable,X                                         ; $B757: BD 60 B7
   STA duel_command_code                                           ; $B75A: 8D BF 04
@@ -4046,21 +4012,21 @@ DuelAi_CommitCommand:
 DuelAi_SurrenderThreshold:
   LDY active_player_slot                                           ; $B7B3: AC AA 04
   LDA war_side_strength_0,Y                                         ; $B7B6: B9 B1 04
-  STA threshold                                         ; $B7B9: 8D 10 00
+  STA a:threshold                                         ; $B7B9: 8D 10 00
   LDA player_officer_id_0,Y                                         ; $B7BC: B9 AD 04
   JMP B1F_GetOfficerRecordAddr                        ; $B7BF: 4C D7 F2
   LDY #$03                                            ; $B7C2: A0 03
   LDA (officer_data_ptr),Y                                         ; $B7C4: B1 00
   CLC                                                 ; $B7C6: 18
-  ADC threshold                                         ; $B7C7: 6D 10 00
-  STA threshold                                         ; $B7CA: 8D 10 00
+  ADC a:threshold                                         ; $B7C7: 6D 10 00
+  STA a:threshold                                         ; $B7CA: 8D 10 00
   LDA #$8C                                            ; $B7CD: A9 8C
   SEC                                                 ; $B7CF: 38
-  SBC threshold                                         ; $B7D0: ED 10 00
+  SBC a:threshold                                         ; $B7D0: ED 10 00
   BPL @FloorZero                                           ; $B7D3: 10 02
   LDA #$00                                            ; $B7D5: A9 00
 @FloorZero:
-  STA threshold                                         ; $B7D7: 8D 10 00
+  STA a:threshold                                         ; $B7D7: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B7DA: 4C 43 E8
 .endproc
 ;===============================================================================
@@ -4081,25 +4047,25 @@ DuelAi_DesperateThreshold:
   JSR B1F_GetOfficerRecordAddr                        ; $B7E3: 20 D7 F2
   LDY #$01                                            ; $B7E6: A0 01
   LDA (officer_data_ptr),Y                                         ; $B7E8: B1 00
-  STA threshold                                         ; $B7EA: 8D 10 00
+  STA a:threshold                                         ; $B7EA: 8D 10 00
   LDY #$02                                            ; $B7ED: A0 02
   LDA (officer_data_ptr),Y                                         ; $B7EF: B1 00
-  CMP threshold                                         ; $B7F1: CD 10 00
+  CMP a:threshold                                         ; $B7F1: CD 10 00
   BCC @MaxPicked                                           ; $B7F4: 90 03
-  STA threshold                                         ; $B7F6: 8D 10 00
+  STA a:threshold                                         ; $B7F6: 8D 10 00
 @MaxPicked:
   LDY active_player_slot                                           ; $B7F9: AC AA 04
   LDA war_side_strength_0,Y                                         ; $B7FC: B9 B1 04
   CLC                                                 ; $B7FF: 18
-  ADC threshold                                         ; $B800: 6D 10 00
-  STA threshold                                         ; $B803: 8D 10 00
+  ADC a:threshold                                         ; $B800: 6D 10 00
+  STA a:threshold                                         ; $B803: 8D 10 00
   LDA #$7C                                            ; $B806: A9 7C
   SEC                                                 ; $B808: 38
-  SBC threshold                                         ; $B809: ED 10 00
+  SBC a:threshold                                         ; $B809: ED 10 00
   BPL @FloorZero                                           ; $B80C: 10 02
   LDA #$00                                            ; $B80E: A9 00
 @FloorZero:
-  STA threshold                                         ; $B810: 8D 10 00
+  STA a:threshold                                         ; $B810: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B813: 4C 43 E8
 .endproc
 ;===============================================================================
@@ -4119,25 +4085,25 @@ DuelAi_StrikeThreshold:
   JSR B1F_GetOfficerRecordAddr                        ; $B81F: 20 D7 F2
   LDY #$01                                            ; $B822: A0 01
   LDA (officer_data_ptr),Y                                         ; $B824: B1 00
-  STA threshold                                         ; $B826: 8D 10 00
+  STA a:threshold                                         ; $B826: 8D 10 00
   LDY active_player_slot                                           ; $B829: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B82C: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B82F: 20 D7 F2
   LDY #$01                                            ; $B832: A0 01
   LDA (officer_data_ptr),Y                                         ; $B834: B1 00
   SEC                                                 ; $B836: 38
-  SBC threshold                                         ; $B837: ED 10 00
+  SBC a:threshold                                         ; $B837: ED 10 00
   BPL @DiffFloor                                           ; $B83A: 10 02
   LDA #$00                                            ; $B83C: A9 00
 @DiffFloor:
-  STA threshold                                         ; $B83E: 8D 10 00
+  STA a:threshold                                         ; $B83E: 8D 10 00
   LDA #$32                                            ; $B841: A9 32
   SEC                                                 ; $B843: 38
-  SBC threshold                                         ; $B844: ED 10 00
+  SBC a:threshold                                         ; $B844: ED 10 00
   BPL @ThresholdFloor                                           ; $B847: 10 02
   LDA #$00                                            ; $B849: A9 00
 @ThresholdFloor:
-  STA threshold                                         ; $B84B: 8D 10 00
+  STA a:threshold                                         ; $B84B: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B84E: 4C 43 E8
 .endproc
 ;===============================================================================
@@ -4156,15 +4122,15 @@ DuelAi_PersuadeThreshold:
   JSR B1F_GetOfficerRecordAddr                        ; $B857: 20 D7 F2
   LDY #$02                                            ; $B85A: A0 02
   LDA (officer_data_ptr),Y                                         ; $B85C: B1 00
-  STA pos_sum                                         ; $B85E: 8D 10 00
+  STA a:pos_sum                                         ; $B85E: 8D 10 00
   LDY #$04                                            ; $B861: A0 04
   LDA (officer_data_ptr),Y                                         ; $B863: B1 00
   CLC                                                 ; $B865: 18
-  ADC pos_sum                                         ; $B866: 6D 10 00
-  STA pos_sum                                         ; $B869: 8D 10 00
+  ADC a:pos_sum                                         ; $B866: 6D 10 00
+  STA a:pos_sum                                         ; $B869: 8D 10 00
   LDY #$01                                            ; $B86C: A0 01
   LDA (officer_data_ptr),Y                                         ; $B86E: B1 00
-  STA neg_sum                                         ; $B870: 8D 11 00
+  STA a:neg_sum                                         ; $B870: 8D 11 00
   LDA active_player_slot                                           ; $B873: AD AA 04
   EOR #$01                                            ; $B876: 49 01
   TAY                                                 ; $B878: A8
@@ -4173,15 +4139,15 @@ DuelAi_PersuadeThreshold:
   LDY #$03                                            ; $B87F: A0 03
   LDA (officer_data_ptr),Y                                         ; $B881: B1 00
   CLC                                                 ; $B883: 18
-  ADC neg_sum                                         ; $B884: 6D 11 00
-  STA neg_sum                                         ; $B887: 8D 11 00
-  LDA pos_sum                                         ; $B88A: AD 10 00
+  ADC a:neg_sum                                         ; $B884: 6D 11 00
+  STA a:neg_sum                                         ; $B887: 8D 11 00
+  LDA a:pos_sum                                         ; $B88A: AD 10 00
   SEC                                                 ; $B88D: 38
-  SBC neg_sum                                         ; $B88E: ED 11 00
+  SBC a:neg_sum                                         ; $B88E: ED 11 00
   BPL @FloorZero                                           ; $B891: 10 02
   LDA #$00                                            ; $B893: A9 00
 @FloorZero:
-  STA pos_sum                                         ; $B895: 8D 10 00
+  STA a:pos_sum                                         ; $B895: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B898: 4C 43 E8
 .endproc
 ;===============================================================================
@@ -4200,11 +4166,11 @@ DuelAi_InsultThreshold:
   JSR B1F_GetOfficerRecordAddr                        ; $B8A4: 20 D7 F2
   LDY #$02                                            ; $B8A7: A0 02
   LDA (officer_data_ptr),Y                                         ; $B8A9: B1 00
-  STA threshold                                         ; $B8AB: 8D 10 00
+  STA a:threshold                                         ; $B8AB: 8D 10 00
   LDY #$01                                            ; $B8AE: A0 01
   LDA (officer_data_ptr),Y                                         ; $B8B0: B1 00
   SEC                                                 ; $B8B2: 38
-  SBC threshold                                         ; $B8B3: ED 10 00
+  SBC a:threshold                                         ; $B8B3: ED 10 00
   BCS @DiffFloor                                           ; $B8B6: B0 02
   LDA #$00                                            ; $B8B8: A9 00
 @DiffFloor:
@@ -4213,7 +4179,7 @@ DuelAi_InsultThreshold:
   BPL @FloorZero                                           ; $B8BD: 10 02
   LDA #$00                                            ; $B8BF: A9 00
 @FloorZero:
-  STA threshold                                         ; $B8C1: 8D 10 00
+  STA a:threshold                                         ; $B8C1: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B8C4: 4C 43 E8
 .endproc
 ;===============================================================================
@@ -4256,47 +4222,47 @@ DuelStrike_Resolve:
   LDA player_action_timer_0,Y                                         ; $B8DC: B9 B5 04
   AND #$7F                                            ; $B8DF: 29 7F
   BEQ @loop_2                                           ; $B8E1: F0 26
-  LDA work_val                                         ; $B8E3: AD 10 00
+  LDA a:work_val                                         ; $B8E3: AD 10 00
   CLC                                                 ; $B8E6: 18
   ADC #$14                                            ; $B8E7: 69 14
-  STA work_val                                         ; $B8E9: 8D 10 00
-  LDA ppu_tile_lo                                         ; $B8EC: AD 01 00
+  STA a:work_val                                         ; $B8E9: 8D 10 00
+  LDA a:ppu_tile_lo                                         ; $B8EC: AD 01 00
   ASL A                                               ; $B8EF: 0A
   CLC                                                 ; $B8F0: 18
-  ADC ppu_tile_lo                                         ; $B8F1: 6D 01 00
-  STA work_marker                                         ; $B8F4: 8D 02 00
+  ADC a:ppu_tile_lo                                         ; $B8F1: 6D 01 00
+  STA a:battle_tile_attr                                         ; $B8F4: 8D 02 00
 @loop:
-  LDA work_marker                                         ; $B8F7: AD 02 00
+  LDA a:battle_tile_attr                                         ; $B8F7: AD 02 00
   CMP #$0A                                            ; $B8FA: C9 0A
   BCC @loop_2                                           ; $B8FC: 90 0B
   SBC #$0A                                            ; $B8FE: E9 0A
-  STA work_marker                                         ; $B900: 8D 02 00
-  INC ppu_tile_lo                                         ; $B903: EE 01 00
+  STA a:battle_tile_attr                                         ; $B900: 8D 02 00
+  INC a:ppu_tile_lo                                         ; $B903: EE 01 00
   JMP @loop                                           ; $B906: 4C F7 B8
 @loop_2:
   LDA duel_command_code                                           ; $B909: AD BF 04
   BNE @skip_2                                           ; $B90C: D0 1D
-  LDA work_val                                         ; $B90E: AD 10 00
+  LDA a:work_val                                         ; $B90E: AD 10 00
   CMP #$64                                            ; $B911: C9 64
   BCC @skip                                           ; $B913: 90 03
   JMP DuelStrike_ShowParried                                           ; $B915: 4C A0 B9
 @skip:
   LDA #$03                                            ; $B918: A9 03
-  STA div_loop_count                                         ; $B91A: 8D 03 00
+  STA a:div_loop_count                                         ; $B91A: 8D 03 00
   LDA #$00                                            ; $B91D: A9 00
-  STA work_marker                                         ; $B91F: 8D 02 00
-  STA col_counter_lo                                         ; $B922: 8D 04 00
+  STA a:battle_tile_attr                                         ; $B91F: 8D 02 00
+  STA a:col_counter_lo                                         ; $B922: 8D 04 00
   JSR B1F_MathDiv16                                   ; $B925: 20 7C EA
   JMP DuelStrike_ApplyGauge                                           ; $B928: 4C 6D B9
 @skip_2:
   CMP #$06                                            ; $B92B: C9 06
   BNE @skip_5                                           ; $B92D: D0 33
-  LDA work_val                                         ; $B92F: AD 10 00
+  LDA a:work_val                                         ; $B92F: AD 10 00
   CMP #$1E                                            ; $B932: C9 1E
   BCS @skip_3                                           ; $B934: B0 0A
-  LDA ppu_tile_lo                                         ; $B936: AD 01 00
+  LDA a:ppu_tile_lo                                         ; $B936: AD 01 00
   ASL A                                               ; $B939: 0A
-  STA ppu_tile_lo                                         ; $B93A: 8D 01 00
+  STA a:ppu_tile_lo                                         ; $B93A: 8D 01 00
   JMP DuelStrike_ApplyGauge                                           ; $B93D: 4C 6D B9
 @skip_3:
   JSR B1F_RandomByte                                  ; $B940: 20 7A E8
@@ -4304,11 +4270,11 @@ DuelStrike_Resolve:
   CMP #$15                                            ; $B945: C9 15
   BCS @loop_2                                           ; $B947: B0 C0
   ADC #$0A                                            ; $B949: 69 0A
-  STA officer_data_ptr                                         ; $B94B: 8D 00 00
+  STA a:officer_data_ptr                                         ; $B94B: 8D 00 00
   LDY active_player_slot                                           ; $B94E: AC AA 04
   LDA war_side_strength_0,Y                                         ; $B951: B9 B1 04
   SEC                                                 ; $B954: 38
-  SBC officer_data_ptr                                         ; $B955: ED 00 00
+  SBC a:officer_data_ptr                                         ; $B955: ED 00 00
   BPL @skip_4                                           ; $B958: 10 02
   LDA #$00                                            ; $B95A: A9 00
 @skip_4:
@@ -4316,7 +4282,7 @@ DuelStrike_Resolve:
   JMP DuelStrike_ShowParried                                           ; $B95F: 4C A0 B9
 @skip_5:
   LDY active_player_slot                                           ; $B962: AC AA 04
-  LDA work_val                                         ; $B965: AD 10 00
+  LDA a:work_val                                         ; $B965: AD 10 00
   CMP name_tile_ptr_lo,Y                                         ; $B968: D9 C5 04
   BCS DuelStrike_ShowParried                                           ; $B96B: B0 33
 .endproc
@@ -4330,7 +4296,7 @@ DuelStrike_Resolve:
   officer_id_ext     = $042D
   ppu_tile_lo     = $0001
 DuelStrike_ApplyGauge:
-  LDA ppu_tile_lo                                         ; $B96D: AD 01 00
+  LDA a:ppu_tile_lo                                         ; $B96D: AD 01 00
   BEQ @skip_2                                           ; $B970: F0 29
   BMI @skip_2                                           ; $B972: 30 27
   LDA active_player_slot                                           ; $B974: AD AA 04
@@ -4338,12 +4304,12 @@ DuelStrike_ApplyGauge:
   TAY                                                 ; $B979: A8
   LDA war_side_strength_0,Y                                         ; $B97A: B9 B1 04
   SEC                                                 ; $B97D: 38
-  SBC ppu_tile_lo                                         ; $B97E: ED 01 00
+  SBC a:ppu_tile_lo                                         ; $B97E: ED 01 00
   BCS @skip                                           ; $B981: B0 02
   LDA #$00                                            ; $B983: A9 00
 @skip:
   STA war_side_strength_0,Y                                         ; $B985: 99 B1 04
-  LDA ppu_tile_lo                                         ; $B988: AD 01 00
+  LDA a:ppu_tile_lo                                         ; $B988: AD 01 00
   STA selected_officer_id                                           ; $B98B: 8D 2C 04
   LDA #$00                                            ; $B98E: A9 00
   STA officer_id_ext                                           ; $B990: 8D 2D 04
@@ -4436,9 +4402,9 @@ DuelStrike_NextRound:
   LDA #$00                                            ; $BA0F: A9 00
   STA sub_state                                           ; $BA11: 8D A9 04
   RTS                                                 ; $BA14: 60
-DuelStrike_ComputeDifferential:
+::DuelStrike_ComputeDifferential:
   JSR B1F_RandomBelow100                              ; $BA15: 20 43 E8
-  STA temp_0010                                         ; $BA18: 8D 10 00
+  STA a:temp_0010                                         ; $BA18: 8D 10 00
   LDY #$00                                            ; $BA1B: A0 00
   LDX active_player_slot                                           ; $BA1D: AE AA 04
   LDA player_officer_id_0,X                                         ; $BA20: BD AD 04
@@ -4447,21 +4413,21 @@ DuelStrike_ComputeDifferential:
   LDY #$01                                            ; $BA28: A0 01
 @skip_4:
   LDA player_scene_index,Y                                         ; $BA2A: B9 C1 04
-  STA ppu_tile_lo                                         ; $BA2D: 8D 01 00
+  STA a:ppu_tile_lo                                         ; $BA2D: 8D 01 00
   LDA param_0570,Y                                         ; $BA30: B9 70 05
   CLC                                                 ; $BA33: 18
-  ADC ppu_tile_lo                                         ; $BA34: 6D 01 00
+  ADC a:ppu_tile_lo                                         ; $BA34: 6D 01 00
   LSR A                                               ; $BA37: 4A
-  STA ppu_tile_lo                                         ; $BA38: 8D 01 00
+  STA a:ppu_tile_lo                                         ; $BA38: 8D 01 00
   TYA                                                 ; $BA3B: 98
   EOR #$01                                            ; $BA3C: 49 01
   TAY                                                 ; $BA3E: A8
   LDA param_056e,Y                                         ; $BA3F: B9 6E 05
-  STA work_marker                                         ; $BA42: 8D 02 00
-  LDA ppu_tile_lo                                         ; $BA45: AD 01 00
+  STA a:battle_tile_attr                                         ; $BA42: 8D 02 00
+  LDA a:ppu_tile_lo                                         ; $BA45: AD 01 00
   SEC                                                 ; $BA48: 38
-  SBC work_marker                                         ; $BA49: ED 02 00
-  STA ppu_tile_lo                                         ; $BA4C: 8D 01 00
+  SBC a:battle_tile_attr                                         ; $BA49: ED 02 00
+  STA a:ppu_tile_lo                                         ; $BA4C: 8D 01 00
 @loop:
   JSR B1F_RandomByte                                  ; $BA4F: 20 7A E8
   AND #$0F                                            ; $BA52: 29 0F
@@ -4469,14 +4435,14 @@ DuelStrike_ComputeDifferential:
   BCS @loop                                           ; $BA56: B0 F7
   SEC                                                 ; $BA58: 38
   SBC #$05                                            ; $BA59: E9 05
-  STA work_marker                                         ; $BA5B: 8D 02 00
-  LDA ppu_tile_lo                                         ; $BA5E: AD 01 00
+  STA a:battle_tile_attr                                         ; $BA5B: 8D 02 00
+  LDA a:ppu_tile_lo                                         ; $BA5E: AD 01 00
   CLC                                                 ; $BA61: 18
-  ADC work_marker                                         ; $BA62: 6D 02 00
+  ADC a:battle_tile_attr                                         ; $BA62: 6D 02 00
   BPL @skip_5                                           ; $BA65: 10 02
   LDA #$00                                            ; $BA67: A9 00
 @skip_5:
-  STA ppu_tile_lo                                         ; $BA69: 8D 01 00
+  STA a:ppu_tile_lo                                         ; $BA69: 8D 01 00
   RTS                                                 ; $BA6C: 60
 .endproc
 ;===============================================================================
@@ -4515,7 +4481,7 @@ DuelPursue_Init:
   INC sub_state                                           ; $BA8C: EE A9 04
   LDY active_player_slot                                           ; $BA8F: AC AA 04
   LDA player_officer_id_0,Y                                         ; $BA92: B9 AD 04
-  STA officer_data_ptr                                         ; $BA95: 8D 00 00
+  STA a:officer_data_ptr                                         ; $BA95: 8D 00 00
   LDY #$3D                                            ; $BA98: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $BA9A: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -4580,13 +4546,13 @@ DuelPursue_SetupPursuer:
   STA active_player_slot                                           ; $BAE4: 8D AA 04
   TAY                                                 ; $BAE7: A8
   LDA player_officer_id_0,Y                                         ; $BAE8: B9 AD 04
-  STA officer_data_ptr                                         ; $BAEB: 8D 00 00
+  STA a:officer_data_ptr                                         ; $BAEB: 8D 00 00
   LDY #$3D                                            ; $BAEE: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $BAF0: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B1D_1E_OfficerDisplay_Render                  ; $BAF3: 30 A0
   LDA #$02                                            ; $BAF5: A9 02
-  STA a:zp_a4                                         ; $BAF7: 8D A4 00
+  STA a:callback_result                                         ; $BAF7: 8D A4 00
   INC sub_state                                           ; $BAFA: EE A9 04
   LDA #$2A                                            ; $BAFD: A9 2A
   JMP B1F_OpenMsgWindow0                              ; $BAFF: 4C 6D F2
@@ -4617,9 +4583,9 @@ DuelPursue_EscapeRoll:
   LDA player_random_offset_0,Y                                         ; $BB1E: B9 B3 04
   ASL A                                               ; $BB21: 0A
   CLC                                                 ; $BB22: 18
-  STA work_0011                                         ; $BB23: 8D 11 00
+  STA a:work_0011                                         ; $BB23: 8D 11 00
   JSR B1F_RandomBelow100                              ; $BB26: 20 43 E8
-  CMP work_0011                                         ; $BB29: CD 11 00
+  CMP a:work_0011                                         ; $BB29: CD 11 00
   BCS @skip                                           ; $BB2C: B0 0A
   LDA #$09                                            ; $BB2E: A9 09
   STA sub_state                                           ; $BB30: 8D A9 04
@@ -4859,12 +4825,12 @@ DuelData_ShowCard:
   CMP #$FF                                            ; $BC75: C9 FF
   BNE @skip                                           ; $BC77: D0 12
   LDA #$06                                            ; $BC79: A9 06
-  STA temp_00bb                                         ; $BC7B: 8D BB 00
+  STA a:temp_00bb                                         ; $BC7B: 8D BB 00
   INC sub_state                                           ; $BC7E: EE A9 04
   LDA #$00                                            ; $BC81: A9 00
   STA a:$0098                                         ; $BC83: 8D 98 00
   LDA #$01                                            ; $BC86: A9 01
-  STA temp_0097                                         ; $BC88: 8D 97 00
+  STA a:temp_0097                                         ; $BC88: 8D 97 00
 @skip:
   RTS                                                 ; $BC8B: 60
 .endproc
@@ -4889,10 +4855,10 @@ DuelData_HandleInput:
   LDA card_handshake_hi                               ; $BC9B: AD 0D 04
   BPL @skip                                           ; $BC9E: 10 1E
   LDA a:$0081                                         ; $BCA0: AD 81 00
-  STA pad_bits_copy                                         ; $BCA3: 8D 10 00
+  STA a:pad_bits_copy                                         ; $BCA3: 8D 10 00
   AND #$02                                            ; $BCA6: 29 02
   BNE @skip_2                                           ; $BCA8: D0 15
-  LDA pad_bits_copy                                         ; $BCAA: AD 10 00
+  LDA a:pad_bits_copy                                         ; $BCAA: AD 10 00
   AND #$30                                            ; $BCAD: 29 30
   BEQ @skip                                           ; $BCAF: F0 0D
   LDA display_ptr_hi                                           ; $BCB1: AD BE 04
@@ -4910,13 +4876,13 @@ DuelData_HandleInput:
   LDA duel_command_code                                           ; $BCC9: AD BF 04
   STA active_player_slot                                           ; $BCCC: 8D AA 04
   LDA #$09                                            ; $BCCF: A9 09
-  STA ptr_00bb_lo                                         ; $BCD1: 8D BB 00
+  STA a:ptr_00bb_lo                                         ; $BCD1: 8D BB 00
   LDA #$06                                            ; $BCD4: A9 06
-  STA ptr_00bb_hi                                         ; $BCD6: 8D BC 00
+  STA a:ptr_00bb_hi                                         ; $BCD6: 8D BC 00
   LDA #$0C                                            ; $BCD9: A9 0C
-  STA temp_00bd                                         ; $BCDB: 8D BD 00
+  STA a:temp_00bd                                         ; $BCDB: 8D BD 00
   LDA #$00                                            ; $BCDE: A9 00
-  STA temp_0097                                         ; $BCE0: 8D 97 00
+  STA a:temp_0097                                         ; $BCE0: 8D 97 00
   LDA #$A0                                            ; $BCE3: A9 A0
   STA a:$0098                                         ; $BCE5: 8D 98 00
   RTS                                                 ; $BCE8: 60
@@ -4954,13 +4920,13 @@ Surrender_Init:
   INC sub_state                                           ; $BD00: EE A9 04
   LDY active_player_slot                                           ; $BD03: AC AA 04
   LDA player_officer_id_0,Y                                         ; $BD06: B9 AD 04
-  STA officer_data_ptr                                         ; $BD09: 8D 00 00
+  STA a:officer_data_ptr                                         ; $BD09: 8D 00 00
   LDY #$3D                                            ; $BD0C: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $BD0E: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B1D_1E_OfficerDisplay_Render                  ; $BD11: 30 A0
   LDA #$04                                            ; $BD13: A9 04
-  STA a:zp_a4                                         ; $BD15: 8D A4 00
+  STA a:callback_result                                         ; $BD15: 8D A4 00
   LDA #$27                                            ; $BD18: A9 27
   JMP B1F_OpenMsgWindow0                              ; $BD1A: 4C 6D F2
 @skip:
@@ -4999,11 +4965,11 @@ Surrender_Display:
   BCC Surrender_NoOp                                           ; $BD43: 90 17
   INC sub_state                                           ; $BD45: EE A9 04
   LDA #$43                                            ; $BD48: A9 43
-  STA officer_data_ptr                                         ; $BD4A: 8D 00 00
+  STA a:officer_data_ptr                                         ; $BD4A: 8D 00 00
   LDY active_player_slot                                           ; $BD4D: AC AA 04
   BEQ @skip                                           ; $BD50: F0 05
   LDA #$55                                            ; $BD52: A9 55
-  STA officer_data_ptr                                         ; $BD54: 8D 00 00
+  STA a:officer_data_ptr                                         ; $BD54: 8D 00 00
 @skip:
   LDA #$00                                            ; $BD57: A9 00
   JMP BuildPPUTileBuffer                                           ; $BD59: 4C FD CD
@@ -5034,17 +5000,17 @@ Surrender_NoOp:
   temp_00d8       = $00D8
 Surrender_NoEvent:
   LDA #$98                                            ; $BD5D: A9 98
-  STA a:zp_c6                                         ; $BD5F: 8D C6 00
-  STA a:zp_ce                                         ; $BD62: 8D CE 00
-  STA a:zp_d6                                         ; $BD65: 8D D6 00
+  STA a:ptr_00c6_lo                                         ; $BD5F: 8D C6 00
+  STA a:ptr_00ce_lo                                         ; $BD62: 8D CE 00
+  STA a:ptr_00d6_lo                                         ; $BD65: 8D D6 00
   LDA #$99                                            ; $BD68: A9 99
-  STA a:zp_c7                                         ; $BD6A: 8D C7 00
-  STA a:zp_cf                                         ; $BD6D: 8D CF 00
-  STA a:zp_d7                                         ; $BD70: 8D D7 00
+  STA a:ptr_00c6_hi                                         ; $BD6A: 8D C7 00
+  STA a:ptr_00ce_hi                                         ; $BD6D: 8D CF 00
+  STA a:ptr_00d6_hi                                         ; $BD70: 8D D7 00
   LDA #$02                                            ; $BD73: A9 02
-  STA a:zp_c8                                         ; $BD75: 8D C8 00
-  STA a:zp_d0                                         ; $BD78: 8D D0 00
-  STA a:zp_d8                                         ; $BD7B: 8D D8 00
+  STA a:temp_00c8                                         ; $BD75: 8D C8 00
+  STA a:temp_00d0                                         ; $BD78: 8D D0 00
+  STA a:temp_00d8                                         ; $BD7B: 8D D8 00
   LDA #$00                                            ; $BD7E: A9 00
   STA anim_timer                                           ; $BD80: 8D B8 04
   LDA #$5F                                            ; $BD83: A9 5F
@@ -5053,13 +5019,13 @@ Surrender_NoEvent:
   LDA #$18                                            ; $BD8B: A9 18
   STA slide_y_pos                                           ; $BD8D: 8D BB 04
   LDA #$E3                                            ; $BD90: A9 E3
-  STA officer_data_ptr                                         ; $BD92: 8D 00 00
+  STA a:officer_data_ptr                                         ; $BD92: 8D 00 00
   LDY active_player_slot                                           ; $BD95: AC AA 04
   BEQ @skip                                           ; $BD98: F0 0A
   LDA #$A8                                            ; $BD9A: A9 A8
   STA slide_y_pos                                           ; $BD9C: 8D BB 04
   LDA #$F5                                            ; $BD9F: A9 F5
-  STA officer_data_ptr                                         ; $BDA1: 8D 00 00
+  STA a:officer_data_ptr                                         ; $BDA1: 8D 00 00
 @skip:
   LDA #$00                                            ; $BDA4: A9 00
   JMP BuildPPUTileBuffer                                           ; $BDA6: 4C FD CD
@@ -5099,44 +5065,45 @@ Surrender_Execute:
 ;-------------------------------------------------------------------------------
 DrawOfficerCards:
   officer_data_ptr     = $0000
+  sprite_flip_flags    = $0002
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
-  STA ptr_0010_lo                                         ; $BDCB: 8D 10 00
-  STA ptr_0010_hi                                         ; $BDCE: 8D 11 00
+  STA a:ptr_0010_lo                                         ; $BDCB: 8D 10 00
+  STA a:ptr_0010_hi                                         ; $BDCE: 8D 11 00
   LDA active_player_slot                                           ; $BDD1: AD AA 04
   BNE @skip                                           ; $BDD4: D0 09
-  LDA ptr_0010_lo                                         ; $BDD6: AD 10 00
+  LDA a:ptr_0010_lo                                         ; $BDD6: AD 10 00
   CLC                                                 ; $BDD9: 18
   ADC #$1A                                            ; $BDDA: 69 1A
-  STA ptr_0010_lo                                         ; $BDDC: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $BDDC: 8D 10 00
 @skip:
   LDA #$00                                            ; $BDDF: A9 00
-  STA work_marker                                         ; $BDE1: 8D 02 00
-  LDA ptr_0010_lo                                         ; $BDE4: AD 10 00
+  STA a:sprite_flip_flags                                         ; $BDE1: 8D 02 00
+  LDA a:ptr_0010_lo                                         ; $BDE4: AD 10 00
   CLC                                                 ; $BDE7: 18
   ADC #$A8                                            ; $BDE8: 69 A8
   JSR DrawSpriteFromBank                                           ; $BDEA: 20 A5 CE
   LDA active_player_slot                                           ; $BDED: AD AA 04
   CLC                                                 ; $BDF0: 18
   ADC #$01                                            ; $BDF1: 69 01
-  STA work_marker                                         ; $BDF3: 8D 02 00
+  STA a:sprite_flip_flags                                         ; $BDF3: 8D 02 00
   LDY active_player_slot                                           ; $BDF6: AC AA 04
   LDA name_tile_index,Y                                         ; $BDF9: B9 AF 04
-  STA officer_data_ptr                                         ; $BDFC: 8D 00 00
+  STA a:officer_data_ptr                                         ; $BDFC: 8D 00 00
   ASL A                                               ; $BDFF: 0A
   ASL A                                               ; $BE00: 0A
   CLC                                                 ; $BE01: 18
-  ADC officer_data_ptr                                         ; $BE02: 6D 00 00
-  ADC ptr_0010_lo                                         ; $BE05: 6D 10 00
+  ADC a:officer_data_ptr                                         ; $BE02: 6D 00 00
+  ADC a:ptr_0010_lo                                         ; $BE05: 6D 10 00
   ADC #$AD                                            ; $BE08: 69 AD
   JSR DrawSpriteFromBank                                           ; $BE0A: 20 A5 CE
-  LDA ptr_0010_lo                                         ; $BE0D: AD 10 00
+  LDA a:ptr_0010_lo                                         ; $BE0D: AD 10 00
   SEC                                                 ; $BE10: 38
-  SBC ptr_0010_hi                                         ; $BE11: ED 11 00
-  STA ptr_0010_lo                                         ; $BE14: 8D 10 00
+  SBC a:ptr_0010_hi                                         ; $BE11: ED 11 00
+  STA a:ptr_0010_lo                                         ; $BE14: 8D 10 00
   LDA #$00                                            ; $BE17: A9 00
-  STA work_marker                                         ; $BE19: 8D 02 00
-  LDA ptr_0010_hi                                         ; $BE1C: AD 11 00
+  STA a:sprite_flip_flags                                         ; $BE19: 8D 02 00
+  LDA a:ptr_0010_hi                                         ; $BE1C: AD 11 00
   CMP #$02                                            ; $BE1F: C9 02
   BCC @skip_3                                           ; $BE21: 90 1B
   LDY #$BC                                            ; $BE23: A0 BC
@@ -5144,12 +5111,12 @@ DrawOfficerCards:
   BEQ @skip_2                                           ; $BE27: F0 02
   LDY #$BF                                            ; $BE29: A0 BF
 @skip_2:
-  STY officer_data_ptr                                         ; $BE2B: 8C 00 00
+  STY a:officer_data_ptr                                         ; $BE2B: 8C 00 00
   LDY active_player_slot                                           ; $BE2E: AC AA 04
   LDA name_tile_index,Y                                         ; $BE31: B9 AF 04
   CLC                                                 ; $BE34: 18
-  ADC ptr_0010_lo                                         ; $BE35: 6D 10 00
-  ADC officer_data_ptr                                         ; $BE38: 6D 00 00
+  ADC a:ptr_0010_lo                                         ; $BE35: 6D 10 00
+  ADC a:officer_data_ptr                                         ; $BE38: 6D 00 00
   JMP DrawSpriteFromBank                                           ; $BE3B: 4C A5 CE
 @skip_3:
   RTS                                                 ; $BE3E: 60
@@ -5230,30 +5197,30 @@ PersuadeRollEvent:
   JSR B1F_GetOfficerRecordAddr                        ; $BE8F: 20 D7 F2
   LDY #$03                                            ; $BE92: A0 03
   LDA (officer_data_ptr),Y                                         ; $BE94: B1 00
-  STA target_loyalty                                  ; $BE96: 8D 10 00
+  STA a:target_loyalty                                  ; $BE96: 8D 10 00
   LDY #$00                                            ; $BE99: A0 00
   LDA (officer_data_ptr),Y                                         ; $BE9B: B1 00
-  STA target_vitality                                 ; $BE9D: 8D 11 00
+  STA a:target_vitality                                 ; $BE9D: 8D 11 00
   LDY active_player_slot                                           ; $BEA0: AC AA 04
   LDA player_officer_id_0,Y                                         ; $BEA3: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $BEA6: 20 D7 F2
   LDY #$02                                            ; $BEA9: A0 02
   LDA (officer_data_ptr),Y                                         ; $BEAB: B1 00
-  STA own_int_virtue                                  ; $BEAD: 8D 12 00
+  STA a:own_int_virtue                                  ; $BEAD: 8D 12 00
   LDY #$04                                            ; $BEB0: A0 04
   LDA (officer_data_ptr),Y                                         ; $BEB2: B1 00
   CLC                                                 ; $BEB4: 18
-  ADC own_int_virtue                                  ; $BEB5: 6D 12 00
-  STA own_int_virtue                                  ; $BEB8: 8D 12 00
+  ADC a:own_int_virtue                                  ; $BEB5: 6D 12 00
+  STA a:own_int_virtue                                  ; $BEB8: 8D 12 00
   LDX #$00                                            ; $BEBB: A2 00
-  LDA target_loyalty                                  ; $BEBD: AD 10 00
+  LDA a:target_loyalty                                  ; $BEBD: AD 10 00
   CMP #$50                                            ; $BEC0: C9 50
   BCS @LoyaltyTierDone                                ; $BEC2: B0 11
   TXA                                                 ; $BEC4: 8A
   CLC                                                 ; $BEC5: 18
   ADC #$18                                            ; $BEC6: 69 18
   TAX                                                 ; $BEC8: AA
-  LDA target_loyalty                                  ; $BEC9: AD 10 00
+  LDA a:target_loyalty                                  ; $BEC9: AD 10 00
   CMP #$32                                            ; $BECC: C9 32
   BCS @LoyaltyTierDone                                ; $BECE: B0 05
   TXA                                                 ; $BED0: 8A
@@ -5261,14 +5228,14 @@ PersuadeRollEvent:
   ADC #$18                                            ; $BED2: 69 18
   TAX                                                 ; $BED4: AA
 @LoyaltyTierDone:
-  LDA target_vitality                                 ; $BED5: AD 11 00
+  LDA a:target_vitality                                 ; $BED5: AD 11 00
   CMP #$50                                            ; $BED8: C9 50
   BCS @VitalityTierDone                               ; $BEDA: B0 11
   TXA                                                 ; $BEDC: 8A
   CLC                                                 ; $BEDD: 18
   ADC #$08                                            ; $BEDE: 69 08
   TAX                                                 ; $BEE0: AA
-  LDA target_vitality                                 ; $BEE1: AD 11 00
+  LDA a:target_vitality                                 ; $BEE1: AD 11 00
   CMP #$32                                            ; $BEE4: C9 32
   BCS @VitalityTierDone                               ; $BEE6: B0 05
   TXA                                                 ; $BEE8: 8A
@@ -5276,14 +5243,14 @@ PersuadeRollEvent:
   ADC #$08                                            ; $BEEA: 69 08
   TAX                                                 ; $BEEC: AA
 @VitalityTierDone:
-  LDA own_int_virtue                                  ; $BEED: AD 12 00
+  LDA a:own_int_virtue                                  ; $BEED: AD 12 00
   CMP #$B4                                            ; $BEF0: C9 B4
   BCS @AptitudeTierDone                               ; $BEF2: B0 11
   TXA                                                 ; $BEF4: 8A
   CLC                                                 ; $BEF5: 18
   ADC #$48                                            ; $BEF6: 69 48
   TAX                                                 ; $BEF8: AA
-  LDA own_int_virtue                                  ; $BEF9: AD 12 00
+  LDA a:own_int_virtue                                  ; $BEF9: AD 12 00
   CMP #$82                                            ; $BEFC: C9 82
   BCS @AptitudeTierDone                               ; $BEFE: B0 05
   TXA                                                 ; $BF00: 8A
@@ -5292,10 +5259,10 @@ PersuadeRollEvent:
   TAX                                                 ; $BF04: AA
 @AptitudeTierDone:
   JSR B1F_RandomMod8                                  ; $BF05: 20 56 E8
-  STA target_loyalty                                  ; $BF08: 8D 10 00
+  STA a:target_loyalty                                  ; $BF08: 8D 10 00
   TXA                                                 ; $BF0B: 8A
   CLC                                                 ; $BF0C: 18
-  ADC target_loyalty                                  ; $BF0D: 6D 10 00
+  ADC a:target_loyalty                                  ; $BF0D: 6D 10 00
   TAX                                                 ; $BF10: AA
   LDA PersuadeEventTable,X                                         ; $BF11: BD B2 BF
   STA duel_command_code                                           ; $BF14: 8D BF 04
@@ -5476,29 +5443,29 @@ InsultResolve_Exec:
   JSR B1F_GetOfficerRecordAddr                        ; $C099: 20 D7 F2
   LDY #$02                                            ; $C09C: A0 02
   LDA (officer_data_ptr),Y                                         ; $C09E: B1 00
-  STA target_int                                      ; $C0A0: 8D 11 00
+  STA a:target_int                                      ; $C0A0: 8D 11 00
   LDY active_player_slot                                           ; $C0A3: AC AA 04
   LDA player_officer_id_0,Y                                         ; $C0A6: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $C0A9: 20 D7 F2
   LDY #$02                                            ; $C0AC: A0 02
   LDA (officer_data_ptr),Y                                         ; $C0AE: B1 00
-  STA calc_byte                                       ; $C0B0: 8D 10 00
+  STA a:calc_byte                                       ; $C0B0: 8D 10 00
   LDY #$04                                            ; $C0B3: A0 04
   LDA (officer_data_ptr),Y                                         ; $C0B5: B1 00
   CLC                                                 ; $C0B7: 18
-  ADC calc_byte                                       ; $C0B8: 6D 10 00
+  ADC a:calc_byte                                       ; $C0B8: 6D 10 00
   SEC                                                 ; $C0BB: 38
-  SBC target_int                                      ; $C0BC: ED 11 00
+  SBC a:target_int                                      ; $C0BC: ED 11 00
   BCS @SkipClamp                                      ; $C0BF: B0 02
   LDA #$00                                            ; $C0C1: A9 00
 @SkipClamp:
-  STA calc_byte                                       ; $C0C3: 8D 10 00
-  INC calc_byte                                       ; $C0C6: EE 10 00
+  STA a:calc_byte                                       ; $C0C3: 8D 10 00
+  INC a:calc_byte                                       ; $C0C6: EE 10 00
 @RerollRand:
   JSR B1F_RandomMod16                                 ; $C0C9: 20 5C E8
   CMP #$0A                                            ; $C0CC: C9 0A
   BCS @RerollRand                                     ; $C0CE: B0 F9
-  ADC calc_byte                                       ; $C0D0: 6D 10 00
+  ADC a:calc_byte                                       ; $C0D0: 6D 10 00
   CMP #$6E                                            ; $C0D3: C9 6E
   BCS @EnragedRollLoop                                ; $C0D5: B0 08
   LDA #$2F                                            ; $C0D7: A9 2F
@@ -5506,14 +5473,14 @@ InsultResolve_Exec:
   JMP @OutcomeResolved                                ; $C0DC: 4C 03 C1
 @EnragedRollLoop:
   JSR B1F_RandomMod4                                  ; $C0DF: 20 50 E8
-  STA calc_byte                                       ; $C0E2: 8D 10 00
+  STA a:calc_byte                                       ; $C0E2: 8D 10 00
   BEQ @EnragedRollLoop                                ; $C0E5: F0 F8
-  INC calc_byte                                       ; $C0E7: EE 10 00
-  INC calc_byte                                       ; $C0EA: EE 10 00
+  INC a:calc_byte                                       ; $C0E7: EE 10 00
+  INC a:calc_byte                                       ; $C0EA: EE 10 00
   LDA active_player_slot                                           ; $C0ED: AD AA 04
   EOR #$01                                            ; $C0F0: 49 01
   TAY                                                 ; $C0F2: A8
-  LDA calc_byte                                       ; $C0F3: AD 10 00
+  LDA a:calc_byte                                       ; $C0F3: AD 10 00
   STA player_action_timer_0,Y                                         ; $C0F6: 99 B5 04
   LDA #$02                                            ; $C0F9: A9 02
   STA event_overlay_flag,Y                                         ; $C0FB: 99 C3 04
@@ -5558,7 +5525,7 @@ TacticDialog_Init:
   BCC @skip                                           ; $C127: 90 10
   INC sub_state                                           ; $C129: EE A9 04
   LDA player_officer_id_0                                           ; $C12C: AD AD 04
-  STA officer_data_ptr                                         ; $C12F: 8D 00 00
+  STA a:officer_data_ptr                                         ; $C12F: 8D 00 00
   LDY #$3D                                            ; $C132: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $C134: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -5681,12 +5648,12 @@ TacticDialog_Execute:
   callback_result       = $00A4
 TacticDialog_LoadCards:
   LDA #$A5                                            ; $C1E2: A9 A5
-  STA ptr_lo                                         ; $C1E4: 8D 0A 00
+  STA a:overlay_data_ptr                                         ; $C1E4: 8D 0A 00
   LDX #$00                                            ; $C1E7: A2 00
   LDA player_officer_id_0                                           ; $C1E9: AD AD 04
-  STA officer_data_ptr                                         ; $C1EC: 8D 00 00
-  LDA ptr_0010_lo                                         ; $C1EF: AD 10 00
-  STA a:zp_a4                                         ; $C1F2: 8D A4 00
+  STA a:officer_data_ptr                                         ; $C1EC: 8D 00 00
+  LDA a:ptr_0010_lo                                         ; $C1EF: AD 10 00
+  STA a:callback_result                                         ; $C1F2: 8D A4 00
   LDY #$39                                            ; $C1F5: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $C1F7: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -5695,9 +5662,9 @@ TacticDialog_LoadCards:
   LDA #$C8                                            ; $C1FE: A9 C8
   STA cutscene_load_progress                                           ; $C200: 8D BC 04
   LDA player_officer_id_1                                           ; $C203: AD AE 04
-  STA officer_data_ptr                                         ; $C206: 8D 00 00
-  LDA ptr_0010_hi                                         ; $C209: AD 11 00
-  STA a:zp_a4                                         ; $C20C: 8D A4 00
+  STA a:officer_data_ptr                                         ; $C206: 8D 00 00
+  LDA a:ptr_0010_hi                                         ; $C209: AD 11 00
+  STA a:callback_result                                         ; $C20C: 8D A4 00
   LDY #$39                                            ; $C20F: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $C211: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -5734,17 +5701,17 @@ MapFade_Init:
   LDA #$71                                            ; $C22D: A9 71
   JSR B1F_SoundWrapperC                               ; $C22F: 20 83 E6
   LDA #$91                                            ; $C232: A9 91
-  STA a:zp_cc                                         ; $C234: 8D CC 00
-  STA a:zp_d4                                         ; $C237: 8D D4 00
-  STA a:zp_dc                                         ; $C23A: 8D DC 00
+  STA a:ppu_col_lo                                         ; $C234: 8D CC 00
+  STA a:ppu_col_mid                                         ; $C237: 8D D4 00
+  STA a:ppu_col_hi                                         ; $C23A: 8D DC 00
   INC sub_state                                           ; $C23D: EE A9 04
   LDA #$43                                            ; $C240: A9 43
-  STA officer_data_ptr                                         ; $C242: 8D 00 00
+  STA a:officer_data_ptr                                         ; $C242: 8D 00 00
   LDA #$13                                            ; $C245: A9 13
   LDY active_player_slot                                           ; $C247: AC AA 04
   BEQ @skip                                           ; $C24A: F0 07
   LDA #$55                                            ; $C24C: A9 55
-  STA officer_data_ptr                                         ; $C24E: 8D 00 00
+  STA a:officer_data_ptr                                         ; $C24E: 8D 00 00
   LDA #$15                                            ; $C251: A9 15
 @skip:
   JMP BuildPPUTileBuffer                                           ; $C253: 4C FD CD
@@ -5759,9 +5726,9 @@ MapFade_Init:
   temp_00d6       = $00D6
 MapFade_FadeIn:
   LDA #$90                                            ; $C256: A9 90
-  STA a:zp_c6                                         ; $C258: 8D C6 00
-  STA a:zp_ce                                         ; $C25B: 8D CE 00
-  STA a:zp_d6                                         ; $C25E: 8D D6 00
+  STA a:temp_00c6                                         ; $C258: 8D C6 00
+  STA a:temp_00ce                                         ; $C25B: 8D CE 00
+  STA a:temp_00d6                                         ; $C25E: 8D D6 00
   LDA #$00                                            ; $C261: A9 00
   STA anim_timer                                           ; $C263: 8D B8 04
   LDA #$4F                                            ; $C266: A9 4F
@@ -5770,14 +5737,14 @@ MapFade_FadeIn:
   LDA #$18                                            ; $C26E: A9 18
   STA slide_y_pos                                           ; $C270: 8D BB 04
   LDA #$E3                                            ; $C273: A9 E3
-  STA officer_data_ptr                                         ; $C275: 8D 00 00
+  STA a:officer_data_ptr                                         ; $C275: 8D 00 00
   LDA #$14                                            ; $C278: A9 14
   LDY active_player_slot                                           ; $C27A: AC AA 04
   BEQ @skip                                           ; $C27D: F0 0C
   LDA #$A8                                            ; $C27F: A9 A8
   STA slide_y_pos                                           ; $C281: 8D BB 04
   LDA #$F5                                            ; $C284: A9 F5
-  STA officer_data_ptr                                         ; $C286: 8D 00 00
+  STA a:officer_data_ptr                                         ; $C286: 8D 00 00
   LDA #$16                                            ; $C289: A9 16
 @skip:
   JMP BuildPPUTileBuffer                                           ; $C28B: 4C FD CD
@@ -5829,23 +5796,23 @@ MapFade_Complete:
   tilemap_attr      = $0002
   tilemap_work       = $0010
 MapFade_DrawColumn:
-  STA tilemap_work                                         ; $C2CC: 8D 10 00
+  STA a:tilemap_work                                         ; $C2CC: 8D 10 00
   LDA active_player_slot                                           ; $C2CF: AD AA 04
   BEQ @skip                                           ; $C2D2: F0 09
-  LDA tilemap_work                                         ; $C2D4: AD 10 00
+  LDA a:tilemap_work                                         ; $C2D4: AD 10 00
   CLC                                                 ; $C2D7: 18
   ADC #$06                                            ; $C2D8: 69 06
-  STA tilemap_work                                         ; $C2DA: 8D 10 00
+  STA a:tilemap_work                                         ; $C2DA: 8D 10 00
 @skip:
   LDA active_player_slot                                           ; $C2DD: AD AA 04
   CLC                                                 ; $C2E0: 18
   ADC #$01                                            ; $C2E1: 69 01
-  STA work_marker                                         ; $C2E3: 8D 02 00
+  STA a:tilemap_attr                                         ; $C2E3: 8D 02 00
   LDY active_player_slot                                           ; $C2E6: AC AA 04
   LDA name_tile_index,Y                                         ; $C2E9: B9 AF 04
   ASL A                                               ; $C2EC: 0A
   CLC                                                 ; $C2ED: 18
-  ADC tilemap_work                                         ; $C2EE: 6D 10 00
+  ADC a:tilemap_work                                         ; $C2EE: 6D 10 00
   ADC #$6A                                            ; $C2F1: 69 6A
   JMP DrawSpriteFromBank                                           ; $C2F3: 4C A5 CE
 .endproc
@@ -5970,7 +5937,7 @@ Spoils_RollLoot:
   AND #$01                                            ; $C382: 29 01
   BNE @NoLoot                                         ; $C384: D0 1E
   LDA #$00                                            ; $C386: A9 00
-  STA ptr_0010_lo                                         ; $C388: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C388: 8D 10 00
 @RulerScanLoop:
   JSR B1F_GetCountryDataPtr                             ; $C38B: 20 68 F3
   LDY #$00                                            ; $C38E: A0 00
@@ -5979,8 +5946,8 @@ Spoils_RollLoot:
   BNE @RulerNext                                      ; $C395: D0 03
   JMP @RulerRoll                                      ; $C397: 4C E3 C3
 @RulerNext:
-  INC ptr_0010_lo                                         ; $C39A: EE 10 00
-  LDA ptr_0010_lo                                         ; $C39D: AD 10 00
+  INC a:ptr_0010_lo                                         ; $C39A: EE 10 00
+  LDA a:ptr_0010_lo                                         ; $C39D: AD 10 00
   CMP #$07                                            ; $C3A0: C9 07
   BCC @RulerScanLoop                                  ; $C3A2: 90 E7
 @NoLoot:
@@ -5993,9 +5960,9 @@ Spoils_RollLoot:
   CMP #$1E                                            ; $C3AF: C9 1E
   BCS @NoLoot                                         ; $C3B1: B0 F1
   LDA #$06                                            ; $C3B3: A9 06
-  STA ptr_0010_lo                                         ; $C3B5: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C3B5: 8D 10 00
   LDA #$3F                                            ; $C3B8: A9 3F
-  STA ptr_0010_hi                                         ; $C3BA: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $C3BA: 8D 11 00
   JMP Spoils_GrantWeapon                                           ; $C3BD: 4C 0B C4
 @ToutakuGate:
   LDA display_ptr_lo                                           ; $C3C0: AD BD 04
@@ -6009,9 +5976,9 @@ Spoils_RollLoot:
   CMP #$20                                            ; $C3D2: C9 20
   BCS @NoLoot                                         ; $C3D4: B0 CE
   LDA #$07                                            ; $C3D6: A9 07
-  STA ptr_0010_lo                                         ; $C3D8: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C3D8: 8D 10 00
   LDA #$40                                            ; $C3DB: A9 40
-  STA ptr_0010_hi                                         ; $C3DD: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $C3DD: 8D 11 00
   JMP Spoils_GrantWeapon                                           ; $C3E0: 4C 0B C4
 @RulerRoll:
   LDA #$64                                            ; $C3E3: A9 64
@@ -6022,15 +5989,15 @@ Spoils_RollLoot:
   ORA #$01                                            ; $C3EF: 09 01
   STA $6FE1                                           ; $C3F1: 8D E1 6F
   LDA #$0E                                            ; $C3F4: A9 0E
-  STA ptr_0010_lo                                         ; $C3F6: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C3F6: 8D 10 00
   LDA #$41                                            ; $C3F9: A9 41
-  STA ptr_0010_hi                                         ; $C3FB: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $C3FB: 8D 11 00
   JMP Spoils_GrantWeapon                                           ; $C3FE: 4C 0B C4
 @BatouDrop:
   LDA #$05                                            ; $C401: A9 05
-  STA ptr_0010_lo                                         ; $C403: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C403: 8D 10 00
   LDA #$3E                                            ; $C406: A9 3E
-  STA ptr_0010_hi                                         ; $C408: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $C408: 8D 11 00
 .endproc
 ;===============================================================================
 ; $C40B: Spoils_GrantWeapon
@@ -6052,10 +6019,10 @@ Spoils_GrantWeapon:
   LDY #$0A                                            ; $C41A: A0 0A
   LDA (officer_data_ptr),Y                                         ; $C41C: B1 00
   AND #$E0                                            ; $C41E: 29 E0
-  ORA ptr_0010_lo                                         ; $C420: 0D 10 00
+  ORA a:ptr_0010_lo                                         ; $C420: 0D 10 00
   STA (officer_data_ptr),Y                                         ; $C423: 91 00
   INC sub_state                                           ; $C425: EE A9 04
-  LDA ptr_0010_hi                                         ; $C428: AD 11 00
+  LDA a:ptr_0010_hi                                         ; $C428: AD 11 00
   JMP B1F_OpenMsgWindow4                              ; $C42B: 4C 8B F2
 .endproc
 ;===============================================================================
@@ -6171,11 +6138,11 @@ FeintSceneDispatch:
 FeintScene_Init:
   INC sub_state                                           ; $C4AC: EE A9 04
   LDA #$43                                            ; $C4AF: A9 43
-  STA col_offset                                         ; $C4B1: 8D 00 00
+  STA a:col_offset                                         ; $C4B1: 8D 00 00
   LDA active_player_slot                                           ; $C4B4: AD AA 04
   BEQ @skip                                           ; $C4B7: F0 05
   LDA #$55                                            ; $C4B9: A9 55
-  STA col_offset                                         ; $C4BB: 8D 00 00
+  STA a:col_offset                                         ; $C4BB: 8D 00 00
 @skip:
   LDA #$00                                            ; $C4BE: A9 00
   JMP BuildPPUTileBuffer                                           ; $C4C0: 4C FD CD
@@ -6192,13 +6159,13 @@ FeintScene_Scroll:
   LDA #$18                                            ; $C4CB: A9 18
   STA slide_y_pos                                           ; $C4CD: 8D BB 04
   LDA #$E3                                            ; $C4D0: A9 E3
-  STA col_offset                                         ; $C4D2: 8D 00 00
+  STA a:col_offset                                         ; $C4D2: 8D 00 00
   LDA active_player_slot                                           ; $C4D5: AD AA 04
   BEQ @skip                                           ; $C4D8: F0 0A
   LDA #$A8                                            ; $C4DA: A9 A8
   STA slide_y_pos                                           ; $C4DC: 8D BB 04
   LDA #$F5                                            ; $C4DF: A9 F5
-  STA col_offset                                         ; $C4E1: 8D 00 00
+  STA a:col_offset                                         ; $C4E1: 8D 00 00
 @skip:
   LDA #$00                                            ; $C4E4: A9 00
   JMP BuildPPUTileBuffer                                           ; $C4E6: 4C FD CD
@@ -6222,7 +6189,7 @@ FeintScene_Draw:
   BEQ @skip_4                                           ; $C4FD: F0 14
 @skip_2:
   LDA active_player_slot                                           ; $C4FF: AD AA 04
-  STA temp_0011                                         ; $C502: 8D 11 00
+  STA a:temp_0011                                         ; $C502: 8D 11 00
   BEQ @skip_3                                           ; $C505: F0 06
   DEC slide_y_pos                                           ; $C507: CE BB 04
   JMP MapScroll_UpdatePosition                                           ; $C50A: 4C E1 CE
@@ -6234,12 +6201,12 @@ FeintScene_Draw:
   LDA active_player_slot                                           ; $C516: AD AA 04
   BEQ @skip_5                                           ; $C519: F0 0A
   LDA #$4B                                            ; $C51B: A9 4B
-  STA col_offset                                         ; $C51D: 8D 00 00
+  STA a:col_offset                                         ; $C51D: 8D 00 00
   LDA #$18                                            ; $C520: A9 18
   JMP @skip_6                                           ; $C522: 4C 2C C5
 @skip_5:
   LDA #$4D                                            ; $C525: A9 4D
-  STA col_offset                                         ; $C527: 8D 00 00
+  STA a:col_offset                                         ; $C527: 8D 00 00
   LDA #$17                                            ; $C52A: A9 17
 @skip_6:
   JSR BuildPPUTileBuffer                                           ; $C52C: 20 FD CD
@@ -6277,13 +6244,13 @@ FeintScene_ScrollOffsetTable:
   ptr_00d7_hi     = $00D8
 FeintScene_Update:
   LDA #$92                                            ; $C55A: A9 92
-  STA a:zp_c7                                         ; $C55C: 8D C7 00
-  STA a:zp_cf                                         ; $C55F: 8D CF 00
-  STA a:zp_d7                                         ; $C562: 8D D7 00
+  STA a:ptr_00c7_lo                                         ; $C55C: 8D C7 00
+  STA a:ptr_00cf_lo                                         ; $C55F: 8D CF 00
+  STA a:ptr_00d7_lo                                         ; $C562: 8D D7 00
   LDA #$84                                            ; $C565: A9 84
-  STA a:zp_c8                                         ; $C567: 8D C8 00
-  STA a:zp_d0                                         ; $C56A: 8D D0 00
-  STA a:zp_d8                                         ; $C56D: 8D D8 00
+  STA a:ptr_00c7_hi                                         ; $C567: 8D C8 00
+  STA a:ptr_00cf_hi                                         ; $C56A: 8D D0 00
+  STA a:ptr_00d7_hi                                         ; $C56D: 8D D8 00
   LDA #$FF                                            ; $C570: A9 FF
   STA anim_timer                                           ; $C572: 8D B8 04
   LDA #$00                                            ; $C575: A9 00
@@ -6292,12 +6259,12 @@ FeintScene_Update:
   STA scroll_row_count                                           ; $C57C: 8D BA 04
   INC sub_state                                           ; $C57F: EE A9 04
   LDA #$ED                                            ; $C582: A9 ED
-  STA col_offset                                         ; $C584: 8D 00 00
+  STA a:col_offset                                         ; $C584: 8D 00 00
   LDA #$04                                            ; $C587: A9 04
   LDY active_player_slot                                           ; $C589: AC AA 04
   BEQ @skip                                           ; $C58C: F0 07
   LDA #$EB                                            ; $C58E: A9 EB
-  STA col_offset                                         ; $C590: 8D 00 00
+  STA a:col_offset                                         ; $C590: 8D 00 00
   LDA #$08                                            ; $C593: A9 08
 @skip:
   JMP BuildPPUTileBuffer                                           ; $C595: 4C FD CD
@@ -6313,29 +6280,29 @@ FeintScene_Update:
   ppu_col_hi       = $00DC
 FeintScene_Animate:
   LDA #$90                                            ; $C598: A9 90
-  STA a:zp_cc                                         ; $C59A: 8D CC 00
-  STA a:zp_d4                                         ; $C59D: 8D D4 00
-  STA a:zp_dc                                         ; $C5A0: 8D DC 00
+  STA a:ppu_col_lo                                         ; $C59A: 8D CC 00
+  STA a:ppu_col_mid                                         ; $C59D: 8D D4 00
+  STA a:ppu_col_hi                                         ; $C5A0: 8D DC 00
   INC sub_state                                           ; $C5A3: EE A9 04
   LDA active_player_slot                                           ; $C5A6: AD AA 04
   EOR #$01                                            ; $C5A9: 49 01
   TAY                                                 ; $C5AB: A8
   LDA name_tile_index,Y                                         ; $C5AC: B9 AF 04
-  STA ppu_tile_lo                                         ; $C5AF: 8D 01 00
+  STA a:ppu_tile_hi                                         ; $C5AF: 8D 01 00
   CPY #$01                                            ; $C5B2: C0 01
   BEQ @skip                                           ; $C5B4: F0 0E
   LDA #$43                                            ; $C5B6: A9 43
-  STA col_offset                                         ; $C5B8: 8D 00 00
+  STA a:col_offset                                         ; $C5B8: 8D 00 00
   LDA #$0D                                            ; $C5BB: A9 0D
   CLC                                                 ; $C5BD: 18
-  ADC ppu_tile_lo                                         ; $C5BE: 6D 01 00
+  ADC a:ppu_tile_hi                                         ; $C5BE: 6D 01 00
   JMP BuildPPUTileBuffer                                           ; $C5C1: 4C FD CD
 @skip:
   LDA #$55                                            ; $C5C4: A9 55
-  STA col_offset                                         ; $C5C6: 8D 00 00
+  STA a:col_offset                                         ; $C5C6: 8D 00 00
   LDA #$10                                            ; $C5C9: A9 10
   CLC                                                 ; $C5CB: 18
-  ADC ppu_tile_lo                                         ; $C5CC: 6D 01 00
+  ADC a:ppu_tile_hi                                         ; $C5CC: 6D 01 00
   JMP BuildPPUTileBuffer                                           ; $C5CF: 4C FD CD
 .endproc
 ;===============================================================================
@@ -6354,7 +6321,7 @@ FeintScene_Finalize:
   LSR A                                               ; $C5D7: 4A
   LSR A                                               ; $C5D8: 4A
   AND #$01                                            ; $C5D9: 29 01
-  STA tilemap_work                                         ; $C5DB: 8D 12 00
+  STA a:tilemap_work                                         ; $C5DB: 8D 12 00
   INC anim_timer                                           ; $C5DE: EE B8 04
   LDA anim_timer                                           ; $C5E1: AD B8 04
   LSR A                                               ; $C5E4: 4A
@@ -6366,11 +6333,11 @@ FeintScene_Finalize:
   BNE @skip_2                                           ; $C5EC: D0 34
   INC sub_state                                           ; $C5EE: EE A9 04
   LDA #$4B                                            ; $C5F1: A9 4B
-  STA col_offset                                         ; $C5F3: 8D 00 00
+  STA a:col_offset                                         ; $C5F3: 8D 00 00
   LDA active_player_slot                                           ; $C5F6: AD AA 04
   BNE @skip                                           ; $C5F9: D0 05
   LDA #$4D                                            ; $C5FB: A9 4D
-  STA col_offset                                         ; $C5FD: 8D 00 00
+  STA a:col_offset                                         ; $C5FD: 8D 00 00
 @skip:
   LDA #$00                                            ; $C600: A9 00
   JSR BuildPPUTileBuffer                                           ; $C602: 20 FD CD
@@ -6388,36 +6355,36 @@ FeintScene_Finalize:
   RTS                                                 ; $C621: 60
 @skip_2:
   AND #$01                                            ; $C622: 29 01
-  STA ptr_0010_lo                                         ; $C624: 8D 10 00
-  STA ptr_0010_hi                                         ; $C627: 8D 11 00
+  STA a:ptr_0010_lo                                         ; $C624: 8D 10 00
+  STA a:ptr_0010_hi                                         ; $C627: 8D 11 00
   BNE @skip_3                                           ; $C62A: D0 0A
-  CMP tilemap_work                                         ; $C62C: CD 12 00
+  CMP a:tilemap_work                                         ; $C62C: CD 12 00
   BEQ @skip_3                                           ; $C62F: F0 05
   LDA #$62                                            ; $C631: A9 62
   JSR B1F_SoundWrapperE                               ; $C633: 20 93 E6
 @skip_3:
   LDA active_player_slot                                           ; $C636: AD AA 04
   BEQ @skip_4                                           ; $C639: F0 09
-  LDA ptr_0010_lo                                         ; $C63B: AD 10 00
+  LDA a:ptr_0010_lo                                         ; $C63B: AD 10 00
   CLC                                                 ; $C63E: 18
   ADC #$06                                            ; $C63F: 69 06
-  STA ptr_0010_lo                                         ; $C641: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C641: 8D 10 00
 @skip_4:
   LDA active_player_slot                                           ; $C644: AD AA 04
   CLC                                                 ; $C647: 18
   ADC #$01                                            ; $C648: 69 01
-  STA work_marker                                         ; $C64A: 8D 02 00
+  STA a:tilemap_attr                                         ; $C64A: 8D 02 00
   LDY active_player_slot                                           ; $C64D: AC AA 04
   LDA name_tile_index,Y                                         ; $C650: B9 AF 04
   ASL A                                               ; $C653: 0A
   CLC                                                 ; $C654: 18
-  ADC ptr_0010_lo                                         ; $C655: 6D 10 00
+  ADC a:ptr_0010_lo                                         ; $C655: 6D 10 00
   ADC #$5E                                            ; $C658: 69 5E
   JSR DrawSpriteFromBank                                           ; $C65A: 20 A5 CE
-  LDA ptr_0010_hi                                         ; $C65D: AD 11 00
+  LDA a:ptr_0010_hi                                         ; $C65D: AD 11 00
   BNE @skip_5                                           ; $C660: D0 08
   LDA #$76                                            ; $C662: A9 76
-  STA ptr_0010_lo                                         ; $C664: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C664: 8D 10 00
   JMP DrawCompletionSprite                                           ; $C667: 4C 35 D2
 @skip_5:
   RTS                                                 ; $C66A: 60
@@ -6433,11 +6400,11 @@ FeintScene_Complete:
   LDA #$00                                            ; $C670: A9 00
   STA sub_state                                           ; $C672: 8D A9 04
   LDA #$ED                                            ; $C675: A9 ED
-  STA col_offset                                         ; $C677: 8D 00 00
+  STA a:col_offset                                         ; $C677: 8D 00 00
   LDY active_player_slot                                           ; $C67A: AC AA 04
   BEQ @skip                                           ; $C67D: F0 05
   LDA #$EB                                            ; $C67F: A9 EB
-  STA col_offset                                         ; $C681: 8D 00 00
+  STA a:col_offset                                         ; $C681: 8D 00 00
 @skip:
   LDA #$00                                            ; $C684: A9 00
   JMP BuildPPUTileBuffer                                           ; $C686: 4C FD CD
@@ -6470,11 +6437,11 @@ StrikeSceneDispatch:
 StrikeScene_Init:
   INC sub_state                                           ; $C69F: EE A9 04
   LDA #$43                                            ; $C6A2: A9 43
-  STA col_offset                                         ; $C6A4: 8D 00 00
+  STA a:col_offset                                         ; $C6A4: 8D 00 00
   LDA active_player_slot                                           ; $C6A7: AD AA 04
   BEQ @skip                                           ; $C6AA: F0 05
   LDA #$55                                            ; $C6AC: A9 55
-  STA col_offset                                         ; $C6AE: 8D 00 00
+  STA a:col_offset                                         ; $C6AE: 8D 00 00
 @skip:
   LDA #$00                                            ; $C6B1: A9 00
   JMP BuildPPUTileBuffer                                           ; $C6B3: 4C FD CD
@@ -6491,13 +6458,13 @@ StrikeScene_Scroll:
   LDA #$18                                            ; $C6BE: A9 18
   STA slide_y_pos                                           ; $C6C0: 8D BB 04
   LDA #$E3                                            ; $C6C3: A9 E3
-  STA col_offset                                         ; $C6C5: 8D 00 00
+  STA a:col_offset                                         ; $C6C5: 8D 00 00
   LDA active_player_slot                                           ; $C6C8: AD AA 04
   BEQ @skip                                           ; $C6CB: F0 0A
   LDA #$A8                                            ; $C6CD: A9 A8
   STA slide_y_pos                                           ; $C6CF: 8D BB 04
   LDA #$F5                                            ; $C6D2: A9 F5
-  STA col_offset                                         ; $C6D4: 8D 00 00
+  STA a:col_offset                                         ; $C6D4: 8D 00 00
 @skip:
   LDA #$00                                            ; $C6D7: A9 00
   JMP BuildPPUTileBuffer                                           ; $C6D9: 4C FD CD
@@ -6524,24 +6491,24 @@ StrikeScene_Draw:
   BNE @skip_4                                           ; $C6F0: D0 27
 @skip_2:
   LDA #$8F                                            ; $C6F2: A9 8F
-  STA a:zp_cc                                         ; $C6F4: 8D CC 00
-  STA a:zp_d4                                         ; $C6F7: 8D D4 00
-  STA a:zp_dc                                         ; $C6FA: 8D DC 00
+  STA a:ppu_col_lo                                         ; $C6F4: 8D CC 00
+  STA a:ppu_col_mid                                         ; $C6F7: 8D D4 00
+  STA a:ppu_col_hi                                         ; $C6FA: 8D DC 00
   INC sub_state                                           ; $C6FD: EE A9 04
   LDA active_player_slot                                           ; $C700: AD AA 04
   BEQ @skip_3                                           ; $C703: F0 0A
   LDA #$4B                                            ; $C705: A9 4B
-  STA col_offset                                         ; $C707: 8D 00 00
+  STA a:col_offset                                         ; $C707: 8D 00 00
   LDA #$0B                                            ; $C70A: A9 0B
   JMP BuildPPUTileBuffer                                           ; $C70C: 4C FD CD
 @skip_3:
   LDA #$4D                                            ; $C70F: A9 4D
-  STA col_offset                                         ; $C711: 8D 00 00
+  STA a:col_offset                                         ; $C711: 8D 00 00
   LDA #$09                                            ; $C714: A9 09
   JMP BuildPPUTileBuffer                                           ; $C716: 4C FD CD
 @skip_4:
   LDA active_player_slot                                           ; $C719: AD AA 04
-  STA temp_0011                                         ; $C71C: 8D 11 00
+  STA a:temp_0011                                         ; $C71C: 8D 11 00
   BEQ @skip_5                                           ; $C71F: F0 06
   DEC slide_y_pos                                           ; $C721: CE BB 04
   JMP MapScroll_UpdatePosition                                           ; $C724: 4C E1 CE
@@ -6562,16 +6529,16 @@ StrikeScene_Draw:
   temp_00d9       = $00D9
 StrikeScene_Update:
   LDA #$83                                            ; $C72D: A9 83
-  STA a:zp_c9                                         ; $C72F: 8D C9 00
-  STA a:zp_d1                                         ; $C732: 8D D1 00
-  STA a:zp_d9                                         ; $C735: 8D D9 00
+  STA a:temp_00c9                                         ; $C72F: 8D C9 00
+  STA a:temp_00d1                                         ; $C732: 8D D1 00
+  STA a:temp_00d9                                         ; $C735: 8D D9 00
   LDY active_player_slot                                           ; $C738: AC AA 04
   LDA name_tile_index,Y                                         ; $C73B: B9 AF 04
   BEQ @skip                                           ; $C73E: F0 0B
   LDA #$84                                            ; $C740: A9 84
-  STA a:zp_c6                                         ; $C742: 8D C6 00
-  STA a:zp_ce                                         ; $C745: 8D CE 00
-  STA a:zp_d6                                         ; $C748: 8D D6 00
+  STA a:temp_00c6                                         ; $C742: 8D C6 00
+  STA a:temp_00ce                                         ; $C745: 8D CE 00
+  STA a:temp_00d6                                         ; $C748: 8D D6 00
 @skip:
   LDA #$FF                                            ; $C74B: A9 FF
   STA anim_timer                                           ; $C74D: 8D B8 04
@@ -6581,12 +6548,12 @@ StrikeScene_Update:
   STA scroll_row_count                                           ; $C757: 8D BA 04
   INC sub_state                                           ; $C75A: EE A9 04
   LDA #$ED                                            ; $C75D: A9 ED
-  STA col_offset                                         ; $C75F: 8D 00 00
+  STA a:col_offset                                         ; $C75F: 8D 00 00
   LDA #$0A                                            ; $C762: A9 0A
   LDY active_player_slot                                           ; $C764: AC AA 04
   BEQ @skip_2                                           ; $C767: F0 07
   LDA #$EB                                            ; $C769: A9 EB
-  STA col_offset                                         ; $C76B: 8D 00 00
+  STA a:col_offset                                         ; $C76B: 8D 00 00
   LDA #$0C                                            ; $C76E: A9 0C
 @skip_2:
   JMP BuildPPUTileBuffer                                           ; $C770: 4C FD CD
@@ -6606,7 +6573,7 @@ StrikeScene_Animate:
   LSR A                                               ; $C777: 4A
   LSR A                                               ; $C778: 4A
   AND #$03                                            ; $C779: 29 03
-  STA tilemap_work                                         ; $C77B: 8D 12 00
+  STA a:tilemap_work                                         ; $C77B: 8D 12 00
   INC anim_timer                                           ; $C77E: EE B8 04
   LDA anim_timer                                           ; $C781: AD B8 04
   LSR A                                               ; $C784: 4A
@@ -6623,52 +6590,52 @@ StrikeScene_Animate:
   BNE @skip_2                                           ; $C79A: D0 17
   INC sub_state                                           ; $C79C: EE A9 04
   LDA #$4B                                            ; $C79F: A9 4B
-  STA col_offset                                         ; $C7A1: 8D 00 00
+  STA a:col_offset                                         ; $C7A1: 8D 00 00
   LDA active_player_slot                                           ; $C7A4: AD AA 04
   BNE @skip                                           ; $C7A7: D0 05
   LDA #$4D                                            ; $C7A9: A9 4D
-  STA col_offset                                         ; $C7AB: 8D 00 00
+  STA a:col_offset                                         ; $C7AB: 8D 00 00
 @skip:
   LDA #$00                                            ; $C7AE: A9 00
   JMP BuildPPUTileBuffer                                           ; $C7B0: 4C FD CD
 @skip_2:
-  STA ptr_0010_lo                                         ; $C7B3: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C7B3: 8D 10 00
   CMP #$01                                            ; $C7B6: C9 01
   BNE @skip_3                                           ; $C7B8: D0 0A
-  CMP tilemap_work                                         ; $C7BA: CD 12 00
+  CMP a:tilemap_work                                         ; $C7BA: CD 12 00
   BEQ @skip_3                                           ; $C7BD: F0 05
   LDA #$61                                            ; $C7BF: A9 61
   JSR B1F_SoundNotePlayer                             ; $C7C1: 20 09 E6
 @skip_3:
   LDA active_player_slot                                           ; $C7C4: AD AA 04
   BNE @skip_4                                           ; $C7C7: D0 09
-  LDA ptr_0010_lo                                         ; $C7C9: AD 10 00
+  LDA a:ptr_0010_lo                                         ; $C7C9: AD 10 00
   CLC                                                 ; $C7CC: 18
   ADC #$0F                                            ; $C7CD: 69 0F
-  STA ptr_0010_lo                                         ; $C7CF: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C7CF: 8D 10 00
 @skip_4:
   LDA #$00                                            ; $C7D2: A9 00
-  STA work_marker                                         ; $C7D4: 8D 02 00
-  LDA ptr_0010_lo                                         ; $C7D7: AD 10 00
+  STA a:tilemap_attr                                         ; $C7D4: 8D 02 00
+  LDA a:ptr_0010_lo                                         ; $C7D7: AD 10 00
   CLC                                                 ; $C7DA: 18
   ADC #$22                                            ; $C7DB: 69 22
   JSR DrawSpriteFromBank                                           ; $C7DD: 20 A5 CE
   LDA active_player_slot                                           ; $C7E0: AD AA 04
   CLC                                                 ; $C7E3: 18
   ADC #$01                                            ; $C7E4: 69 01
-  STA work_marker                                         ; $C7E6: 8D 02 00
-  LDA ptr_0010_lo                                         ; $C7E9: AD 10 00
+  STA a:tilemap_attr                                         ; $C7E6: 8D 02 00
+  LDA a:ptr_0010_lo                                         ; $C7E9: AD 10 00
   CLC                                                 ; $C7EC: 18
   ADC #$25                                            ; $C7ED: 69 25
   JSR DrawSpriteFromBank                                           ; $C7EF: 20 A5 CE
   LDY active_player_slot                                           ; $C7F2: AC AA 04
   LDA name_tile_index,Y                                         ; $C7F5: B9 AF 04
-  STA ptr_0010_hi                                         ; $C7F8: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $C7F8: 8D 11 00
   ASL A                                               ; $C7FB: 0A
   CLC                                                 ; $C7FC: 18
-  ADC ptr_0010_hi                                         ; $C7FD: 6D 11 00
+  ADC a:ptr_0010_hi                                         ; $C7FD: 6D 11 00
   CLC                                                 ; $C800: 18
-  ADC ptr_0010_lo                                         ; $C801: 6D 10 00
+  ADC a:ptr_0010_lo                                         ; $C801: 6D 10 00
   ADC #$28                                            ; $C804: 69 28
   JMP DrawSpriteFromBank                                           ; $C806: 4C A5 CE
 .endproc
@@ -6689,25 +6656,25 @@ StrikeScene_Finalize:
   LDA #$57                                            ; $C80E: A9 57
   STA scroll_row_count                                           ; $C810: 8D BA 04
   LDA #$80                                            ; $C813: A9 80
-  STA a:zp_c6                                         ; $C815: 8D C6 00
-  STA a:zp_ce                                         ; $C818: 8D CE 00
-  STA a:zp_d6                                         ; $C81B: 8D D6 00
+  STA a:temp_00c6                                         ; $C815: 8D C6 00
+  STA a:temp_00ce                                         ; $C818: 8D CE 00
+  STA a:temp_00d6                                         ; $C81B: 8D D6 00
   LDY active_player_slot                                           ; $C81E: AC AA 04
   LDA name_tile_index,Y                                         ; $C821: B9 AF 04
   CMP #$01                                            ; $C824: C9 01
   BNE @skip                                           ; $C826: D0 0B
   LDA #$96                                            ; $C828: A9 96
-  STA a:zp_c9                                         ; $C82A: 8D C9 00
-  STA a:zp_d1                                         ; $C82D: 8D D1 00
-  STA a:zp_d9                                         ; $C830: 8D D9 00
+  STA a:temp_00c9                                         ; $C82A: 8D C9 00
+  STA a:temp_00d1                                         ; $C82D: 8D D1 00
+  STA a:temp_00d9                                         ; $C830: 8D D9 00
 @skip:
   INC sub_state                                           ; $C833: EE A9 04
   LDA #$EB                                            ; $C836: A9 EB
-  STA col_offset                                         ; $C838: 8D 00 00
+  STA a:col_offset                                         ; $C838: 8D 00 00
   LDA active_player_slot                                           ; $C83B: AD AA 04
   BNE @skip_2                                           ; $C83E: D0 05
   LDA #$ED                                            ; $C840: A9 ED
-  STA col_offset                                         ; $C842: 8D 00 00
+  STA a:col_offset                                         ; $C842: 8D 00 00
 @skip_2:
   LDA #$00                                            ; $C845: A9 00
   JMP BuildPPUTileBuffer                                           ; $C847: 4C FD CD
@@ -6723,29 +6690,29 @@ StrikeScene_Finalize:
   ppu_col_hi       = $00DC
 StrikeScene_Complete:
   LDA #$90                                            ; $C84A: A9 90
-  STA a:zp_cc                                         ; $C84C: 8D CC 00
-  STA a:zp_d4                                         ; $C84F: 8D D4 00
-  STA a:zp_dc                                         ; $C852: 8D DC 00
+  STA a:ppu_col_lo                                         ; $C84C: 8D CC 00
+  STA a:ppu_col_mid                                         ; $C84F: 8D D4 00
+  STA a:ppu_col_hi                                         ; $C852: 8D DC 00
   INC sub_state                                           ; $C855: EE A9 04
   LDA active_player_slot                                           ; $C858: AD AA 04
   EOR #$01                                            ; $C85B: 49 01
   TAY                                                 ; $C85D: A8
   LDA name_tile_index,Y                                         ; $C85E: B9 AF 04
-  STA ppu_tile_lo                                         ; $C861: 8D 01 00
+  STA a:ppu_tile_hi                                         ; $C861: 8D 01 00
   CPY #$01                                            ; $C864: C0 01
   BEQ @skip                                           ; $C866: F0 0E
   LDA #$43                                            ; $C868: A9 43
-  STA col_offset                                         ; $C86A: 8D 00 00
+  STA a:col_offset                                         ; $C86A: 8D 00 00
   LDA #$0D                                            ; $C86D: A9 0D
   CLC                                                 ; $C86F: 18
-  ADC ppu_tile_lo                                         ; $C870: 6D 01 00
+  ADC a:ppu_tile_hi                                         ; $C870: 6D 01 00
   JMP BuildPPUTileBuffer                                           ; $C873: 4C FD CD
 @skip:
   LDA #$55                                            ; $C876: A9 55
-  STA col_offset                                         ; $C878: 8D 00 00
+  STA a:col_offset                                         ; $C878: 8D 00 00
   LDA #$10                                            ; $C87B: A9 10
   CLC                                                 ; $C87D: 18
-  ADC ppu_tile_lo                                         ; $C87E: 6D 01 00
+  ADC a:ppu_tile_hi                                         ; $C87E: 6D 01 00
   JMP BuildPPUTileBuffer                                           ; $C881: 4C FD CD
 .endproc
 ;===============================================================================
@@ -6766,7 +6733,7 @@ StrikeScene_Extra:
   LSR A                                               ; $C888: 4A
   LSR A                                               ; $C889: 4A
   AND #$07                                            ; $C88A: 29 07
-  STA tilemap_work                                         ; $C88C: 8D 12 00
+  STA a:tilemap_work                                         ; $C88C: 8D 12 00
   INC anim_timer                                           ; $C88F: EE B8 04
   LDA anim_timer                                           ; $C892: AD B8 04
   LSR A                                               ; $C895: 4A
@@ -6785,49 +6752,49 @@ StrikeScene_Extra:
 @skip:
   LDA #$02                                            ; $C8AD: A9 02
 @skip_2:
-  STA ptr_0010_lo                                         ; $C8AF: 8D 10 00
-  STA ptr_0010_hi                                         ; $C8B2: 8D 11 00
+  STA a:ptr_0010_lo                                         ; $C8AF: 8D 10 00
+  STA a:ptr_0010_hi                                         ; $C8B2: 8D 11 00
   CMP #$01                                            ; $C8B5: C9 01
   BNE @skip_3                                           ; $C8B7: D0 0A
-  CMP tilemap_work                                         ; $C8B9: CD 12 00
+  CMP a:tilemap_work                                         ; $C8B9: CD 12 00
   BEQ @skip_3                                           ; $C8BC: F0 05
   LDA #$69                                            ; $C8BE: A9 69
   JSR B1F_SoundNotePlayer                             ; $C8C0: 20 09 E6
 @skip_3:
   LDA active_player_slot                                           ; $C8C3: AD AA 04
   BNE @skip_4                                           ; $C8C6: D0 09
-  LDA ptr_0010_lo                                         ; $C8C8: AD 10 00
+  LDA a:ptr_0010_lo                                         ; $C8C8: AD 10 00
   CLC                                                 ; $C8CB: 18
   ADC #$0F                                            ; $C8CC: 69 0F
-  STA ptr_0010_lo                                         ; $C8CE: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C8CE: 8D 10 00
 @skip_4:
   LDA #$00                                            ; $C8D1: A9 00
-  STA work_marker                                         ; $C8D3: 8D 02 00
+  STA a:tilemap_attr                                         ; $C8D3: 8D 02 00
   LDA #$40                                            ; $C8D6: A9 40
-  STA ppu_tile_lo                                         ; $C8D8: 8D 01 00
+  STA a:ppu_tile_hi                                         ; $C8D8: 8D 01 00
   LDY active_player_slot                                           ; $C8DB: AC AA 04
   LDA name_tile_index,Y                                         ; $C8DE: B9 AF 04
   CMP #$01                                            ; $C8E1: C9 01
   BNE @skip_5                                           ; $C8E3: D0 05
   LDA #$4C                                            ; $C8E5: A9 4C
-  STA ppu_tile_lo                                         ; $C8E7: 8D 01 00
+  STA a:ppu_tile_hi                                         ; $C8E7: 8D 01 00
 @skip_5:
-  LDA ptr_0010_lo                                         ; $C8EA: AD 10 00
+  LDA a:ptr_0010_lo                                         ; $C8EA: AD 10 00
   CLC                                                 ; $C8ED: 18
-  ADC ppu_tile_lo                                         ; $C8EE: 6D 01 00
+  ADC a:ppu_tile_hi                                         ; $C8EE: 6D 01 00
   JSR DrawSpriteFromBank                                           ; $C8F1: 20 A5 CE
   LDA active_player_slot                                           ; $C8F4: AD AA 04
   CLC                                                 ; $C8F7: 18
   ADC #$01                                            ; $C8F8: 69 01
-  STA work_marker                                         ; $C8FA: 8D 02 00
+  STA a:tilemap_attr                                         ; $C8FA: 8D 02 00
   LDY active_player_slot                                           ; $C8FD: AC AA 04
   LDA name_tile_index,Y                                         ; $C900: B9 AF 04
-  STA ppu_tile_lo                                         ; $C903: 8D 01 00
+  STA a:ppu_tile_hi                                         ; $C903: 8D 01 00
   ASL A                                               ; $C906: 0A
   CLC                                                 ; $C907: 18
-  ADC ppu_tile_lo                                         ; $C908: 6D 01 00
+  ADC a:ppu_tile_hi                                         ; $C908: 6D 01 00
   CLC                                                 ; $C90B: 18
-  ADC ptr_0010_lo                                         ; $C90C: 6D 10 00
+  ADC a:ptr_0010_lo                                         ; $C90C: 6D 10 00
   ADC #$43                                            ; $C90F: 69 43
   JSR DrawSpriteFromBank                                           ; $C911: 20 A5 CE
   LDY active_player_slot                                           ; $C914: AC AA 04
@@ -6838,11 +6805,11 @@ StrikeScene_Extra:
   CMP #$11                                            ; $C921: C9 11
   BNE @skip_6                                           ; $C923: D0 0B
   LDA #$84                                            ; $C925: A9 84
-  STA temp_00c9                                         ; $C927: 8D C9 00
-  STA temp_00d1                                         ; $C92A: 8D D1 00
-  STA temp_00d9                                         ; $C92D: 8D D9 00
+  STA a:temp_00c9                                         ; $C927: 8D C9 00
+  STA a:temp_00d1                                         ; $C92A: 8D D1 00
+  STA a:temp_00d9                                         ; $C92D: 8D D9 00
 @skip_6:
-  LDA ptr_0010_hi                                         ; $C930: AD 11 00
+  LDA a:ptr_0010_hi                                         ; $C930: AD 11 00
   CMP #$02                                            ; $C933: C9 02
   BNE @skip_7                                           ; $C935: D0 11
   LDY active_player_slot                                           ; $C937: AC AA 04
@@ -6850,7 +6817,7 @@ StrikeScene_Extra:
   AND #$01                                            ; $C93D: 29 01
   CLC                                                 ; $C93F: 18
   ADC #$77                                            ; $C940: 69 77
-  STA ptr_0010_lo                                         ; $C942: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $C942: 8D 10 00
   JMP DrawCompletionSprite                                           ; $C945: 4C 35 D2
 @skip_7:
   RTS                                                 ; $C948: 60
@@ -6883,11 +6850,11 @@ DesperateSceneDispatch:
 DesperateScene_Init:
   INC sub_state                                           ; $C95F: EE A9 04
   LDA #$55                                            ; $C962: A9 55
-  STA col_offset                                         ; $C964: 8D 00 00
+  STA a:col_offset                                         ; $C964: 8D 00 00
   LDA active_player_slot                                           ; $C967: AD AA 04
   BNE @skip                                           ; $C96A: D0 05
   LDA #$43                                            ; $C96C: A9 43
-  STA col_offset                                         ; $C96E: 8D 00 00
+  STA a:col_offset                                         ; $C96E: 8D 00 00
 @skip:
   LDA #$00                                            ; $C971: A9 00
   JMP BuildPPUTileBuffer                                           ; $C973: 4C FD CD
@@ -6904,13 +6871,13 @@ DesperateScene_Scroll:
   LDA #$A8                                            ; $C97E: A9 A8
   STA slide_y_pos                                           ; $C980: 8D BB 04
   LDA #$F5                                            ; $C983: A9 F5
-  STA col_offset                                         ; $C985: 8D 00 00
+  STA a:col_offset                                         ; $C985: 8D 00 00
   LDA active_player_slot                                           ; $C988: AD AA 04
   BNE @skip                                           ; $C98B: D0 0A
   LDA #$18                                            ; $C98D: A9 18
   STA slide_y_pos                                           ; $C98F: 8D BB 04
   LDA #$E3                                            ; $C992: A9 E3
-  STA col_offset                                         ; $C994: 8D 00 00
+  STA a:col_offset                                         ; $C994: 8D 00 00
 @skip:
   LDA #$00                                            ; $C997: A9 00
   JMP BuildPPUTileBuffer                                           ; $C999: 4C FD CD
@@ -6937,24 +6904,24 @@ DesperateScene_Draw:
   BNE @skip_4                                           ; $C9B0: D0 27
 @skip_2:
   LDA #$8F                                            ; $C9B2: A9 8F
-  STA a:zp_cc                                         ; $C9B4: 8D CC 00
-  STA a:zp_d4                                         ; $C9B7: 8D D4 00
-  STA a:zp_dc                                         ; $C9BA: 8D DC 00
+  STA a:ppu_col_lo                                         ; $C9B4: 8D CC 00
+  STA a:ppu_col_mid                                         ; $C9B7: 8D D4 00
+  STA a:ppu_col_hi                                         ; $C9BA: 8D DC 00
   INC sub_state                                           ; $C9BD: EE A9 04
   LDA active_player_slot                                           ; $C9C0: AD AA 04
   BEQ @skip_3                                           ; $C9C3: F0 0A
   LDA #$4B                                            ; $C9C5: A9 4B
-  STA col_offset                                         ; $C9C7: 8D 00 00
+  STA a:col_offset                                         ; $C9C7: 8D 00 00
   LDA #$0B                                            ; $C9CA: A9 0B
   JMP BuildPPUTileBuffer                                           ; $C9CC: 4C FD CD
 @skip_3:
   LDA #$4D                                            ; $C9CF: A9 4D
-  STA col_offset                                         ; $C9D1: 8D 00 00
+  STA a:col_offset                                         ; $C9D1: 8D 00 00
   LDA #$09                                            ; $C9D4: A9 09
   JMP BuildPPUTileBuffer                                           ; $C9D6: 4C FD CD
 @skip_4:
   LDA active_player_slot                                           ; $C9D9: AD AA 04
-  STA temp_0011                                         ; $C9DC: 8D 11 00
+  STA a:temp_0011                                         ; $C9DC: 8D 11 00
   BEQ @skip_5                                           ; $C9DF: F0 06
   DEC slide_y_pos                                           ; $C9E1: CE BB 04
   JMP MapScroll_UpdatePosition                                           ; $C9E4: 4C E1 CE
@@ -6987,25 +6954,25 @@ DesperateScene_Update:
   LDA #$3F                                            ; $C9ED: A9 3F
   STA scroll_row_count                                           ; $C9EF: 8D BA 04
   LDA #$86                                            ; $C9F2: A9 86
-  STA a:zp_be                                         ; $C9F4: 8D BE 00
-  STA a:zp_c6                                         ; $C9F7: 8D C6 00
-  STA a:zp_ce                                         ; $C9FA: 8D CE 00
-  STA a:zp_d6                                         ; $C9FD: 8D D6 00
+  STA a:ptr_00be_lo                                         ; $C9F4: 8D BE 00
+  STA a:ptr_00c6_lo                                         ; $C9F7: 8D C6 00
+  STA a:ptr_00ce_lo                                         ; $C9FA: 8D CE 00
+  STA a:ptr_00d6_lo                                         ; $C9FD: 8D D6 00
   LDA #$87                                            ; $CA00: A9 87
-  STA a:zp_bf                                         ; $CA02: 8D BF 00
-  STA a:zp_c7                                         ; $CA05: 8D C7 00
-  STA a:zp_cf                                         ; $CA08: 8D CF 00
-  STA a:zp_d7                                         ; $CA0B: 8D D7 00
+  STA a:ptr_00be_hi                                         ; $CA02: 8D BF 00
+  STA a:ptr_00c6_hi                                         ; $CA05: 8D C7 00
+  STA a:ptr_00ce_hi                                         ; $CA08: 8D CF 00
+  STA a:ptr_00d6_hi                                         ; $CA0B: 8D D7 00
   LDA #$93                                            ; $CA0E: A9 93
-  STA a:zp_c0                                         ; $CA10: 8D C0 00
-  STA a:zp_c8                                         ; $CA13: 8D C8 00
-  STA a:zp_d0                                         ; $CA16: 8D D0 00
-  STA a:zp_d8                                         ; $CA19: 8D D8 00
+  STA a:ptr_00c0_lo                                         ; $CA10: 8D C0 00
+  STA a:ptr_00c8_lo                                         ; $CA13: 8D C8 00
+  STA a:ptr_00d0_lo                                         ; $CA16: 8D D0 00
+  STA a:ptr_00d8_lo                                         ; $CA19: 8D D8 00
   LDA #$94                                            ; $CA1C: A9 94
-  STA a:zp_c1                                         ; $CA1E: 8D C1 00
-  STA a:zp_c9                                         ; $CA21: 8D C9 00
-  STA a:zp_d1                                         ; $CA24: 8D D1 00
-  STA a:zp_d9                                         ; $CA27: 8D D9 00
+  STA a:ptr_00c0_hi                                         ; $CA1E: 8D C1 00
+  STA a:ptr_00c8_hi                                         ; $CA21: 8D C9 00
+  STA a:ptr_00d0_hi                                         ; $CA24: 8D D1 00
+  STA a:ptr_00d8_hi                                         ; $CA27: 8D D9 00
   LDA #$00                                            ; $CA2A: A9 00
   STA anim_timer                                           ; $CA2C: 8D B8 04
   STA map_scroll_phase                                           ; $CA2F: 8D B9 04
@@ -7013,12 +6980,12 @@ DesperateScene_Update:
   LDA #$61                                            ; $CA35: A9 61
   JSR B1F_SoundNotePlayer                             ; $CA37: 20 09 E6
   LDA #$ED                                            ; $CA3A: A9 ED
-  STA col_offset                                         ; $CA3C: 8D 00 00
+  STA a:col_offset                                         ; $CA3C: 8D 00 00
   LDA #$0A                                            ; $CA3F: A9 0A
   LDY active_player_slot                                           ; $CA41: AC AA 04
   BEQ @skip                                           ; $CA44: F0 07
   LDA #$EB                                            ; $CA46: A9 EB
-  STA col_offset                                         ; $CA48: 8D 00 00
+  STA a:col_offset                                         ; $CA48: 8D 00 00
   LDA #$0C                                            ; $CA4B: A9 0C
 @skip:
   JMP BuildPPUTileBuffer                                           ; $CA4D: 4C FD CD
@@ -7044,26 +7011,26 @@ DesperateScene_Animate:
   STA anim_timer                                           ; $CA60: 8D B8 04
   INC sub_state                                           ; $CA63: EE A9 04
   LDA #$4B                                            ; $CA66: A9 4B
-  STA col_offset                                         ; $CA68: 8D 00 00
+  STA a:col_offset                                         ; $CA68: 8D 00 00
   LDA active_player_slot                                           ; $CA6B: AD AA 04
   BNE @skip                                           ; $CA6E: D0 05
   LDA #$4D                                            ; $CA70: A9 4D
-  STA col_offset                                         ; $CA72: 8D 00 00
+  STA a:col_offset                                         ; $CA72: 8D 00 00
 @skip:
   LDA #$00                                            ; $CA75: A9 00
   JMP BuildPPUTileBuffer                                           ; $CA77: 4C FD CD
 @skip_2:
-  STA tilemap_work                                         ; $CA7A: 8D 10 00
+  STA a:tilemap_work                                         ; $CA7A: 8D 10 00
   LDA active_player_slot                                           ; $CA7D: AD AA 04
   BNE @skip_3                                           ; $CA80: D0 09
-  LDA tilemap_work                                         ; $CA82: AD 10 00
+  LDA a:tilemap_work                                         ; $CA82: AD 10 00
   CLC                                                 ; $CA85: 18
   ADC #$14                                            ; $CA86: 69 14
-  STA tilemap_work                                         ; $CA88: 8D 10 00
+  STA a:tilemap_work                                         ; $CA88: 8D 10 00
 @skip_3:
   LDA #$00                                            ; $CA8B: A9 00
-  STA work_marker                                         ; $CA8D: 8D 02 00
-  LDA tilemap_work                                         ; $CA90: AD 10 00
+  STA a:tilemap_attr                                         ; $CA8D: 8D 02 00
+  LDA a:tilemap_work                                         ; $CA90: AD 10 00
   CLC                                                 ; $CA93: 18
   ADC #$80                                            ; $CA94: 69 80
   JSR DrawSpriteFromBank                                           ; $CA96: 20 A5 CE
@@ -7071,15 +7038,15 @@ DesperateScene_Animate:
   TYA                                                 ; $CA9C: 98
   CLC                                                 ; $CA9D: 18
   ADC #$01                                            ; $CA9E: 69 01
-  STA work_marker                                         ; $CAA0: 8D 02 00
+  STA a:tilemap_attr                                         ; $CAA0: 8D 02 00
   LDA name_tile_index,Y                                         ; $CAA3: B9 AF 04
-  STA ppu_tile_lo                                         ; $CAA6: 8D 01 00
+  STA a:ppu_tile_hi                                         ; $CAA6: 8D 01 00
   ASL A                                               ; $CAA9: 0A
   ASL A                                               ; $CAAA: 0A
   CLC                                                 ; $CAAB: 18
-  ADC ppu_tile_lo                                         ; $CAAC: 6D 01 00
+  ADC a:ppu_tile_hi                                         ; $CAAC: 6D 01 00
   CLC                                                 ; $CAAF: 18
-  ADC tilemap_work                                         ; $CAB0: 6D 10 00
+  ADC a:tilemap_work                                         ; $CAB0: 6D 10 00
   ADC #$85                                            ; $CAB3: 69 85
   JMP DrawSpriteFromBank                                           ; $CAB5: 4C A5 CE
 .endproc
@@ -7093,11 +7060,11 @@ DesperateScene_Finalize:
   STA anim_timer                                           ; $CABA: 8D B8 04
   INC sub_state                                           ; $CABD: EE A9 04
   LDA #$EB                                            ; $CAC0: A9 EB
-  STA col_offset                                         ; $CAC2: 8D 00 00
+  STA a:col_offset                                         ; $CAC2: 8D 00 00
   LDA active_player_slot                                           ; $CAC5: AD AA 04
   BNE @skip                                           ; $CAC8: D0 05
   LDA #$ED                                            ; $CACA: A9 ED
-  STA col_offset                                         ; $CACC: 8D 00 00
+  STA a:col_offset                                         ; $CACC: 8D 00 00
 @skip:
   LDA #$00                                            ; $CACF: A9 00
   JMP BuildPPUTileBuffer                                           ; $CAD1: 4C FD CD
@@ -7113,29 +7080,29 @@ DesperateScene_Finalize:
   ppu_col_hi       = $00DC
 DesperateScene_Complete:
   LDA #$90                                            ; $CAD4: A9 90
-  STA a:zp_cc                                         ; $CAD6: 8D CC 00
-  STA a:zp_d4                                         ; $CAD9: 8D D4 00
-  STA a:zp_dc                                         ; $CADC: 8D DC 00
+  STA a:ppu_col_lo                                         ; $CAD6: 8D CC 00
+  STA a:ppu_col_mid                                         ; $CAD9: 8D D4 00
+  STA a:ppu_col_hi                                         ; $CADC: 8D DC 00
   INC sub_state                                           ; $CADF: EE A9 04
   LDA active_player_slot                                           ; $CAE2: AD AA 04
   EOR #$01                                            ; $CAE5: 49 01
   TAY                                                 ; $CAE7: A8
   LDA name_tile_index,Y                                         ; $CAE8: B9 AF 04
-  STA ppu_tile_lo                                         ; $CAEB: 8D 01 00
+  STA a:ppu_tile_hi                                         ; $CAEB: 8D 01 00
   CPY #$01                                            ; $CAEE: C0 01
   BEQ @skip                                           ; $CAF0: F0 0E
   LDA #$43                                            ; $CAF2: A9 43
-  STA col_offset                                         ; $CAF4: 8D 00 00
+  STA a:col_offset                                         ; $CAF4: 8D 00 00
   LDA #$0D                                            ; $CAF7: A9 0D
   CLC                                                 ; $CAF9: 18
-  ADC ppu_tile_lo                                         ; $CAFA: 6D 01 00
+  ADC a:ppu_tile_hi                                         ; $CAFA: 6D 01 00
   JMP BuildPPUTileBuffer                                           ; $CAFD: 4C FD CD
 @skip:
   LDA #$55                                            ; $CB00: A9 55
-  STA col_offset                                         ; $CB02: 8D 00 00
+  STA a:col_offset                                         ; $CB02: 8D 00 00
   LDA #$10                                            ; $CB05: A9 10
   CLC                                                 ; $CB07: 18
-  ADC ppu_tile_lo                                         ; $CB08: 6D 01 00
+  ADC a:ppu_tile_hi                                         ; $CB08: 6D 01 00
   JMP BuildPPUTileBuffer                                           ; $CB0B: 4C FD CD
 .endproc
 ;===============================================================================
@@ -7154,7 +7121,7 @@ DesperateScene_Extra:
   LSR A                                               ; $CB13: 4A
   LSR A                                               ; $CB14: 4A
   AND #$07                                            ; $CB15: 29 07
-  STA tilemap_work                                         ; $CB17: 8D 12 00
+  STA a:tilemap_work                                         ; $CB17: 8D 12 00
   INC anim_timer                                           ; $CB1A: EE B8 04
   LDA anim_timer                                           ; $CB1D: AD B8 04
   LSR A                                               ; $CB20: 4A
@@ -7172,7 +7139,7 @@ DesperateScene_Extra:
 @skip:
   CMP #$03                                            ; $CB35: C9 03
   BNE @skip_2                                           ; $CB37: D0 0C
-  CMP tilemap_work                                         ; $CB39: CD 12 00
+  CMP a:tilemap_work                                         ; $CB39: CD 12 00
   BEQ @skip_2                                           ; $CB3C: F0 07
   LDA #$68                                            ; $CB3E: A9 68
   JSR B1F_SoundNotePlayer                             ; $CB40: 20 09 E6
@@ -7182,41 +7149,41 @@ DesperateScene_Extra:
   BCC @skip_3                                           ; $CB47: 90 02
   LDA #$03                                            ; $CB49: A9 03
 @skip_3:
-  STA ptr_0010_lo                                         ; $CB4B: 8D 10 00
-  STA ptr_0010_hi                                         ; $CB4E: 8D 11 00
+  STA a:ptr_0010_lo                                         ; $CB4B: 8D 10 00
+  STA a:ptr_0010_hi                                         ; $CB4E: 8D 11 00
   LDA active_player_slot                                           ; $CB51: AD AA 04
   BNE @skip_4                                           ; $CB54: D0 09
-  LDA ptr_0010_lo                                         ; $CB56: AD 10 00
+  LDA a:ptr_0010_lo                                         ; $CB56: AD 10 00
   CLC                                                 ; $CB59: 18
   ADC #$14                                            ; $CB5A: 69 14
-  STA ptr_0010_lo                                         ; $CB5C: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $CB5C: 8D 10 00
 @skip_4:
   LDA active_player_slot                                           ; $CB5F: AD AA 04
   CLC                                                 ; $CB62: 18
   ADC #$01                                            ; $CB63: 69 01
-  STA work_marker                                         ; $CB65: 8D 02 00
+  STA a:tilemap_attr                                         ; $CB65: 8D 02 00
   LDY active_player_slot                                           ; $CB68: AC AA 04
   LDA name_tile_index,Y                                         ; $CB6B: B9 AF 04
-  STA ppu_tile_lo                                         ; $CB6E: 8D 01 00
+  STA a:ppu_tile_hi                                         ; $CB6E: 8D 01 00
   ASL A                                               ; $CB71: 0A
   ASL A                                               ; $CB72: 0A
   CLC                                                 ; $CB73: 18
-  ADC ppu_tile_lo                                         ; $CB74: 6D 01 00
+  ADC a:ppu_tile_hi                                         ; $CB74: 6D 01 00
   CLC                                                 ; $CB77: 18
-  ADC ptr_0010_lo                                         ; $CB78: 6D 10 00
+  ADC a:ptr_0010_lo                                         ; $CB78: 6D 10 00
   ADC #$86                                            ; $CB7B: 69 86
   JSR DrawSpriteFromBank                                           ; $CB7D: 20 A5 CE
   LDA #$00                                            ; $CB80: A9 00
-  STA work_marker                                         ; $CB82: 8D 02 00
-  LDA ptr_0010_lo                                         ; $CB85: AD 10 00
+  STA a:tilemap_attr                                         ; $CB82: 8D 02 00
+  LDA a:ptr_0010_lo                                         ; $CB85: AD 10 00
   CLC                                                 ; $CB88: 18
   ADC #$81                                            ; $CB89: 69 81
   JSR DrawSpriteFromBank                                           ; $CB8B: 20 A5 CE
-  LDA ptr_0010_hi                                         ; $CB8E: AD 11 00
+  LDA a:ptr_0010_hi                                         ; $CB8E: AD 11 00
   CMP #$03                                            ; $CB91: C9 03
   BNE @skip_5                                           ; $CB93: D0 08
   LDA #$79                                            ; $CB95: A9 79
-  STA ptr_0010_lo                                         ; $CB97: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $CB97: 8D 10 00
   JMP DrawCompletionSprite                                           ; $CB9A: 4C 35 D2
 @skip_5:
   RTS                                                 ; $CB9D: 60
@@ -7256,21 +7223,21 @@ StrikeSlideDispatch:
   ptr_00d8_hi     = $00D9
 StrikeSlide_Init:
   LDA #$80                                            ; $CBAA: A9 80
-  STA a:zp_c6                                         ; $CBAC: 8D C6 00
-  STA a:zp_ce                                         ; $CBAF: 8D CE 00
-  STA a:zp_d6                                         ; $CBB2: 8D D6 00
+  STA a:ptr_00c6_lo                                         ; $CBAC: 8D C6 00
+  STA a:ptr_00ce_lo                                         ; $CBAF: 8D CE 00
+  STA a:ptr_00d6_lo                                         ; $CBB2: 8D D6 00
   LDA #$81                                            ; $CBB5: A9 81
-  STA a:zp_c7                                         ; $CBB7: 8D C7 00
-  STA a:zp_cf                                         ; $CBBA: 8D CF 00
-  STA a:zp_d7                                         ; $CBBD: 8D D7 00
+  STA a:ptr_00c6_hi                                         ; $CBB7: 8D C7 00
+  STA a:ptr_00ce_hi                                         ; $CBBA: 8D CF 00
+  STA a:ptr_00d6_hi                                         ; $CBBD: 8D D7 00
   LDA #$82                                            ; $CBC0: A9 82
-  STA a:zp_c8                                         ; $CBC2: 8D C8 00
-  STA a:zp_d0                                         ; $CBC5: 8D D0 00
-  STA a:zp_d8                                         ; $CBC8: 8D D8 00
+  STA a:ptr_00c8_lo                                         ; $CBC2: 8D C8 00
+  STA a:ptr_00d0_lo                                         ; $CBC5: 8D D0 00
+  STA a:ptr_00d8_lo                                         ; $CBC8: 8D D8 00
   LDA #$85                                            ; $CBCB: A9 85
-  STA a:zp_c9                                         ; $CBCD: 8D C9 00
-  STA a:zp_d1                                         ; $CBD0: 8D D1 00
-  STA a:zp_d9                                         ; $CBD3: 8D D9 00
+  STA a:ptr_00c8_hi                                         ; $CBCD: 8D C9 00
+  STA a:ptr_00d0_hi                                         ; $CBD0: 8D D1 00
+  STA a:ptr_00d8_hi                                         ; $CBD3: 8D D9 00
   LDA #$00                                            ; $CBD6: A9 00
   STA anim_timer                                           ; $CBD8: 8D B8 04
   INC sub_state                                           ; $CBDB: EE A9 04
@@ -7278,21 +7245,21 @@ StrikeSlide_Init:
   EOR #$01                                            ; $CBE1: 49 01
   TAY                                                 ; $CBE3: A8
   LDA name_tile_index,Y                                         ; $CBE4: B9 AF 04
-  STA tileset_offset                                         ; $CBE7: 8D 01 00
+  STA a:tileset_offset                                         ; $CBE7: 8D 01 00
   CPY #$01                                            ; $CBEA: C0 01
   BEQ @skip                                           ; $CBEC: F0 0E
   LDA #$43                                            ; $CBEE: A9 43
-  STA ppu_col_offset                                         ; $CBF0: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CBF0: 8D 00 00
   LDA #$01                                            ; $CBF3: A9 01
   CLC                                                 ; $CBF5: 18
-  ADC tileset_offset                                         ; $CBF6: 6D 01 00
+  ADC a:tileset_offset                                         ; $CBF6: 6D 01 00
   JMP BuildPPUTileBuffer                                           ; $CBF9: 4C FD CD
 @skip:
   LDA #$55                                            ; $CBFC: A9 55
-  STA ppu_col_offset                                         ; $CBFE: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CBFE: 8D 00 00
   LDA #$05                                            ; $CC01: A9 05
   CLC                                                 ; $CC03: 18
-  ADC tileset_offset                                         ; $CC04: 6D 01 00
+  ADC a:tileset_offset                                         ; $CC04: 6D 01 00
   JMP BuildPPUTileBuffer                                           ; $CC07: 4C FD CD
 .endproc
 ;===============================================================================
@@ -7316,25 +7283,25 @@ StrikeSlide_Slide:
 @skip_2:
   INC sub_state                                           ; $CC20: EE A9 04
   LDA #$43                                            ; $CC23: A9 43
-  STA ppu_col_offset                                         ; $CC25: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CC25: 8D 00 00
   LDA #$01                                            ; $CC28: A9 01
-  STA tileset_offset                                         ; $CC2A: 8D 01 00
+  STA a:tileset_offset                                         ; $CC2A: 8D 01 00
   LDA active_player_slot                                           ; $CC2D: AD AA 04
   BEQ @skip_3                                           ; $CC30: F0 0A
   LDA #$55                                            ; $CC32: A9 55
-  STA ppu_col_offset                                         ; $CC34: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CC34: 8D 00 00
   LDA #$05                                            ; $CC37: A9 05
-  STA tileset_offset                                         ; $CC39: 8D 01 00
+  STA a:tileset_offset                                         ; $CC39: 8D 01 00
 @skip_3:
   LDY active_player_slot                                           ; $CC3C: AC AA 04
   LDA name_tile_index,Y                                         ; $CC3F: B9 AF 04
   CLC                                                 ; $CC42: 18
-  ADC tileset_offset                                         ; $CC43: 6D 01 00
+  ADC a:tileset_offset                                         ; $CC43: 6D 01 00
   JMP BuildPPUTileBuffer                                           ; $CC46: 4C FD CD
 @skip_4:
   LDA active_player_slot                                           ; $CC49: AD AA 04
   EOR #$01                                            ; $CC4C: 49 01
-  STA temp_0011                                         ; $CC4E: 8D 11 00
+  STA a:temp_0011                                         ; $CC4E: 8D 11 00
   LDA active_player_slot                                           ; $CC51: AD AA 04
   BEQ @skip_5                                           ; $CC54: F0 06
   INC slide_y_pos                                           ; $CC56: EE BB 04
@@ -7356,12 +7323,12 @@ StrikeSlide_Complete:
   LDA active_player_slot                                           ; $CC6E: AD AA 04
   BEQ @skip                                           ; $CC71: F0 0A
   LDA #$F5                                            ; $CC73: A9 F5
-  STA ppu_col_offset                                         ; $CC75: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CC75: 8D 00 00
   LDA #$08                                            ; $CC78: A9 08
   JMP BuildPPUTileBuffer                                           ; $CC7A: 4C FD CD
 @skip:
   LDA #$E3                                            ; $CC7D: A9 E3
-  STA ppu_col_offset                                         ; $CC7F: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CC7F: 8D 00 00
   LDA #$04                                            ; $CC82: A9 04
   JMP BuildPPUTileBuffer                                           ; $CC84: 4C FD CD
 .endproc
@@ -7387,11 +7354,11 @@ DuelMenuSlideInDispatch:
 DuelMenuSlideIn_Init:
   INC sub_state                                           ; $CC93: EE A9 04
   LDA #$55                                            ; $CC96: A9 55
-  STA ppu_col_offset                                         ; $CC98: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CC98: 8D 00 00
   LDA active_player_slot                                           ; $CC9B: AD AA 04
   BNE @skip                                           ; $CC9E: D0 05
   LDA #$43                                            ; $CCA0: A9 43
-  STA ppu_col_offset                                         ; $CCA2: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CCA2: 8D 00 00
 @skip:
   LDA #$00                                            ; $CCA5: A9 00
   JMP BuildPPUTileBuffer                                           ; $CCA7: 4C FD CD
@@ -7408,13 +7375,13 @@ DuelMenuSlideIn_Slide:
   LDA #$A8                                            ; $CCB2: A9 A8
   STA slide_y_pos                                           ; $CCB4: 8D BB 04
   LDA #$F5                                            ; $CCB7: A9 F5
-  STA ppu_col_offset                                         ; $CCB9: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CCB9: 8D 00 00
   LDA active_player_slot                                           ; $CCBC: AD AA 04
   BNE @skip                                           ; $CCBF: D0 0A
   LDA #$18                                            ; $CCC1: A9 18
   STA slide_y_pos                                           ; $CCC3: 8D BB 04
   LDA #$E3                                            ; $CCC6: A9 E3
-  STA ppu_col_offset                                         ; $CCC8: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CCC8: 8D 00 00
 @skip:
   LDA #$00                                            ; $CCCB: A9 00
   JMP BuildPPUTileBuffer                                           ; $CCCD: 4C FD CD
@@ -7445,7 +7412,7 @@ DuelMenuSlideIn_Complete:
 @skip_3:
   LDA active_player_slot                                           ; $CCF3: AD AA 04
   EOR #$01                                            ; $CCF6: 49 01
-  STA temp_0011                                         ; $CCF8: 8D 11 00
+  STA a:temp_0011                                         ; $CCF8: 8D 11 00
   LDA active_player_slot                                           ; $CCFB: AD AA 04
   BEQ @skip_4                                           ; $CCFE: F0 06
   INC slide_y_pos                                           ; $CD00: EE BB 04
@@ -7508,11 +7475,11 @@ DuelMenuSlideOutDispatch:
 DuelMenuSlideOut_Init:
   INC sub_state                                           ; $CD48: EE A9 04
   LDA #$55                                            ; $CD4B: A9 55
-  STA ppu_col_offset                                         ; $CD4D: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CD4D: 8D 00 00
   LDA active_player_slot                                           ; $CD50: AD AA 04
   BNE @skip                                           ; $CD53: D0 05
   LDA #$43                                            ; $CD55: A9 43
-  STA ppu_col_offset                                         ; $CD57: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CD57: 8D 00 00
 @skip:
   LDA #$00                                            ; $CD5A: A9 00
   JMP BuildPPUTileBuffer                                           ; $CD5C: 4C FD CD
@@ -7529,13 +7496,13 @@ DuelMenuSlideOut_Slide:
   LDA #$A8                                            ; $CD67: A9 A8
   STA slide_y_pos                                           ; $CD69: 8D BB 04
   LDA #$F5                                            ; $CD6C: A9 F5
-  STA ppu_col_offset                                         ; $CD6E: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CD6E: 8D 00 00
   LDA active_player_slot                                           ; $CD71: AD AA 04
   BNE @skip                                           ; $CD74: D0 0A
   LDA #$18                                            ; $CD76: A9 18
   STA slide_y_pos                                           ; $CD78: 8D BB 04
   LDA #$E3                                            ; $CD7B: A9 E3
-  STA ppu_col_offset                                         ; $CD7D: 8D 00 00
+  STA a:ppu_col_offset                                         ; $CD7D: 8D 00 00
 @skip:
   LDA #$00                                            ; $CD80: A9 00
   JMP BuildPPUTileBuffer                                           ; $CD82: 4C FD CD
@@ -7565,7 +7532,7 @@ DuelMenuSlideOut_Complete:
   RTS                                                 ; $CDA7: 60
 @skip_3:
   LDA active_player_slot                                           ; $CDA8: AD AA 04
-  STA temp_0011                                         ; $CDAB: 8D 11 00
+  STA a:temp_0011                                         ; $CDAB: 8D 11 00
   LDA active_player_slot                                           ; $CDAE: AD AA 04
   BNE @skip_4                                           ; $CDB1: D0 06
   INC slide_y_pos                                           ; $CDB3: EE BB 04
@@ -7643,44 +7610,44 @@ DuelMenuSlideOut_Complete:
 BuildPPUTileBuffer:
   ;--- Compute source pointer: tile_src = MapColumnTileGfx + A * 40 ---
   ; A * 40 = A * 8 + A * 32 (two shift-and-accumulate passes)
-  STA tile_src_lo                                        ; $CDFD: 8D 02 00
+  STA a:tile_src_lo                                        ; $CDFD: 8D 02 00
   LDA #$00                                            ; $CE00: A9 00
-  STA tile_src_hi                                        ; $CE02: 8D 03 00
-  LDA tile_src_lo                                        ; $CE05: AD 02 00
+  STA a:tile_src_hi                                        ; $CE02: 8D 03 00
+  LDA a:tile_src_lo                                        ; $CE05: AD 02 00
   ; Pass 1: multiply by 8 (3 left shifts -> tile_src *= 8)
   ASL A                                               ; $CE08: 0A
-  ROL tile_src_hi                                        ; $CE09: 2E 03 00
+  ROL a:tile_src_hi                                        ; $CE09: 2E 03 00
   ASL A                                               ; $CE0C: 0A
-  ROL tile_src_hi                                        ; $CE0D: 2E 03 00
+  ROL a:tile_src_hi                                        ; $CE0D: 2E 03 00
   ASL A                                               ; $CE10: 0A
-  ROL tile_src_hi                                        ; $CE11: 2E 03 00
-  STA tile_src_lo2                                       ; $CE14: 8D 04 00
-  LDA tile_src_hi                                        ; $CE17: AD 03 00
-  STA tile_src_hi2                                       ; $CE1A: 8D 05 00
+  ROL a:tile_src_hi                                        ; $CE11: 2E 03 00
+  STA a:tile_src_lo2                                       ; $CE14: 8D 04 00
+  LDA a:tile_src_hi                                        ; $CE17: AD 03 00
+  STA a:tile_src_hi2                                       ; $CE1A: 8D 05 00
   ; Pass 2: multiply by 32 (2 more shifts on the copy -> tile_src2 = A * 32)
-  LDA tile_src_lo2                                       ; $CE1D: AD 04 00
+  LDA a:tile_src_lo2                                       ; $CE1D: AD 04 00
   ASL A                                               ; $CE20: 0A
-  ROL tile_src_hi                                        ; $CE21: 2E 03 00
+  ROL a:tile_src_hi                                        ; $CE21: 2E 03 00
   ASL A                                               ; $CE24: 0A
-  ROL tile_src_hi                                        ; $CE25: 2E 03 00
+  ROL a:tile_src_hi                                        ; $CE25: 2E 03 00
   ; Accumulate: tile_src = A*8 + A*32 = A*40
   CLC                                                 ; $CE28: 18
-  ADC tile_src_lo2                                       ; $CE29: 6D 04 00
-  STA tile_src_lo                                        ; $CE2C: 8D 02 00
-  LDA tile_src_hi                                        ; $CE2F: AD 03 00
-  ADC tile_src_hi2                                       ; $CE32: 6D 05 00
-  STA tile_src_hi                                        ; $CE35: 8D 03 00
+  ADC a:tile_src_lo2                                       ; $CE29: 6D 04 00
+  STA a:tile_src_lo                                        ; $CE2C: 8D 02 00
+  LDA a:tile_src_hi                                        ; $CE2F: AD 03 00
+  ADC a:tile_src_hi2                                       ; $CE32: 6D 05 00
+  STA a:tile_src_hi                                        ; $CE35: 8D 03 00
   ; Add base address (MapColumnTileGfx)
-  LDA tile_src_lo                                        ; $CE38: AD 02 00
+  LDA a:tile_src_lo                                        ; $CE38: AD 02 00
   CLC                                                 ; $CE3B: 18
   ADC #TILE_DATA_BASE_LO                                ; $CE3C: 69 AB
-  STA tile_src_lo                                        ; $CE3E: 8D 02 00
-  LDA tile_src_hi                                        ; $CE41: AD 03 00
+  STA a:tile_src_lo                                        ; $CE3E: 8D 02 00
+  LDA a:tile_src_hi                                        ; $CE41: AD 03 00
   ADC #TILE_DATA_BASE_HI                                ; $CE44: 69 D2
-  STA tile_src_hi                                        ; $CE46: 8D 03 00
+  STA a:tile_src_hi                                        ; $CE46: 8D 03 00
   ;--- Initialize PPU column address (hi byte always $21) ---
   LDA #$21                                            ; $CE49: A9 21
-  STA ppu_col_hi                                         ; $CE4B: 8D 01 00
+  STA a:ppu_col_hi                                         ; $CE4B: 8D 01 00
   LDX #$00                                            ; $CE4E: A2 00
 ;--- Main loop: queue 5 column entries into PPU upload buffer ---
 @write_entry:
@@ -7688,10 +7655,10 @@ BuildPPUTileBuffer:
   LDA #$08                                            ; $CE50: A9 08  (count = 8 tile bytes)
   STA ppu_upload_buf,X                                   ; $CE52: 9D 80 03
   INX                                                 ; $CE55: E8
-  LDA ppu_col_hi                                         ; $CE56: AD 01 00
+  LDA a:ppu_col_hi                                         ; $CE56: AD 01 00
   STA ppu_upload_buf,X                                   ; $CE59: 9D 80 03
   INX                                                 ; $CE5C: E8
-  LDA ppu_col_lo                                         ; $CE5D: AD 00 00
+  LDA a:ppu_col_lo                                         ; $CE5D: AD 00 00
   STA ppu_upload_buf,X                                   ; $CE60: 9D 80 03
   INX                                                 ; $CE63: E8
   ; Copy 8 bytes of tile data from (tile_src),Y
@@ -7704,21 +7671,21 @@ BuildPPUTileBuffer:
   CPY #$08                                            ; $CE6D: C0 08
   BCC @copy_tile                                        ; $CE6F: 90 F5
   ; Advance PPU address down one row (+$20 = next nametable row)
-  LDA ppu_col_lo                                         ; $CE71: AD 00 00
+  LDA a:ppu_col_lo                                         ; $CE71: AD 00 00
   CLC                                                 ; $CE74: 18
   ADC #$20                                            ; $CE75: 69 20
-  STA ppu_col_lo                                         ; $CE77: 8D 00 00
-  LDA ppu_col_hi                                         ; $CE7A: AD 01 00
+  STA a:ppu_col_lo                                         ; $CE77: 8D 00 00
+  LDA a:ppu_col_hi                                         ; $CE7A: AD 01 00
   ADC #$00                                            ; $CE7D: 69 00
-  STA ppu_col_hi                                         ; $CE7F: 8D 01 00
+  STA a:ppu_col_hi                                         ; $CE7F: 8D 01 00
   ; Advance source pointer by 8 bytes (next tile)
-  LDA tile_src_lo                                        ; $CE82: AD 02 00
+  LDA a:tile_src_lo                                        ; $CE82: AD 02 00
   CLC                                                 ; $CE85: 18
   ADC #$08                                            ; $CE86: 69 08
-  STA tile_src_lo                                        ; $CE88: 8D 02 00
-  LDA tile_src_hi                                        ; $CE8B: AD 03 00
+  STA a:tile_src_lo                                        ; $CE88: 8D 02 00
+  LDA a:tile_src_hi                                        ; $CE8B: AD 03 00
   ADC #$00                                            ; $CE8E: 69 00
-  STA tile_src_hi                                        ; $CE90: 8D 03 00
+  STA a:tile_src_hi                                        ; $CE90: 8D 03 00
   ; Loop until all 5 tiles queued (5 * 11 = 55 bytes, X = $37)
   CPX #(NUM_TILES * ENTRY_SIZE)                          ; $CE93: E0 37
   BCC @write_entry                                      ; $CE95: 90 B9
@@ -7766,7 +7733,7 @@ DrawSpriteFromBank:
   JSR B1F_SwitchBank8_B                                 ; $CEAA: 20 5F F2
   TAY                                                 ; $CEAD: A8  (Y = shifted index)
   LDA #HI_OFFSET_A                                      ; $CEAE: A9 00
-  STA sprite_ptr_hi                                     ; $CEB0: 8D 01 00
+  STA a:sprite_ptr_hi                                     ; $CEB0: 8D 01 00
   JMP @read_entry                                       ; $CEB3: 4C C1 CE
 @bank_b:
   ; Bit 7 set: use bank $35 (hi-byte offset $20)
@@ -7774,21 +7741,21 @@ DrawSpriteFromBank:
   JSR B1F_SwitchBank8_B                                 ; $CEB8: 20 5F F2
   TAY                                                 ; $CEBB: A8  (Y = shifted index)
   LDA #HI_OFFSET_B                                      ; $CEBC: A9 20
-  STA sprite_ptr_hi                                     ; $CEBE: 8D 01 00
+  STA a:sprite_ptr_hi                                     ; $CEBE: 8D 01 00
 @read_entry:
   ;--- Read 2-byte sprite data pointer from table at $8000 ---
   LDA $8000,Y                                           ; $CEC1: B9 00 80  (pointer lo)
-  STA sprite_ptr_lo                                     ; $CEC4: 8D 00 00
+  STA a:sprite_ptr_lo                                     ; $CEC4: 8D 00 00
   INY                                                 ; $CEC7: C8
   LDA $8000,Y                                           ; $CEC8: B9 00 80  (pointer hi)
   SEC                                                 ; $CECB: 38
-  SBC sprite_ptr_hi                                     ; $CECC: ED 01 00  (hi - offset)
-  STA sprite_ptr_hi                                     ; $CECF: 8D 01 00
+  SBC a:sprite_ptr_hi                                     ; $CECC: ED 01 00  (hi - offset)
+  STA a:sprite_ptr_hi                                     ; $CECF: 8D 01 00
   ;--- Load the Y/X base coordinates from $04BA/$04BB ---
   LDA sprite_y_base                                       ; $CED2: AD BA 04
-  STA y_coord_base                                      ; $CED5: 8D 0A 00  ($000A = Y base for the OAM writer)
+  STA a:y_coord_base                                      ; $CED5: 8D 0A 00  ($000A = Y base for the OAM writer)
   LDA sprite_x_base                                       ; $CED8: AD BB 04
-  STA x_coord_base                                      ; $CEDB: 8D 0C 00  ($000C = X base for the OAM writer)
+  STA a:x_coord_base                                      ; $CEDB: 8D 0C 00  ($000C = X base for the OAM writer)
   ;--- Hand off to OAM writer (reads sprite data, writes OAM entries) ---
   JMP B1F_SpriteOamWriterSimple                         ; $CEDE: 4C AD F1
 .endproc
@@ -7842,12 +7809,12 @@ MapScroll_UpdatePosition:
   LSR A                                               ; $CEF5: 4A  (A = timer / 2)
   LSR A                                               ; $CEF6: 4A  (A = timer / 4)
   AND #$0F                                            ; $CEF7: 29 0F
-  STA scroll_col_off                                     ; $CEF9: 8D 10 00  (reuse as phase index)
+  STA a:scroll_col_off                                     ; $CEF9: 8D 10 00  (reuse as phase index)
   ;--- Adjust the sprite Y base by scroll phase ---
   ; Phase 1,2 -> -2 (2 px higher); Phase 4,5 -> +2 (2 px lower); else unchanged
   LDA #SPRITE_Y_DEFAULT                                 ; $CEFC: A9 5D
   STA sprite_y_base                                     ; $CEFE: 8D BA 04
-  LDA scroll_col_off                                     ; $CF01: AD 10 00
+  LDA a:scroll_col_off                                     ; $CF01: AD 10 00
   CMP #$01                                            ; $CF04: C9 01
   BEQ @shift_left                                       ; $CF06: F0 15
   CMP #$02                                            ; $CF08: C9 02
@@ -7871,46 +7838,46 @@ MapScroll_UpdatePosition:
   BEQ @store_offset                                     ; $CF2B: F0 02
   LDA #$00                                            ; $CF2D: A9 00
 @store_offset:
-  STA player_offset                                     ; $CF2F: 8D 12 00
+  STA a:player_offset                                     ; $CF2F: 8D 12 00
   ;--- Branch on scroll direction ---
-  LDA scroll_dir                                         ; $CF32: AD 11 00
+  LDA a:scroll_dir                                         ; $CF32: AD 11 00
   BEQ @scroll_forward                                   ; $CF35: F0 2A
   ;--- Backward scroll path: flip=$00, base offset=0 ---
   LDA #$00                                            ; $CF37: A9 00
-  STA flip_flags                                        ; $CF39: 8D 02 00  (no flip)
-  LDA scroll_col_off                                     ; $CF3C: AD 10 00
+  STA a:flip_flags                                        ; $CF39: 8D 02 00  (no flip)
+  LDA a:scroll_col_off                                     ; $CF3C: AD 10 00
   JSR DrawSpriteFromBank                                ; $CF3F: 20 A5 CE  (sprite 1: column top)
   LDA player_slot                                        ; $CF42: AD AA 04
   CLC                                                 ; $CF45: 18
   ADC #$01                                            ; $CF46: 69 01
-  STA flip_flags                                        ; $CF48: 8D 02 00  (flip = player_slot+1)
-  LDY scroll_col_off                                     ; $CF4B: AC 10 00
+  STA a:flip_flags                                        ; $CF48: 8D 02 00  (flip = player_slot+1)
+  LDY a:scroll_col_off                                     ; $CF4B: AC 10 00
   LDA ScrollSpriteMidTable,Y                             ; $CF4E: B9 9B CF  (middle sprite index)
   CLC                                                 ; $CF51: 18
-  ADC player_offset                                     ; $CF52: 6D 12 00  (+ player state offset)
+  ADC a:player_offset                                     ; $CF52: 6D 12 00  (+ player state offset)
   JSR DrawSpriteFromBank                                ; $CF55: 20 A5 CE  (sprite 2: column middle)
-  LDY scroll_col_off                                     ; $CF58: AC 10 00
+  LDY a:scroll_col_off                                     ; $CF58: AC 10 00
   LDA ScrollSpriteTopTable,Y                             ; $CF5B: B9 93 CF  (top sprite index)
   JMP DrawSpriteFromBank                                ; $CF5E: 4C A5 CE  (sprite 3: column bottom)
   ;--- Forward scroll path: flip=$40, base offset=$11 ---
 @scroll_forward:
   LDA #$40                                            ; $CF61: A9 40
-  STA flip_flags                                        ; $CF63: 8D 02 00  (horizontal flip)
-  LDA scroll_col_off                                     ; $CF66: AD 10 00
+  STA a:flip_flags                                        ; $CF63: 8D 02 00  (horizontal flip)
+  LDA a:scroll_col_off                                     ; $CF66: AD 10 00
   CLC                                                 ; $CF69: 18
   ADC #$11                                            ; $CF6A: 69 11  (base offset $11)
   JSR DrawSpriteFromBank                                ; $CF6C: 20 A5 CE  (sprite 1)
   LDA player_slot                                        ; $CF6F: AD AA 04
   CLC                                                 ; $CF72: 18
   ADC #$41                                            ; $CF73: 69 41  (player + $41)
-  STA flip_flags                                        ; $CF75: 8D 02 00  (flip flags)
-  LDY scroll_col_off                                     ; $CF78: AC 10 00
+  STA a:flip_flags                                        ; $CF75: 8D 02 00  (flip flags)
+  LDY a:scroll_col_off                                     ; $CF78: AC 10 00
   LDA ScrollSpriteMidTable,Y                             ; $CF7B: B9 9B CF  (middle sprite index)
   CLC                                                 ; $CF7E: 18
   ADC #$11                                            ; $CF7F: 69 11  (+ base offset)
-  ADC player_offset                                     ; $CF81: 6D 12 00  (+ player state offset)
+  ADC a:player_offset                                     ; $CF81: 6D 12 00  (+ player state offset)
   JSR DrawSpriteFromBank                                ; $CF84: 20 A5 CE  (sprite 2)
-  LDY scroll_col_off                                     ; $CF87: AC 10 00
+  LDY a:scroll_col_off                                     ; $CF87: AC 10 00
   LDA ScrollSpriteTopTable,Y                             ; $CF8A: B9 93 CF  (top sprite index)
   CLC                                                 ; $CF8D: 18
   ADC #$11                                            ; $CF8E: 69 11  (+ base offset)
@@ -7935,55 +7902,54 @@ ScrollSpriteMidTable:
   src_ptr_hi      = $0001
   metatile_id     = $0002
   base_y_pos      = $0003
-  offset_hi       = $0004
   tile_offset     = $0005
   row_data_buf    = $00AE
   sprite_buf      = sprite_y_buffer
 ExpandMetatileToSprites:
-  STA metatile_id                                        ; $CFA3: 8D 02 00  ; save metatile ID
+  STA a:metatile_id                                        ; $CFA3: 8D 02 00  ; save metatile ID
   LDA #$00                                            ; $CFA6: A9 00
-  STA offset_hi                                          ; $CFA8: 8D 01 00  ; clear high byte of offset
-  LDA metatile_id                                        ; $CFAB: AD 02 00
+  STA a:src_ptr_hi                                          ; $CFA8: 8D 01 00  ; clear high byte of offset
+  LDA a:metatile_id                                        ; $CFAB: AD 02 00
   ASL A                                               ; $CFAE: 0A        ; *2
-  ROL offset_hi                                          ; $CFAF: 2E 01 00
+  ROL a:src_ptr_hi                                          ; $CFAF: 2E 01 00
   CLC                                                 ; $CFB2: 18
-  ADC metatile_id                                        ; $CFB3: 6D 02 00  ; *2 + id = *3
-  STA metatile_id                                        ; $CFB6: 8D 00 00
-  LDA offset_hi                                          ; $CFB9: AD 01 00
+  ADC a:metatile_id                                        ; $CFB3: 6D 02 00  ; *2 + id = *3
+  STA a:src_ptr_lo                                        ; $CFB6: 8D 00 00
+  LDA a:src_ptr_hi                                          ; $CFB9: AD 01 00
   ADC #$00                                            ; $CFBC: 69 00
-  STA offset_hi                                          ; $CFBE: 8D 01 00
-  LDA metatile_id                                        ; $CFC1: AD 00 00
+  STA a:src_ptr_hi                                          ; $CFBE: 8D 01 00
+  LDA a:src_ptr_lo                                        ; $CFC1: AD 00 00
   ASL A                                               ; $CFC4: 0A        ; *6
-  ROL offset_hi                                          ; $CFC5: 2E 01 00
+  ROL a:src_ptr_hi                                          ; $CFC5: 2E 01 00
   ASL A                                               ; $CFC8: 0A        ; *12
-  ROL offset_hi                                          ; $CFC9: 2E 01 00
+  ROL a:src_ptr_hi                                          ; $CFC9: 2E 01 00
   CLC                                                 ; $CFCC: 18
-  ADC metatile_id                                        ; $CFCD: 6D 02 00  ; *12 + id = *13
-  STA metatile_id                                        ; $CFD0: 8D 00 00  ; low byte of id*13
-  LDA offset_hi                                          ; $CFD3: AD 01 00
+  ADC a:metatile_id                                        ; $CFCD: 6D 02 00  ; *12 + id = *13
+  STA a:src_ptr_lo                                        ; $CFD0: 8D 00 00  ; low byte of id*13
+  LDA a:src_ptr_hi                                          ; $CFD3: AD 01 00
   ADC #$00                                            ; $CFD6: 69 00
-  STA offset_hi                                          ; $CFD8: 8D 01 00  ; high byte of id*13
+  STA a:src_ptr_hi                                          ; $CFD8: 8D 01 00  ; high byte of id*13
   LDA #$B4                                            ; $CFDB: A9 B4     ; add base $8DB4
   CLC                                                 ; $CFDD: 18
-  ADC metatile_id                                        ; $CFDE: 6D 00 00
-  STA src_ptr_lo                                         ; $CFE1: 8D 00 00
+  ADC a:src_ptr_lo                                        ; $CFDE: 6D 00 00
+  STA a:src_ptr_lo                                         ; $CFE1: 8D 00 00
   LDA #$8D                                            ; $CFE4: A9 8D
-  ADC offset_hi                                          ; $CFE6: 6D 01 00
-  STA src_ptr_hi                                         ; $CFE9: 8D 01 00
+  ADC a:src_ptr_hi                                          ; $CFE6: 6D 01 00
+  STA a:src_ptr_hi                                         ; $CFE9: 8D 01 00
   LDY #$00                                            ; $CFEC: A0 00
   LDA (src_ptr_lo),Y                                     ; $CFEE: B1 00     ; read row header byte
-  STA metatile_id                                        ; $CFF0: 8D 02 00  ; scratch: store header
+  STA a:metatile_id                                        ; $CFF0: 8D 02 00  ; scratch: store header
   LDY #$05                                            ; $CFF3: A0 05     ; start tile pair index (byte 1)
   LDA #$40                                            ; $CFF5: A9 40     ; default tile offset
-  STA tile_offset                                        ; $CFF7: 8D 05 00
-  LDA base_y_pos                                         ; $CFFA: AD 03 00
+  STA a:tile_offset                                        ; $CFF7: 8D 05 00
+  LDA a:base_y_pos                                         ; $CFFA: AD 03 00
   CMP #$52                                            ; $CFFD: C9 52     ; second metatile call?
   BNE @set_y_start                                       ; $CFFF: D0 06
   LDA #$80                                            ; $D001: A9 80     ; use upper tile offset
-  STA tile_offset                                        ; $D003: 8D 05 00
+  STA a:tile_offset                                        ; $D003: 8D 05 00
   INY                                                 ; $D006: C8        ; start at byte 2
 @set_y_start:
-  LDA metatile_id                                        ; $D007: AD 02 00  ; reload header byte
+  LDA a:metatile_id                                        ; $D007: AD 02 00  ; reload header byte
   STA a:row_data_buf,Y                                   ; $D00A: 99 AE 00  ; cache in ZP buffer
 @row_loop:
   LDA #$06                                            ; $D00D: A9 06     ; sprite type marker
@@ -7992,7 +7958,7 @@ ExpandMetatileToSprites:
   LDA #$20                                            ; $D013: A9 20     ; X spacing
   STA sprite_buf,X                                       ; $D015: 9D 80 03
   INX                                                 ; $D018: E8
-  LDA base_y_pos                                         ; $D019: AD 03 00  ; Y position
+  LDA a:base_y_pos                                         ; $D019: AD 03 00  ; Y position
   STA sprite_buf,X                                       ; $D01C: 9D 80 03
   INX                                                 ; $D01F: E8
   LDY #$01                                            ; $D020: A0 01     ; first tile pair
@@ -8004,7 +7970,7 @@ ExpandMetatileToSprites:
   JMP @store_tile                                        ; $D02A: 4C 31 D0
 @calc_tile:
   CLC                                                 ; $D02D: 18
-  ADC tile_offset                                        ; $D02E: 6D 05 00  ; add tile page offset
+  ADC a:tile_offset                                        ; $D02E: 6D 05 00  ; add tile page offset
 @store_tile:
   STA sprite_buf,X                                       ; $D031: 9D 80 03
   INX                                                 ; $D034: E8
@@ -8016,17 +7982,17 @@ ExpandMetatileToSprites:
   INY                                                 ; $D03C: C8
   CPY #$0D                                            ; $D03D: C0 0D     ; processed all 6 pairs (13 bytes)?
   BCC @tile_loop                                         ; $D03F: 90 E1
-  LDA src_ptr_lo                                         ; $D041: AD 00 00  ; advance to next 13-byte row
+  LDA a:src_ptr_lo                                         ; $D041: AD 00 00  ; advance to next 13-byte row
   CLC                                                 ; $D044: 18
   ADC #$02                                            ; $D045: 69 02
-  STA src_ptr_lo                                         ; $D047: 8D 00 00
-  LDA src_ptr_hi                                         ; $D04A: AD 01 00
+  STA a:src_ptr_lo                                         ; $D047: 8D 00 00
+  LDA a:src_ptr_hi                                         ; $D04A: AD 01 00
   ADC #$00                                            ; $D04D: 69 00
-  STA src_ptr_hi                                         ; $D04F: 8D 01 00
-  LDA base_y_pos                                         ; $D052: AD 03 00  ; next row Y += $20
+  STA a:src_ptr_hi                                         ; $D04F: 8D 01 00
+  LDA a:base_y_pos                                         ; $D052: AD 03 00  ; next row Y += $20
   CLC                                                 ; $D055: 18
   ADC #$20                                            ; $D056: 69 20
-  STA base_y_pos                                         ; $D058: 8D 03 00
+  STA a:base_y_pos                                         ; $D058: 8D 03 00
   CMP #$80                                            ; $D05B: C9 80     ; done 4 rows?
   BCC @row_loop                                          ; $D05D: 90 AE
   RTS                                                 ; $D05F: 60
@@ -8051,37 +8017,37 @@ FinalizeSpriteBuffer:
   BCC @loop                                           ; $D072: 90 EE
   LDX #$00                                            ; $D074: A2 00
   LDA #$A4                                            ; $D076: A9 A4 (slot base for officer 0)
-  STA slot_base                                       ; $D078: 8D 10 00
+  STA a:slot_base                                       ; $D078: 8D 10 00
   LDA war_side_strength_0                                     ; $D07B: AD B1 04 (officer 0 position)
   JSR WriteOfficerSpriteEntry                         ; $D07E: 20 89 D0
   LDA #$B2                                            ; $D081: A9 B2 (slot base for officer 1)
-  STA slot_base                                       ; $D083: 8D 10 00
+  STA a:slot_base                                       ; $D083: 8D 10 00
   LDA war_side_strength_1                                     ; $D086: AD B2 04 (officer 1 position)
 ; Falls through into WriteOfficerSpriteEntry
 WriteOfficerSpriteEntry:
-  STA officer_pos                                     ; $D089: 8D 01 00
+  STA a:officer_pos                                     ; $D089: 8D 01 00
   LDA #$0A                                            ; $D08C: A9 0A (entry tag marker)
   STA sprite_y_buffer,X                                      ; $D08E: 9D 80 03
   INX                                                 ; $D091: E8
   LDA #$20                                            ; $D092: A9 20
   STA sprite_y_buffer,X                                      ; $D094: 9D 80 03
   INX                                                 ; $D097: E8
-  LDA slot_base                                       ; $D098: AD 10 00
+  LDA a:slot_base                                       ; $D098: AD 10 00
   STA sprite_y_buffer,X                                      ; $D09B: 9D 80 03
   INX                                                 ; $D09E: E8
   LDA #$00                                            ; $D09F: A9 00
-  STA sprite_pos                                      ; $D0A1: 8D 00 00 (init quotient = 0)
+  STA a:sprite_pos                                      ; $D0A1: 8D 00 00 (init quotient = 0)
 @divmod_loop:
-  LDA officer_pos                                     ; $D0A4: AD 01 00
+  LDA a:officer_pos                                     ; $D0A4: AD 01 00
   CMP #$0A                                            ; $D0A7: C9 0A
   BCC @divmod_done                                    ; $D0A9: 90 0C
   SEC                                                 ; $D0AB: 38
   SBC #$0A                                            ; $D0AC: E9 0A
-  STA officer_pos                                     ; $D0AE: 8D 01 00 (remainder)
-  INC sprite_pos                                      ; $D0B1: EE 00 00 (quotient)
+  STA a:officer_pos                                     ; $D0AE: 8D 01 00 (remainder)
+  INC a:sprite_pos                                      ; $D0B1: EE 00 00 (quotient)
   JMP @divmod_loop                                    ; $D0B4: 4C A4 D0
 @divmod_done:
-  LDA slot_base                                       ; $D0B7: AD 10 00
+  LDA a:slot_base                                       ; $D0B7: AD 10 00
   CMP #$A4                                            ; $D0BA: C9 A4 (first officer?)
   BEQ @first_officer                                  ; $D0BC: F0 03
   JMP @second_officer                                 ; $D0BE: 4C FA D0
@@ -8089,7 +8055,7 @@ WriteOfficerSpriteEntry:
   LDY #$00                                            ; $D0C1: A0 00
   LDA #$04                                            ; $D0C3: A9 04 (default fill tile)
 @fill_fwd_pre:
-  CPY sprite_pos                                      ; $D0C5: CC 00 00
+  CPY a:sprite_pos                                      ; $D0C5: CC 00 00
   BEQ @fwd_at_pos                                     ; $D0C8: F0 08
   STA sprite_y_buffer,X                                      ; $D0CA: 9D 80 03
   INX                                                 ; $D0CD: E8
@@ -8098,7 +8064,7 @@ WriteOfficerSpriteEntry:
 @fwd_at_pos:
   CPY #$0A                                            ; $D0D2: C0 0A
   BCS @finalize                                       ; $D0D4: B0 61
-  LDA officer_pos                                     ; $D0D6: AD 01 00 (remainder)
+  LDA a:officer_pos                                     ; $D0D6: AD 01 00 (remainder)
   BEQ @fill_fwd_post                                  ; $D0D9: F0 10
   CMP #$06                                            ; $D0DB: C9 06
   BCS @fwd_tile_04                                    ; $D0DD: B0 05
@@ -8128,7 +8094,7 @@ WriteOfficerSpriteEntry:
   LDY #$00                                            ; $D0FF: A0 00
   LDA #$04                                            ; $D101: A9 04 (default fill tile)
 @fill_rev_pre:
-  CPY sprite_pos                                      ; $D103: CC 00 00
+  CPY a:sprite_pos                                      ; $D103: CC 00 00
   BEQ @rev_at_pos                                     ; $D106: F0 08
   STA sprite_y_buffer,X                                      ; $D108: 9D 80 03
   DEX                                                 ; $D10B: CA (fill backwards)
@@ -8137,7 +8103,7 @@ WriteOfficerSpriteEntry:
 @rev_at_pos:
   CPY #$0A                                            ; $D110: C0 0A
   BCS @finalize                                       ; $D112: B0 23
-  LDA officer_pos                                     ; $D114: AD 01 00 (remainder)
+  LDA a:officer_pos                                     ; $D114: AD 01 00 (remainder)
   BEQ @fill_rev_post                                  ; $D117: F0 10
   CMP #$06                                            ; $D119: C9 06
   BCS @rev_tile_04                                    ; $D11B: B0 05
@@ -8181,14 +8147,14 @@ ReadMenuSelection:
   BEQ @skip                                           ; $D145: F0 02
   LDA #$20                                            ; $D147: A9 20
 @skip:
-  STA ptr_lo                                         ; $D149: 8D 0A 00
+  STA a:overlay_data_ptr                                         ; $D149: 8D 0A 00
   LDA #$00                                            ; $D14C: A9 00
-  STA rle_marker                                         ; $D14E: 8D 02 00
-  STA attr_ptr_lo                                         ; $D151: 8D 0C 00
+  STA a:tile_attr_byte                                         ; $D14E: 8D 02 00
+  STA a:scene_coord_ptr                                         ; $D151: 8D 0C 00
   LDA #$61                                            ; $D154: A9 61
-  STA param_byte1                                         ; $D156: 8D 00 00
+  STA a:param_byte1                                         ; $D156: 8D 00 00
   LDA #$D1                                            ; $D159: A9 D1
-  STA param_byte2                                         ; $D15B: 8D 01 00
+  STA a:param_byte2                                         ; $D15B: 8D 01 00
   JMP B1F_SpriteOamWriterSimple                       ; $D15E: 4C AD F1
 .endproc
 MenuCursorSpriteData:
@@ -8201,10 +8167,10 @@ MenuCursorSpriteData:
   overlay_data_ptr          = $000A
 SetupMenuPtr:
   LDA #$A5                                            ; $D166: A9 A5
-  STA ptr_lo                                         ; $D168: 8D 0A 00
+  STA a:overlay_data_ptr                                         ; $D168: 8D 0A 00
   LDY active_player_slot                                           ; $D16B: AC AA 04
   LDA player_officer_id_0,Y                                         ; $D16E: B9 AD 04
-  STA param_byte1                                         ; $D171: 8D 00 00
+  STA a:param_byte1                                         ; $D171: 8D 00 00
   LDY #$39                                            ; $D174: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $D176: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -8238,27 +8204,27 @@ DuelCmd_FillStatTiles:
   LDY active_player_slot                                      ; $D187: AC AA 04
   LDA player_officer_id_0,Y                                    ; $D18A: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $D18D: 20 D7 F2
-  LDA officer_ptr_lo                                    ; $D190: AD 00 00
-  STA ptr_0010_lo                                     ; $D193: 8D 10 00
-  LDA officer_ptr_hi                                    ; $D196: AD 01 00
-  STA ptr_0010_hi                                     ; $D199: 8D 11 00
+  LDA a:officer_ptr_lo                                    ; $D190: AD 00 00
+  STA a:ptr_0010_lo                                     ; $D193: 8D 10 00
+  LDA a:officer_ptr_hi                                    ; $D196: AD 01 00
+  STA a:ptr_0010_hi                                     ; $D199: 8D 11 00
   LDY #$00                                            ; $D19C: A0 00
   LDX #$0E                                            ; $D19E: A2 0E
 @process_stat:                                        ; read stat byte, convert to BCD tiles
   LDA #$00                                            ; $D1A0: A9 00
-  STA tile_attr_byte                                  ; $D1A2: 8D 02 00
-  STA tile_count_hi                                   ; $D1A5: 8D 03 00
+  STA a:tile_attr_byte                                  ; $D1A2: 8D 02 00
+  STA a:tile_count_hi                                   ; $D1A5: 8D 03 00
   LDA (ptr_0010_lo),Y                                 ; $D1A8: B1 10
   CMP #$64                                            ; $D1AA: C9 64
   BEQ @stat_is_100                                    ; $D1AC: F0 25
-  STA stat_value                                      ; $D1AE: 8D 01 00
+  STA a:stat_value                                      ; $D1AE: 8D 01 00
   JSR B1F_MathBinToBcd                                ; $D1B1: 20 BA E9
-  LDA row_count                                       ; $D1B4: AD 07 00
+  LDA a:row_count                                       ; $D1B4: AD 07 00
   AND #$0F                                            ; $D1B7: 29 0F      ; ones digit tile
   CLC                                                 ; $D1B9: 18
   ADC #$76                                            ; $D1BA: 69 76
-  STA ones_tile                                       ; $D1BC: 8D 00 00
-  LDA row_count                                       ; $D1BF: AD 07 00
+  STA a:ones_tile                                       ; $D1BC: 8D 00 00
+  LDA a:row_count                                       ; $D1BF: AD 07 00
   LSR A                                               ; $D1C2: 4A
   LSR A                                               ; $D1C3: 4A
   LSR A                                               ; $D1C4: 4A
@@ -8272,10 +8238,10 @@ DuelCmd_FillStatTiles:
   JMP @store_slot                                     ; $D1D0: 4C D8 D1
 @stat_is_100:                                         ; display "--" for max stat
   LDA #$32                                            ; $D1D3: A9 32
-  STA ones_tile                                       ; $D1D5: 8D 00 00
+  STA a:ones_tile                                       ; $D1D5: 8D 00 00
 @store_slot:                                          ; write tile pair into slot buffer
   STA slot_buf_lo,X                                   ; $D1D8: 9D 80 03
-  LDA ones_tile                                       ; $D1DB: AD 00 00
+  LDA a:ones_tile                                       ; $D1DB: AD 00 00
   STA slot_buf_hi,X                                   ; $D1DE: 9D 81 03
   TXA                                                 ; $D1E1: 8A
   CLC                                                 ; $D1E2: 18
@@ -8335,8 +8301,8 @@ DrawCompletionSprite:
   STX slide_y_pos                                           ; $D24B: 8E BB 04
   ;--- Set flip flags and draw the completion sprite ---
   LDA #FLIP_HV                                           ; $D24E: A9 03  (H+V flip)
-  STA sprite_flip_flags                                         ; $D250: 8D 02 00
-  LDA sprite_index                                         ; $D253: AD 10 00
+  STA a:sprite_flip_flags                                         ; $D250: 8D 02 00
+  LDA a:sprite_index                                         ; $D253: AD 10 00
   JSR DrawSpriteFromBank                                           ; $D256: 20 A5 CE
   ;--- Restore original sprite position values ---
   PLA                                                 ; $D259: 68
@@ -8354,14 +8320,14 @@ DrawCompletionSprite:
 CheckPlayerIsRuler:
   LDY active_player_slot                                           ; $D262: AC AA 04
   LDA player_officer_id_0,Y                                         ; $D265: B9 AD 04
-  STA work_0010                                         ; $D268: 8D 10 00
+  STA a:work_0010                                         ; $D268: 8D 10 00
   LDX #$00                                            ; $D26B: A2 00
 @loop:
   TXA                                                 ; $D26D: 8A
   JSR B1F_GetCountryDataPtr                             ; $D26E: 20 68 F3
   LDY #$00                                            ; $D271: A0 00
   LDA (param_byte1),Y                                         ; $D273: B1 00
-  CMP work_0010                                         ; $D275: CD 10 00
+  CMP a:work_0010                                         ; $D275: CD 10 00
   BEQ @skip                                           ; $D278: F0 07
   INX                                                 ; $D27A: E8
   CPX #$07                                            ; $D27B: E0 07
@@ -8632,7 +8598,7 @@ EventMessageScene_ChronPanel:
   INC dispatch_src_ptr_lo                                           ; $D6B7: EE CA 04
   LDA #$FF                                            ; $D6BA: A9 FF
   STA dispatch_src_ptr_hi                                           ; $D6BC: 8D CB 04
-  JSR @init_palette                                           ; $D6BF: 20 6D D7
+  JSR ChronPanelInitPalette                                           ; $D6BF: 20 6D D7
   LDA #$D9                                            ; $D6C2: A9 D9
   LDX war_result_phase                                           ; $D6C4: AE 2E 04
   CPX #$FF                                            ; $D6C7: E0 FF
@@ -8708,7 +8674,7 @@ EventMessageScene_ChronPanel:
 SpriteBlobIndexTable:
   .byte $09,$0A,$0B,$0C,$F0,$F0,$F0,$0D,$0E,$0F,$10,$11,$12,$13,$13,$14; $D755: 1-based sprite-blob indexes into bank $06 $9A7E ($F0 = draw nothing)
   .byte $14,$15,$15,$14,$14,$13,$13,$FE               ; $D765: 14 15 15 14 14 13 13 FE
-@init_palette:
+::ChronPanelInitPalette:
   LDY #$00                                            ; $D76D: A0 00
 @copy_loop:
   LDA EventMessageScenePalette,Y                      ; $D76F: B9 7B D7
@@ -8736,11 +8702,11 @@ EventMessageScene_HeroRisePanel:
   LDA dispatch_step                                           ; $D7A0: AD C9 04
   BNE @skip                                           ; $D7A3: D0 12
   LDA #$A0                                            ; $D7A5: A9 A0
-  STA temp_006a                                         ; $D7A7: 8D 6A 00
+  STA a:temp_006a                                         ; $D7A7: 8D 6A 00
   LDA #$F8                                            ; $D7AA: A9 F8
-  STA ptr_006c_lo                                         ; $D7AC: 8D 6C 00
+  STA a:ptr_006c_lo                                         ; $D7AC: 8D 6C 00
   LDA #$F1                                            ; $D7AF: A9 F1
-  STA ptr_006c_hi                                         ; $D7B1: 8D 6D 00
+  STA a:ptr_006c_hi                                         ; $D7B1: 8D 6D 00
   JSR ScrollPanel_PrepareRowData                                   ; $D7B4: 20 E1 DC
 @skip:
   JSR ScrollPanel_LoadRow                                           ; $D7B7: 20 13 DC
@@ -8793,11 +8759,11 @@ EventMessageScene_HeroRisePanel:
   LDA a:$0087                                         ; $D815: AD 87 00
   BPL @skip_8                                           ; $D818: 10 1F
   LDA #$70                                            ; $D81A: A9 70
-  STA temp_006a                                         ; $D81C: 8D 6A 00
+  STA a:temp_006a                                         ; $D81C: 8D 6A 00
   LDA #$20                                            ; $D81F: A9 20
-  STA ptr_006c_lo                                         ; $D821: 8D 6C 00
+  STA a:ptr_006c_lo                                         ; $D821: 8D 6C 00
   LDA #$F2                                            ; $D824: A9 F2
-  STA ptr_006c_hi                                         ; $D826: 8D 6D 00
+  STA a:ptr_006c_hi                                         ; $D826: 8D 6D 00
   LDA #$00                                            ; $D829: A9 00
   STA dispatch_step                                           ; $D82B: 8D C9 04
   STA dispatch_src_ptr_lo                                           ; $D82E: 8D CA 04
@@ -9426,14 +9392,14 @@ RenderDispatchSprite:
   ASL A                                               ; $DBF9: 0A
   TAY                                                 ; $DBFA: A8
   LDA (var_0010),Y                                         ; $DBFB: B1 10
-  STA param_byte1                                         ; $DBFD: 8D 00 00
+  STA a:param_byte1                                         ; $DBFD: 8D 00 00
   INY                                                 ; $DC00: C8
   LDA (var_0010),Y                                         ; $DC01: B1 10
-  STA param_byte2                                         ; $DC03: 8D 01 00
+  STA a:ppu_addr_hi                                         ; $DC03: 8D 01 00
   LDA #$1F                                            ; $DC06: A9 1F
-  STA ptr_lo                                         ; $DC08: 8D 0A 00
+  STA a:overlay_data_ptr                                         ; $DC08: 8D 0A 00
   LDA #$00                                            ; $DC0B: A9 00
-  STA rle_marker                                         ; $DC0D: 8D 02 00
+  STA a:tile_attr_byte                                         ; $DC0D: 8D 02 00
   JMP B1F_SpriteOamWriterSimple                       ; $DC10: 4C AD F1
 .endproc
 ;===============================================================================
@@ -9461,9 +9427,9 @@ ScrollPanel_LoadRow:
   LDA dispatch_offset_ptr_lo                                           ; $DC2D: AD D4 04
   STA ptr_0382_lo                                           ; $DC30: 8D 82 03
   LDA dispatch_data_ptr_lo                                           ; $DC33: AD D2 04
-  STA ptr_0010_lo                                         ; $DC36: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $DC36: 8D 10 00
   LDA dispatch_data_ptr_hi                                           ; $DC39: AD D3 04
-  STA ptr_0010_hi                                         ; $DC3C: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $DC3C: 8D 11 00
   LDY #$00                                            ; $DC3F: A0 00
 @loop:
   LDA (ptr_0010_lo),Y                                         ; $DC41: B1 10
@@ -9473,11 +9439,11 @@ ScrollPanel_LoadRow:
   BCC @loop                                           ; $DC49: 90 F6
   LDA #$FF                                            ; $DC4B: A9 FF
   STA ptr_0382_hi,Y                                         ; $DC4D: 99 83 03
-  LDA ptr_0010_lo                                         ; $DC50: AD 10 00
+  LDA a:ptr_0010_lo                                         ; $DC50: AD 10 00
   CLC                                                 ; $DC53: 18
   ADC #$1C                                            ; $DC54: 69 1C
   STA dispatch_data_ptr_lo                                           ; $DC56: 8D D2 04
-  LDA ptr_0010_hi                                         ; $DC59: AD 11 00
+  LDA a:ptr_0010_hi                                         ; $DC59: AD 11 00
   ADC #$00                                            ; $DC5C: 69 00
   STA dispatch_data_ptr_hi                                           ; $DC5E: 8D D3 04
   LDA dispatch_offset_ptr_lo                                           ; $DC61: AD D4 04
@@ -9506,10 +9472,10 @@ ScrollPanel_LoadRow:
   ASL A                                               ; $DC93: 0A
   TAY                                                 ; $DC94: A8
   LDA ScrollPanel_OffsetPtrTable,Y                                         ; $DC95: B9 DB DC
-  STA ptr_0010_lo                                         ; $DC98: 8D 10 00
+  STA a:ptr_0010_lo                                         ; $DC98: 8D 10 00
   INY                                                 ; $DC9B: C8
   LDA ScrollPanel_OffsetPtrTable,Y                                         ; $DC9C: B9 DB DC
-  STA ptr_0010_hi                                         ; $DC9F: 8D 11 00
+  STA a:ptr_0010_hi                                         ; $DC9F: 8D 11 00
   LDY #$00                                            ; $DCA2: A0 00
 @loop_3:
   LDA (ptr_0010_lo),Y                                         ; $DCA4: B1 10
@@ -9566,7 +9532,7 @@ ScrollPanel_PrepareRowData:
   LDX #$00                                            ; $DCED: A2 00
 @loop:
   LDA ScrollPanel_TileTable,Y                                     ; $DCEF: B9 05 DD
-  STA tile_buf,X                                          ; $DCF2: 9D BE 00
+  STA a:tile_buf,X                                          ; $DCF2: 9D BE 00
   LDA ScrollPanel_AttrTable,Y                                     ; $DCF5: B9 65 DD
   STA attr_buf,X                                          ; $DCF8: 9D 00 01
   INY                                                 ; $DCFB: C8
@@ -9602,17 +9568,17 @@ ScrollPanel_AttrTable:                                            ; $DD65
 ;       Bytes $08-$0F: bottom border tile row
 ;       Bytes $10-$17: left/right edge tiles (repeated for middle rows)
 ;       Bytes $18-$1F: interior fill row pattern (repeated for content rows)
-ScrollPanel_RowTemplate_Ornate:                                     ; $DDC5: Group 1 – ornate decorative border ($AA/$5F/$6E accents)
+::ScrollPanel_RowTemplate_Ornate:                                     ; $DDC5: Group 1 – ornate decorative border ($AA/$5F/$6E accents)
   .byte $AA,$AA,$00,$AA,$AA,$22,$AA,$AA                           ; $DDC5: top border row
   .byte $6E,$5F,$00,$5F,$5F,$00,$50,$9B                           ; $DDCD: bottom border row
   .byte $66,$D5,$00,$04,$07,$C5,$41,$99                           ; $DDD5: left/right edge tiles
   .byte $AE,$AF,$A0,$A0,$A0,$AC,$A3,$A8                           ; $DDDD: fill row pattern
-ScrollPanel_RowTemplate_Solid:                                      ; $DDE5: Group 2 – solid fill ($FF/$EE heavy blocks)
+::ScrollPanel_RowTemplate_Solid:                                      ; $DDE5: Group 2 – solid fill ($FF/$EE heavy blocks)
   .byte $EE,$FF,$77,$55,$55,$DD,$FF,$BB                           ; $DDE5: top border row
   .byte $EE,$FF,$37,$00,$05,$CD,$FF,$BB                           ; $DDED: bottom border row
   .byte $22,$00,$00,$00,$00,$00,$00,$88                           ; $DDF5: left/right edge tiles
   .byte $A2,$A0,$A0,$A0,$A0,$A0,$A0,$A8                           ; $DDFD: fill row pattern
-ScrollPanel_RowTemplate_Plain:                                      ; $DE05: Group 3 – thin border, mostly empty ($22/$88 border, $00/$A0 fill)
+::ScrollPanel_RowTemplate_Plain:                                      ; $DE05: Group 3 – thin border, mostly empty ($22/$88 border, $00/$A0 fill)
   .byte $22,$00,$44,$15,$45,$11,$00,$88                           ; $DE05: top border row
   .byte $22,$00,$00,$00,$00,$00,$00,$88                           ; $DE0D: bottom border row
   .byte $22,$00,$00,$00,$00,$00,$00,$88                           ; $DE15: left/right edge tiles
@@ -9742,7 +9708,7 @@ AnimSeq_PrepareTransition:
 AnimSeq_ResetScene:
   INC ptr_0540_lo                                           ; $DED6: EE 40 05
   LDA #$00                                            ; $DED9: A9 00
-  STA ptr_0540_hi                                           ; $DEDB: 8D 41 05
+  STA event_scene_phase                                           ; $DEDB: 8D 41 05
   LDA #$B0                                            ; $DEDE: A9 B0
   STA $CE                                             ; $DEE0: 85 CE
   LDA #$04                                            ; $DEE2: A9 04
@@ -9803,25 +9769,25 @@ DataRecordLoader:
   ASL A                                               ; $DF18: 0A
   TAY                                                 ; $DF19: A8
   LDA DataRecordPtrTable,Y                              ; $DF1A: B9 4A DF
-  STA param_byte1                                         ; $DF1D: 8D 00 00
+  STA a:param_byte1                                         ; $DF1D: 8D 00 00
   LDA DataRecordPtrTable+1,Y                            ; $DF20: B9 4B DF
-  STA param_byte2                                         ; $DF23: 8D 01 00
+  STA a:ppu_addr_hi                                         ; $DF23: 8D 01 00
   LDY #$00                                            ; $DF26: A0 00
   LDA (param_byte1),Y                                         ; $DF28: B1 00
-  STA a:param_byte1AA                                         ; $DF2A: 8D AA 00
+  STA a:ptr_00aa_lo                                         ; $DF2A: 8D AA 00
   INY                                                 ; $DF2D: C8
   LDA (param_byte1),Y                                         ; $DF2E: B1 00
-  STA a:param_byte1AB                                         ; $DF30: 8D AB 00
+  STA a:ptr_00aa_hi                                         ; $DF30: 8D AB 00
   INY                                                 ; $DF33: C8
   LDA (param_byte1),Y                                         ; $DF34: B1 00
-  STA a:param_byte1AC                                         ; $DF36: 8D AC 00
+  STA a:ptr_00ac_lo                                         ; $DF36: 8D AC 00
   INY                                                 ; $DF39: C8
   LDA (param_byte1),Y                                         ; $DF3A: B1 00
-  STA a:param_byte1AD                                         ; $DF3C: 8D AD 00
+  STA a:ptr_00ac_hi                                         ; $DF3C: 8D AD 00
   LDA #$AA                                            ; $DF3F: A9 AA
-  STA a:param_byte1A8                                         ; $DF41: 8D A8 00
+  STA a:ptr_00a8_lo                                         ; $DF41: 8D A8 00
   LDA #$00                                            ; $DF44: A9 00
-  STA a:param_byte1A9                                         ; $DF46: 8D A9 00
+  STA a:ptr_00a8_hi                                         ; $DF46: 8D A9 00
   RTS                                                 ; $DF49: 60
 
 ;===============================================================================

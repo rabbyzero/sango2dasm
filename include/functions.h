@@ -315,7 +315,7 @@ B17_18_DataRecordLoader   = $A027   ; DataRecordLoader_Entry: Data record loader
 ;-------------------------------------------------------------------------------
 ; Internal procs - Bank $17 ($A02A-$BFFF)
 ;-------------------------------------------------------------------------------
-B17_18_SetupDisplayPtrs   = $A04A
+B17_18_SetupStrategyModeDisplayPtrs = $A04A ; Strategy-mode display list source ptrs
 B17_18_AdvanceSrcPtr      = $A0D2
 B17_18_PpuWriteRawRows    = $A0E4
 B17_18_RleDecompressHelper = $A169
@@ -656,7 +656,7 @@ B1D_1E_MenuAction22_WindowTeardown                = $C926 ; id $22: window teard
 ; Internal procs - Bank $1E ($C000-$DFFF)
 ;-------------------------------------------------------------------------------
 B1D_1E_StrategyMenu_Return = $C934  ; Strategy Mode menu shared return
-B1D_1E_SetupDisplayPtrs   = $C96D   ; Setup display pointers
+B1D_1E_SetupDisplayCellsAndPtrs = $C96D   ; Latch display cells + load display ptr table
 B1D_1E_ResetDispatchState = $C98A   ; Reset dispatch state
 B1D_1E_DisplayTileData    = $C994   ; Tile data display engine
 B1D_1E_MenuRenderer_SecondaryDispatch = $C9C2 ; Menu renderer secondary dispatch
@@ -717,7 +717,7 @@ B19_1A_EventRulerDeathCheck = $A39B      ; Ruler out-of-action check -> successi
 B19_1A_TaxCollectionEvent = $A3E5          ; TaxCollection 税金の徴収: annual Gold payout event
 B19_1A_ClampStatPair = $A52A             ; Clamp 16-bit stat pair
 B19_1A_ValidateProvinceStats = $A540       ; Debug validation of recalculated Province record
-B19_1A_ValidateProvinceSlots = $A582       ; Debug validation: Province Officer slots $11-$1A
+B19_1A_CheckOfficerSlotStatus = $A582       ; Debug validation: roster slots $11-$1A hold status-2 officers
 B19_1A_RiceHarvestEvent = $A5AA            ; RiceHarvest 米の収穫: annual Rice payout event
 B19_1A_DroughtDamageScene = $A6EF          ; Drought (日照り) event scene, Aug/Sep
 B19_1A_ProvincePickListBuild = $A896       ; Disaster Province pick list (pool by Y)
@@ -885,7 +885,7 @@ B0A_0B_ClampRecordStatPairs = $D655 ; Clamp record stat pairs
 B0A_0B_ValidateRecordGold = $D688   ; Validate record gold
 B0A_0B_ClampRecordStatPairsAlt = $D69D ; Clamp record stat pairs (alt)
 B0A_0B_DebugStub_E5       = $D6E5   ; Debug stub (RTS)
-B0A_0B_ValidateProvinceSlots = $D6E6 ; Validate province slots
+B0A_0B_CheckOfficerSlotFillOrder = $D6E6 ; Debug validation: roster slots $11-$1A stay compact
 B0A_0B_TitleScreenPhaseDispatch = $D717 ; Title screen scene phase machine ($0540), run by NmiState6_TitleScreen
 B0A_0B_CallTitleAnimationDispatch = $D72A ; Banked call to bank $17 AnimationDispatch_Entry ($A021)
 B0A_0B_StackFill          = $D732   ; Stack fill
@@ -930,7 +930,7 @@ B0A_0B_ArmyDeductionTable = $CEC9   ; Army deduction table
 B0A_0B_ArmyResultTable    = $CED3   ; Army result table
 B0A_0B_AdjRowOffsets      = $D5BF   ; Adjacency row offsets (31 bytes)
 B0A_0B_OverlayTileData    = $DA3F   ; Overlay PPU tile data
-B0A_0B_PlayerPtrTable     = $DBD4   ; SRAM player record pointers
+B0A_0B_PlayerPtrTable     = $DBE3   ; SRAM player record pointers
 B0A_0B_SoundDispatch      = $DE5F   ; Sound dispatch table
 
 ;-------------------------------------------------------------------------------

@@ -18,7 +18,7 @@ ROM_DIR := rom
 # Source files
 ASM_SOURCES := $(ASM_DIR)/main.asm
 BANK_SOURCES := $(wildcard $(ASM_DIR)/banks/*.asm)
-ASM_INCLUDE := $(INC_DIR)/6502_registers.h $(INC_DIR)/namco163.h $(INC_DIR)/macros.h $(INC_DIR)/functions.h
+ASM_INCLUDE := $(wildcard $(INC_DIR)/*.h) $(wildcard $(INC_DIR)/*.inc)
 
 # Output
 PRG_BIN := $(BUILD_DIR)/prg.bin
@@ -56,8 +56,12 @@ $(PRG_BIN): $(ASM_SOURCES) $(BANK_SOURCES) $(ASM_INCLUDE) linker.cfg
 	    $(BUILD_DIR)/bank1e.bin $(BUILD_DIR)/bank1f.bin > $(PRG_BIN)
 	@echo "PRG size: $$(wc -c < $(PRG_BIN)) bytes (expected 262144)"
 
-# Create NES ROM with header and CHR
-$(OUTPUT): $(PRG_BIN)
+# Create NES ROM with header and CHR. The wrapper script and the extracted CHR
+# banks are prerequisites: build/sango2.nes is otherwise reused after either
+# changes. The original .nes is not listed - its name contains spaces, which
+# make would split into separate targets, and its header bytes reach the output
+# through tools/build_nes.py anyway.
+$(OUTPUT): $(PRG_BIN) tools/build_nes.py $(wildcard $(ROM_DIR)/chr/*.bin)
 	@echo "Creating NES ROM..."
 	python3 tools/build_nes.py $(PRG_BIN) $(OUTPUT)
 

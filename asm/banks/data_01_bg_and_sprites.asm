@@ -6,9 +6,10 @@
 ; four consumer banks. Window addresses below are CPU-side; file offset = addr - $8000.
 ;
 ;   $8000            Strategy Mode shared BG ATTRIBUTE stream (palette bytes).
-;                    Read by prg_17_18_duel_and_display StrategyModeDisplay -> SetupDisplayPtrs.
+;                    Read by prg_17_18_duel_and_display StrategyModeDisplay ->
+;                    SetupStrategyModeDisplayPtrs.
 ;   $8440 $8570      7 x Strategy Mode BG TILE streams, 304 B ($130) each, via
-;   $86A0 $87D0      SetupDisplayPtrs::StrategyModeTilePtrTable (7 entries).
+;   $86A0 $87D0      SetupStrategyModeDisplayPtrs::StrategyModeTilePtrTable (7 entries).
 ;   $8900 $8A30 $8B60
 ;   $8C90-$93FF      additional sparse BG/tile data (not yet attributed).
 ;
@@ -46,7 +47,7 @@
 ;-------------------------------------------------------------------------------
 ; STRATEGY MODE BACKGROUND  ($8000-$8C8F)
 ;   Shared BG attribute stream at $8000 + 7 pre-baked tile-stream nametables
-;   (304 B / $130 each) selected via SetupDisplayPtrs::StrategyModeTilePtrTable.
+;   (304 B / $130 each) selected via SetupStrategyModeDisplayPtrs::StrategyModeTilePtrTable.
 ;-------------------------------------------------------------------------------
 Bank01StratAttrStream:
   .byte $00, $00, $00, $00, $01, $01, $01, $01, $02, $02, $02, $02, $03, $03, $03, $03 ; $8000: 00 00 00 00 01 01 01 01 02 02 02 02 03 03 03 03  ; BG attribute stream, shared by all 7 tile streams

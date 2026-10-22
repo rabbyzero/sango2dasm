@@ -30,6 +30,7 @@
 .include "6502_registers.h"
 .include "namco163.h"
 .include "functions.h"
+.include "ram_globals.h"
 
 .segment "CODE_BANK1D"
 
@@ -100,13 +101,13 @@ state_vram_cnt_lo = $00C1  ; ProvinceDataWindowFrame VRAM counter lo (paired wit
 state_vram_cnt_hi = $00C2  ; ProvinceDataWindowFrame VRAM counter hi
 state_row_cnt1_lo = $00C3  ; ProvinceDataWindowFrame row counter 1 lo (paired with $00C4)
 state_row_cnt1_hi = $00C4  ; ProvinceDataWindowFrame row counter 1 hi
-; setup_disp_b      = 00BF  ; (SetupDisplayPtrs local)
+; setup_disp_b      = 00BF  ; (SetupDisplayCellsAndPtrs local)
 ; setup_disp_c      = 00C0  ; (ResetDispatchState local)
-; setup_disp_a      = 00C7  ; (SetupDisplayPtrs local)
+; setup_disp_a      = 00C7  ; (SetupDisplayCellsAndPtrs local)
 ; setup_disp_d      = 00C8  ; (ResetDispatchState local)
 state_row_cnt2_lo = $00C9  ; ProvinceDataWindowFrame row counter 2 lo (paired with $00CA)
 state_row_cnt2_hi = $00CA  ; ProvinceDataWindowFrame row counter 2 hi
-; setup_disp_e      = 00CF  ; (SetupDisplayPtrs local)
+; setup_disp_e      = 00CF  ; (SetupDisplayCellsAndPtrs local)
 state_vram_cnt2_lo = $00CB ; ProvinceDataWindowFrame VRAM counter 2 lo
 state_vram_cnt2_hi = $00CC ; ProvinceDataWindowFrame VRAM counter 2 hi
 state_row_cnt3_lo = $00D1  ; ProvinceDataWindowFrame row counter 3 lo (paired with $00D2)
@@ -121,9 +122,9 @@ state_row_cnt5_hi = $00DC  ; ProvinceDataWindowFrame row counter 5 hi
 ;-------------------------------------------------------------------------------
 ; Page $01: State handler workspace / display buffers ($0100-$0190)
 ;-------------------------------------------------------------------------------
-disp_ptr_table    = $0100  ; display pointer table (SetupDisplayPtrs, MenuRenderer_SecondaryDispatch, PaletteRecordLoad)
-disp_ptr_src_lo   = $0110  ; display ptr source lo (SetupDisplayPtrs copies to $0100)
-disp_ptr_src_hi   = $0120  ; display ptr source hi (SetupDisplayPtrs copies to $0110)
+disp_ptr_table    = $0100  ; display pointer table (SetupDisplayCellsAndPtrs, MenuRenderer_SecondaryDispatch, PaletteRecordLoad)
+disp_ptr_src_lo   = $0110  ; display ptr source lo (SetupDisplayCellsAndPtrs copies to $0100)
+disp_ptr_src_hi   = $0120  ; display ptr source hi (SetupDisplayCellsAndPtrs copies to $0110)
 tile_buf_base     = $0140  ; state dispatch control / tile buffer base
 state_scroll_x    = $0141  ; scroll X offset (ProvinceDataWindowFrame, MapDisplaySetup)
 state_vram_hi     = $0142  ; VRAM addr hi (ProvinceDataWindowFrame, MapDisplaySetup)
@@ -186,12 +187,13 @@ disp_buf_ofsD     = $0394  ; display buffer offset D (YearDisplaySetup, RulerCar
 
 ;-------------------------------------------------------------------------------
 ; Page $04: Menu system / officer data / scene state ($0400-$04D6)
+; The scene handoff and menu state cells shared with other banks -
+; scene_callback_id / scene_callback_st ($0400/$0401), province_idx ($0402),
+; menu_scroll_state ($0420), menu_cursor_col / menu_cursor_page ($0424/$0425)
+; and the bank $1F palette-upload latch ($007D) - are declared once in
+; include/ram_globals.h.
 ;-------------------------------------------------------------------------------
-scene_callback_id = $0400  ; scene callback ID (SramInit, SceneRenderer)
-scene_callback_st = $0401  ; scene callback state counter (SceneRenderer, ProvinceDataWindowFrame)
-province_idx      = $0402  ; current province index (ProvinceDataWindowFrame, OfficerListHandler)
 ; officer_param_base = 040C ; (OfficerListHandler local)
-menu_scroll_state = $0420  ; menu scroll / render state (ProvinceDataWindowFrame, MenuRenderer)
 ; officer_list_flag = 0424  ; (OfficerListHandler local)
 ; officer_list_tmp2 = 0425  ; (OfficerListHandler local)
 ; menu_fmt_data0    = 042C  ; (MenuUpdate local)
@@ -226,10 +228,10 @@ menu_action_param2 = $04A5 ; menu action parameter 2 (various MenuAction procs)
 ; officer_name_disp = 04AE  ; (OfficerNameDisplay local)
 menu_row_limit    = $04CC  ; menu row limit (MenuRenderer, OfficerNameRowsEmit)
 menu_disp_row_ctr = $04D0  ; menu display row counter (MenuRenderer, StrategyMenu_Return)
-officer_rec_src_lo = $04D2 ; save-screen name row VRAM addr lo (OfficerNameRowsEmit)
-officer_rec_src_hi = $04D3 ; save-screen name row VRAM addr hi (OfficerNameRowsEmit)
-officer_rec_dst_lo = $04D4 ; save-screen name tile source ptr lo (OfficerNameRowsEmit)
-officer_rec_dst_hi = $04D5 ; save-screen name tile source ptr hi (OfficerNameRowsEmit)
+name_row_vram_lo   = $04D2 ; save-screen name row VRAM addr lo (OfficerNameRowsEmit)
+name_row_vram_hi   = $04D3 ; save-screen name row VRAM addr hi (OfficerNameRowsEmit)
+name_tile_src_lo   = $04D4 ; save-screen name tile source ptr lo (OfficerNameRowsEmit)
+name_tile_src_hi   = $04D5 ; save-screen name tile source ptr hi (OfficerNameRowsEmit)
 menu_action_extra = $04D6  ; menu action extra param (MenuAction08, SaveScreenSoundSelect)
 
 ;-------------------------------------------------------------------------------
@@ -273,7 +275,6 @@ data_ptr_hi       = $00A7
 frame_flags       = $007E  ; bit 0 = render request flag
 input_flags       = $0081  ; controller input flags
 ppu_ctrl_mirror   = $008B  ; mirror of PPU_CTRL ($2000)
-addr_pal_upload_arm = $007D  ; palette-upload arm latch (tested by NmiSubDispatch $EE53, cleared by PaletteUpload $E71B)
 cur_bank_8000     = $00E1  ; current PRG bank mapped at $8000-$9FFF
 
 ;===============================================================================
@@ -3839,7 +3840,7 @@ SceneRendererDispatch:
 ;   #$36, and dispatches $04A2 through the 35-word table $BE75-$BEBA. Handlers
 ;   tail JMP StrategyMenu_Return, whose $04D0 vs $04CC gate closes the screen
 ;   and forces $04A2 = $22 for the teardown. Shared handler contract - all 35
-;   follow it: $04A1 == 0, one frame of setup: SetupDisplayPtrs #id and/or
+;   follow it: $04A1 == 0, one frame of setup: SetupDisplayCellsAndPtrs #id and/or
 ;   ResetDispatchState #id2 latch the overlay cells $00BF/$00C7/$00CF and
 ;   $00C0/$00C8/$00D0 and copy the 16-byte arrays $0120 -> $0100 and $0130 ->
 ;   $0110, which the chrome builder seeded from the per-screen descriptor; then
@@ -3964,7 +3965,7 @@ MenuAction00_SortieResult:
   LDA $04A1                               ; $BEBB: AD A1 04
   BNE @load_row0                            ; $BEBE: D0 09
   LDA #$E8                                ; $BEC0: A9 E8
-  JSR SetupDisplayPtrs                    ; $BEC2: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs            ; $BEC2: 20 6D C9
   INC $04A1                               ; $BEC5: EE A1 04
   RTS                                     ; $BEC8: 60
 @load_row0:
@@ -4000,7 +4001,7 @@ MenuAction01_AcademyResult:
   LDA $04A1                               ; $BEEB: AD A1 04
   BNE @load_row1                            ; $BEEE: D0 0E
   LDA #$DC                                ; $BEF0: A9 DC
-  JSR SetupDisplayPtrs                    ; $BEF2: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs            ; $BEF2: 20 6D C9
   LDA #$DF                                ; $BEF5: A9 DF
   JSR ResetDispatchState                    ; $BEF7: 20 8A C9
   INC $04A1                               ; $BEFA: EE A1 04
@@ -4050,7 +4051,7 @@ MenuAction02_SaveGameResult:
   LDA $04A1                               ; $BF2F: AD A1 04
   BNE @load_row2                            ; $BF32: D0 09
   LDA #$E1                                ; $BF34: A9 E1
-  JSR SetupDisplayPtrs                    ; $BF36: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs            ; $BF36: 20 6D C9
   INC $04A1                               ; $BF39: EE A1 04
   RTS                                     ; $BF3C: 60
 @load_row2:
@@ -4100,7 +4101,7 @@ MenuAction03_DiscordResult:
   LDA $04A1                               ; $BF70: AD A1 04
   BNE @load_row3                            ; $BF73: D0 13
   LDA #$E9                                ; $BF75: A9 E9
-  JSR SetupDisplayPtrs                    ; $BF77: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs            ; $BF77: 20 6D C9
   LDA #$EA                                ; $BF7A: A9 EA
   JSR ResetDispatchState                    ; $BF7C: 20 8A C9
   INC $04A1                               ; $BF7F: EE A1 04
@@ -4153,7 +4154,7 @@ MenuAction04_WarRulerCard:
   LDA $04A1                               ; $BFBF: AD A1 04
   BNE @load_row4                            ; $BFC2: D0 0E
   LDA #$D1                                ; $BFC4: A9 D1
-  JSR SetupDisplayPtrs                    ; $BFC6: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs            ; $BFC6: 20 6D C9
   INC $04A1                               ; $BFC9: EE A1 04
   LDA #$80                                ; $BFCC: A9 80
   STA $04CC                               ; $BFCE: 8D CC 04
@@ -4197,7 +4198,7 @@ MenuAction05_WarRivalRulerCard:
   LDA $04A1                               ; $BFF3: AD A1 04
   .byte $D0, $18                          ; $BFF6: D0 18 (BNE $C010 = MenuAction05_LoadRows)
   LDA #$C6                                ; $BFF8: A9 C6
-  JSR SetupDisplayPtrs                    ; $BFFA: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs            ; $BFFA: 20 6D C9
   LDA #$CF                                ; $BFFD: A9 CF
   .byte $20                               ; $BFFF: 20 (JSR opcode, spans bank boundary)
 .segment "CODE_BANK1E"
@@ -4261,7 +4262,7 @@ MenuAction06_DisasterPreventionResult:
   LDA $04A1                                             ; $C046: AD A1 04
   BNE MenuAction06_LoadRows                                 ; $C049: D0 13
   LDA #$EA                                              ; $C04B: A9 EA
-  JSR SetupDisplayPtrs                                  ; $C04D: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C04D: 20 6D C9
   LDA #$EB                                              ; $C050: A9 EB
   JSR ResetDispatchState                                ; $C052: 20 8A C9
   INC $04A1                                             ; $C055: EE A1 04
@@ -4302,7 +4303,7 @@ MenuAction07_ArmoryResult:
   LDA $04A1                                             ; $C090: AD A1 04
   BNE MenuAction07_LoadRows                                 ; $C093: D0 09
   LDA #$B7                                              ; $C095: A9 B7
-  JSR SetupDisplayPtrs                                  ; $C097: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C097: 20 6D C9
   INC $04A1                                             ; $C09A: EE A1 04
   RTS                                                   ; $C09D: 60
 
@@ -4353,7 +4354,7 @@ MenuAction08_WarOutbreakNotice:
   LDA $04A1                                             ; $C0C8: AD A1 04
   BNE MenuAction08_LoadRows                                 ; $C0CB: D0 1A
   LDA #$CA                                              ; $C0CD: A9 CA
-  JSR SetupDisplayPtrs                                  ; $C0CF: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C0CF: 20 6D C9
   INC $04A1                                             ; $C0D2: EE A1 04
   LDA #$03                                              ; $C0D5: A9 03
   STA $04A4                                             ; $C0D7: 8D A4 04
@@ -4419,7 +4420,7 @@ MenuAction09_LandReclamationResult0A:
   LDA $04A1                                             ; $C123: AD A1 04
   BNE MenuAction09_LoadRows                                 ; $C126: D0 0E
   LDA #$F1                                              ; $C128: A9 F1
-  JSR SetupDisplayPtrs                                  ; $C12A: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C12A: 20 6D C9
   LDA #$F2                                              ; $C12D: A9 F2
   JSR ResetDispatchState                                ; $C12F: 20 8A C9
   INC $04A1                                             ; $C132: EE A1 04
@@ -4463,7 +4464,7 @@ MenuAction0A_LandReclamationResult0B:
   LDA $04A1                                             ; $C168: AD A1 04
   BNE MenuAction0A_LoadRows                                 ; $C16B: D0 0E
   LDA #$F0                                              ; $C16D: A9 F0
-  JSR SetupDisplayPtrs                                  ; $C16F: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C16F: 20 6D C9
   INC $04A1                                             ; $C172: EE A1 04
   LDA #$28                                              ; $C175: A9 28
   STA $04A3                                             ; $C177: 8D A3 04
@@ -4507,7 +4508,7 @@ MenuAction0B_CivilianReliefResult:
   LDA $04A1                                             ; $C1AC: AD A1 04
   BNE MenuAction0B_LoadRows                                 ; $C1AF: D0 19
   LDA #$E9                                              ; $C1B1: A9 E9
-  JSR SetupDisplayPtrs                                  ; $C1B3: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C1B3: 20 6D C9
   LDA #$EB                                              ; $C1B6: A9 EB
   JSR ResetDispatchState                                ; $C1B8: 20 8A C9
   LDA #$C3                                              ; $C1BB: A9 C3
@@ -4560,7 +4561,7 @@ MenuAction0C_HospitalResult:
   LDA $04A1                                             ; $C1FA: AD A1 04
   BNE MenuAction0C_LoadRows                                 ; $C1FD: D0 19
   LDA #$F8                                              ; $C1FF: A9 F8
-  JSR SetupDisplayPtrs                                  ; $C201: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C201: 20 6D C9
   LDA #$F9                                              ; $C204: A9 F9
   JSR ResetDispatchState                                ; $C206: 20 8A C9
   LDA #$FA                                              ; $C209: A9 FA
@@ -4622,7 +4623,7 @@ MenuAction0D_LandReclamationResult0E:
   LDA $04A1                                             ; $C25D: AD A1 04
   BNE MenuAction0D_LoadRows                                 ; $C260: D0 28
   LDA #$F7                                              ; $C262: A9 F7
-  JSR SetupDisplayPtrs                                  ; $C264: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C264: 20 6D C9
   INC $04A1                                             ; $C267: EE A1 04
   LDY #$00                                              ; $C26A: A0 00
   LDX #$00                                              ; $C26C: A2 00
@@ -4692,7 +4693,7 @@ MenuAction0E_TownDevelopmentResult0F:
   LDA $04A1                                             ; $C2DD: AD A1 04
   BNE MenuAction0E_LoadRows                                 ; $C2E0: D0 0E
   LDA #$F3                                              ; $C2E2: A9 F3
-  JSR SetupDisplayPtrs                                  ; $C2E4: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C2E4: 20 6D C9
   LDA #$F4                                              ; $C2E7: A9 F4
   JSR ResetDispatchState                                ; $C2E9: 20 8A C9
   INC $04A1                                             ; $C2EC: EE A1 04
@@ -4751,7 +4752,7 @@ MenuAction0F_IndustryAndTownResult10:
   LDA $04A1                                             ; $C33D: AD A1 04
   BNE MenuAction0F_LoadRows                                 ; $C340: D0 0E
   LDA #$F0                                              ; $C342: A9 F0
-  JSR SetupDisplayPtrs                                  ; $C344: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C344: 20 6D C9
   INC $04A1                                             ; $C347: EE A1 04
   LDA #$20                                              ; $C34A: A9 20
   STA $04A4                                             ; $C34C: 8D A4 04
@@ -4820,7 +4821,7 @@ MenuAction10_OfficerTransferResult:
   LDA $04A1                                             ; $C3A2: AD A1 04
   BNE MenuAction10_LoadRows                                 ; $C3A5: D0 13
   LDA #$D0                                              ; $C3A7: A9 D0
-  JSR SetupDisplayPtrs                                  ; $C3A9: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C3A9: 20 6D C9
   LDA #$D1                                              ; $C3AC: A9 D1
   JSR ResetDispatchState                                ; $C3AE: 20 8A C9
   INC $04A1                                             ; $C3B1: EE A1 04
@@ -4876,7 +4877,7 @@ MenuAction11_IndustryDevelopmentResult12:
   LDA $04A1                                             ; $C3F6: AD A1 04
   BNE MenuAction11_LoadRows                                 ; $C3F9: D0 19
   LDA #$F5                                              ; $C3FB: A9 F5
-  JSR SetupDisplayPtrs                                  ; $C3FD: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C3FD: 20 6D C9
   LDA #$F7                                              ; $C400: A9 F7
   JSR ResetDispatchState                                ; $C402: 20 8A C9
   LDA #$D7                                              ; $C405: A9 D7
@@ -4926,7 +4927,7 @@ MenuAction12_PoachingResult:
   LDA $04A1                                             ; $C43E: AD A1 04
   BNE MenuAction12_LoadRows                                 ; $C441: D0 37
   LDA #$F8                                              ; $C443: A9 F8
-  JSR SetupDisplayPtrs                                  ; $C445: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C445: 20 6D C9
   LDA #$FA                                              ; $C448: A9 FA
   JSR ResetDispatchState                                ; $C44A: 20 8A C9
   LDA #$00                                              ; $C44D: A9 00
@@ -5009,7 +5010,7 @@ MenuAction13_IndustryDevelopmentResult14:
   LDA $04A1                                             ; $C4E1: AD A1 04
   BNE @LoadRows                                            ; $C4E4: D0 09
   LDA #$E7                                              ; $C4E6: A9 E7
-  JSR SetupDisplayPtrs                                  ; $C4E8: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C4E8: 20 6D C9
   INC $04A1                                             ; $C4EB: EE A1 04
 
   RTS                                                   ; $C4EE: 60
@@ -5047,7 +5048,7 @@ MenuAction14_LandAndIndustryResult15:
   LDA $04A1                                             ; $C511: AD A1 04
     BNE MenuAction14_LoadRows                                 ; $C514: D0 0E
   LDA #$FB                                              ; $C516: A9 FB
-  JSR SetupDisplayPtrs                                  ; $C518: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C518: 20 6D C9
   LDA #$FC                                              ; $C51B: A9 FC
   JSR ResetDispatchState                                ; $C51D: 20 8A C9
   INC $04A1                                             ; $C520: EE A1 04
@@ -5092,7 +5093,7 @@ MenuAction15_IndustryAndTownResult16:
   LDA $04A1                                             ; $C556: AD A1 04
   BNE MenuAction15_LoadRows                                 ; $C559: D0 1E
   LDA #$EA                                              ; $C55B: A9 EA
-  JSR SetupDisplayPtrs                                  ; $C55D: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C55D: 20 6D C9
   LDA #$EB                                              ; $C560: A9 EB
   JSR ResetDispatchState                                ; $C562: 20 8A C9
   LDA #$ED                                              ; $C565: A9 ED
@@ -5150,7 +5151,7 @@ MenuAction16_OfficerGiftResult:
   LDA $04A1                                             ; $C5B1: AD A1 04
   BNE MenuAction16_LoadRows                                 ; $C5B4: D0 0E
   LDA #$F6                                              ; $C5B6: A9 F6
-  JSR SetupDisplayPtrs                                  ; $C5B8: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C5B8: 20 6D C9
   INC $04A1                                             ; $C5BB: EE A1 04
   LDA #$03                                              ; $C5BE: A9 03
   STA $04A4                                             ; $C5C0: 8D A4 04
@@ -5200,7 +5201,7 @@ MenuAction17_IndustryAndTownResult18:
   LDA $04A1                                             ; $C5F7: AD A1 04
   BNE MenuAction17_LoadRows                                 ; $C5FA: D0 0E
   LDA #$F7                                              ; $C5FC: A9 F7
-  JSR SetupDisplayPtrs                                  ; $C5FE: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C5FE: 20 6D C9
   LDA #$DF                                              ; $C601: A9 DF
   JSR ResetDispatchState                                ; $C603: 20 8A C9
   INC $04A1                                             ; $C606: EE A1 04
@@ -5247,7 +5248,7 @@ MenuAction18_AllianceResult:
   LDA $04A1                                             ; $C636: AD A1 04
   BNE MenuAction18_LoadRows                                 ; $C639: D0 09
   LDA #$C5                                              ; $C63B: A9 C5
-  JSR SetupDisplayPtrs                                  ; $C63D: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C63D: 20 6D C9
   INC $04A1                                             ; $C640: EE A1 04
   RTS                                                   ; $C643: 60
 
@@ -5302,7 +5303,7 @@ MenuAction19_ConscriptionResult:
   LDA $04A1                                             ; $C67D: AD A1 04
   BNE MenuAction19_LoadRows                                 ; $C680: D0 19
   LDA #$F4                                              ; $C682: A9 F4
-  JSR SetupDisplayPtrs                                  ; $C684: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C684: 20 6D C9
   LDA #$F5                                              ; $C687: A9 F5
   JSR ResetDispatchState                                ; $C689: 20 8A C9
   LDA #$D4                                              ; $C68C: A9 D4
@@ -5352,7 +5353,7 @@ MenuAction1A_IntelligenceGatheringResult:
   LDA $04A1                                             ; $C6C6: AD A1 04
   BNE MenuAction1A_LoadRows                                 ; $C6C9: D0 32
   LDA #$C1                                              ; $C6CB: A9 C1
-  JSR SetupDisplayPtrs                                  ; $C6CD: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C6CD: 20 6D C9
   INC $04A1                                             ; $C6D0: EE A1 04
   LDA #$01                                              ; $C6D3: A9 01
   STA $04A4                                             ; $C6D5: 8D A4 04
@@ -5423,7 +5424,7 @@ MenuAction1B_DroughtDamageWindow:
   LDA $04A1                                             ; $C75F: AD A1 04
   BNE MenuAction1B_LoadRows                                 ; $C762: D0 28
   LDA #$FC                                              ; $C764: A9 FC
-  JSR SetupDisplayPtrs                                  ; $C766: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C766: 20 6D C9
   INC $04A1                                             ; $C769: EE A1 04
   LDY #$00                                              ; $C76C: A0 00
   LDX #$00                                              ; $C76E: A2 00
@@ -5486,7 +5487,7 @@ MenuAction1C_RiceHarvestWindow:
   LDA $04A1                                             ; $C7D1: AD A1 04
   BNE MenuAction1C_LoadRows                                 ; $C7D4: D0 09
   LDA #$C2                                              ; $C7D6: A9 C2
-  JSR SetupDisplayPtrs                                  ; $C7D8: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C7D8: 20 6D C9
   INC $04A1                                             ; $C7DB: EE A1 04
   RTS                                                   ; $C7DE: 60
 
@@ -5525,7 +5526,7 @@ MenuAction1D_FloodDamageWindow:
   LDA $04A1                                             ; $C800: AD A1 04
   BNE MenuAction1D_LoadRows                                 ; $C803: D0 09
   LDA #$D1                                              ; $C805: A9 D1
-  JSR SetupDisplayPtrs                                  ; $C807: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C807: 20 6D C9
   INC $04A1                                             ; $C80A: EE A1 04
   RTS                                                   ; $C80D: 60
 
@@ -5565,7 +5566,7 @@ MenuAction1E_RebellionWindow:
   LDA $04A1                                             ; $C830: AD A1 04
   BNE MenuAction1E_LoadRows                                 ; $C833: D0 0E
   LDA #$C6                                              ; $C835: A9 C6
-  JSR SetupDisplayPtrs                                  ; $C837: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C837: 20 6D C9
   INC $04A1                                             ; $C83A: EE A1 04
   LDA #$03                                              ; $C83D: A9 03
   STA $04A4                                             ; $C83F: 8D A4 04
@@ -5616,7 +5617,7 @@ MenuAction1F_TaxCollectionWindow:
   LDA $04A1                                             ; $C87D: AD A1 04
   BNE MenuAction1F_LoadRows                                 ; $C880: D0 09
   LDA #$BD                                              ; $C882: A9 BD
-  JSR SetupDisplayPtrs                                  ; $C884: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C884: 20 6D C9
   INC $04A1                                             ; $C887: EE A1 04
   RTS                                                   ; $C88A: 60
 
@@ -5660,7 +5661,7 @@ MenuAction20_MarketPanel:
   LDA $04A1                                             ; $C8B4: AD A1 04
   BNE MenuAction20_LoadRows                                 ; $C8B7: D0 0E
   LDA #$B7                                              ; $C8B9: A9 B7
-  JSR SetupDisplayPtrs                                  ; $C8BB: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C8BB: 20 6D C9
   LDA #$B7                                              ; $C8BE: A9 B7
   JSR ResetDispatchState                                ; $C8C0: 20 8A C9
   INC $04A1                                             ; $C8C3: EE A1 04
@@ -5709,7 +5710,7 @@ MenuAction21_SupplyTransportResult:
   LDA $04A1                                             ; $C8F1: AD A1 04
   BNE MenuAction21_LoadRows                                 ; $C8F4: D0 0E
   LDA #$AA                                              ; $C8F6: A9 AA
-  JSR SetupDisplayPtrs                                  ; $C8F8: 20 6D C9
+  JSR SetupDisplayCellsAndPtrs                          ; $C8F8: 20 6D C9
   LDA #$AB                                              ; $C8FB: A9 AB
   JSR ResetDispatchState                                ; $C8FD: 20 8A C9
   INC $04A1                                             ; $C900: EE A1 04
@@ -5792,15 +5793,15 @@ StrategyMenu_Return:
 .endproc
 
 ;===============================================================================
-; $C96D: SetupDisplayPtrs
+; $C96D: SetupDisplayCellsAndPtrs
 ;===============================================================================
-.proc SetupDisplayPtrs
+.proc SetupDisplayCellsAndPtrs
   ; Proc-local RAM variables
   setup_disp_b      = $00BF  ; display ptr temp B
   setup_disp_a      = $00C7  ; display ptr temp A
   setup_disp_e      = $00CF  ; display ptr temp E
   setup_disp_src    = $0130  ; display ptr source
-SetupDisplayPtrs:
+SetupDisplayCellsAndPtrs:
   STA a:$00BF ; $C96D: 8D BF 00
   STA a:$00C7 ; $C970: 8D C7 00
   STA a:$00CF ; $C973: 8D CF 00
@@ -6059,7 +6060,7 @@ LoadScreenBlock:
 ;   - $04A2 is the SCREEN id, so this indexes the per-screen window descriptor
 ;   table, not save slots. From its 8-byte header: byte 0 into the overlay cells
 ;   $00C3/$00CB/$00D3, byte 1 into $00C2/$00CA/$00D2, bytes 2-4 into $012D-$012F
-;   and bytes 5-7 into $013D-$013F - the arrays SetupDisplayPtrs later copies
+;   and bytes 5-7 into $013D-$013F - the arrays SetupDisplayCellsAndPtrs later copies
 ;   into $0100/$0110. It sets $010C/$011C = $0F, picks the name- row VRAM base
 ;   $04D2/$04D3 = $C4/$20 or $D2/$20 by window side, points $04D4 at header+8
 ;   and leaves the row budget $04A3 = 1.

@@ -42,6 +42,7 @@
 .include "6502_registers.h"
 .include "namco163.h"
 .include "functions.h"
+.include "ram_globals.h"
 
 
 .segment "CODE_BANK1B"
@@ -4466,10 +4467,10 @@ WarehouseSliderScale10:
 @TownScreenInit:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0140                               ; $BFED: AD 40 01  ; transition busy
-  BNE @InitGateExit                       ; $BFF0: D0 32     ; wait
+  BNE *+52                                ; $BFF0: D0 32 (-> @InitGateExit at $C024 across the bank seam) ; wait
   LDA $0304                               ; $BFF2: AD 04 03  ; overlay slot sentinel
   CMP #$FF                                ; $BFF5: C9 FF
-  BNE @InitGateExit                       ; $BFF7: D0 2B     ; overlay busy: wait
+  BNE *+45                                ; $BFF7: D0 2B (-> @InitGateExit at $C024 across the bank seam) ; overlay busy: wait
   INC $0401                               ; $BFF9: EE 01 04  ; sub-state ++
   JSR MenuCursorReset                     ; $BFFC: 20 70 DD  ; menu cursor reset $0424/$0425 <- 0 (A=$00)
   .byte $8D                               ; $BFFF: 8D        ; STA $0473 opcode; operand bytes are in bank $1C

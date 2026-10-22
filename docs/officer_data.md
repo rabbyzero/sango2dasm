@@ -101,7 +101,7 @@ that maintains them:
 |---|---|---|
 | `0` | 在野 free / unaffiliated | `OfficerArrivalScan` fallback (prg_19_1a_event_scenes `$BA1A`) looks for free officers whose `+5` location matches the scouted province; defection paths clear the bits (prg_0a_0b_strategy_ai `$CBE0`) |
 | `1` | hidden / not yet appeared (the seed state of the 180 officers off the map) | arrival-schedule scan prg_0a_0b_strategy_ai `$C63B` only considers `&3 == 1` officers whose appear year has passed, and recruits them to the province roster as `2` (prg_0a_0b_strategy_ai `$C657`); reinforcement scan prg_19_1a_event_scenes `$AF04` |
-| `2` | rostered to a province (the seed state of the 57 officers on the map) | `ValidateProvinceSlots` (prg_19_1a_event_scenes `$A59A`, debug): every non-empty province roster slot must hold a status-2 officer |
+| `2` | rostered to a province (the seed state of the 57 officers on the map) | `CheckOfficerSlotStatus` (prg_19_1a_event_scenes `$A59A`, debug): every non-empty province roster slot must hold a status-2 officer |
 | `3` | out of action (dead / removed; triggers ruler succession) | `OfficerKill` (prg_19_1a_event_scenes `$BDCA`) sets it via `ORA #$03` and `$FF`s the roster slot; prg_0a_0b_strategy_ai `$CA4B` labels the already-3 case `@RulerAlreadyDead`; the year-end `OfficerStatusScene` (prg_19_1a_event_scenes `$ADD5`) arms `RulerSuccessionScene` on it; counted as excluded at prg_19_1a_event_scenes `$A284` |
 
 `+5` 位置 LocationProvince holds the province id ($00-$2D)

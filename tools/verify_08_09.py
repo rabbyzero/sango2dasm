@@ -8,11 +8,4 @@ output is compared against rom/prg/prg_08.bin + rom/prg/prg_09.bin.
 from _bank_verify_lib import main
 
 main("08", "09",
-     stub_strategy="retry",
-     stub_header="; RAM globals owned by other bank files (addresses per prg_08_09_tactical_war.asm header)\n",
-     external_ram=[
-         "menu_cursor_col = $0424\n",
-         "menu_cursor_page = $0425\n",
-         "army_slot_base = $04D8\n",
-         "sram_request_mailbox = $6F8B\n",
-     ])
+     stub_strategy="retry")

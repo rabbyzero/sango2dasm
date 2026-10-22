@@ -412,7 +412,7 @@ def write_md(rows, path, info):
             '(prg_0a_0b_strategy_ai `$C657`); reinforcement scan prg_19_1a_event_scenes `$AF04` |\n')
         f.write(
             '| `2` | rostered to a province (the seed state of the 57 officers '
-            'on the map) | `ValidateProvinceSlots` '
+            'on the map) | `CheckOfficerSlotStatus` '
             '(prg_19_1a_event_scenes `$A59A`, debug): every non-empty province roster slot '
             'must hold a status-2 officer |\n')
         f.write(

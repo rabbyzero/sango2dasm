@@ -17,13 +17,9 @@ src_path = sys.argv[1] if len(sys.argv) > 1 else "asm/banks/prg_08_09_tactical_w
 all_lines = open(src_path).readlines()
 end = len(all_lines)  # whole file (free-space tail is a .res fill)
 
-# Globals owned by other bank files (referenced, not redefined, here).
-EXTERNAL_RAM = [
-    "menu_cursor_col = $0424\n",
-    "menu_cursor_page = $0425\n",
-    "army_slot_base = $04D8\n",
-    "sram_request_mailbox = $6F8B\n",
-]
+# Cross-bank RAM globals come from include/ram_globals.h, which the slice keeps
+# (it starts at the .include block), so nothing is injected here any more.
+EXTERNAL_RAM = []
 
 def build_region(extra_equates):
     region = "".join(all_lines[8:end])

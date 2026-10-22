@@ -2,7 +2,7 @@
 """
 Decode the tile stream whose id equals a MenuAction handler's display latch.
 
-CORRECTION (2026-10-15): the value a handler passes to SetupDisplayPtrs is NOT a
+CORRECTION (2026-10-15): the value a handler passes to SetupDisplayCellsAndPtrs is NOT a
 pos_buf_0 stream id. It only latches the display cell block
 $00BF/$00C7/$00CF (and $00C0/$00C8/$00D0 through ResetDispatchState) - the same
 cells the prg_19_1a cutscene handlers animate - and no reader feeds them to
@@ -32,7 +32,7 @@ import sys
 ROM_DIR = os.path.join(os.path.dirname(__file__), '..', 'rom')
 PRG_COMBINED = os.path.join(ROM_DIR, 'prg_combined.bin')
 
-# Handler -> first display latch (SetupDisplayPtrs immediate -> $00BF/$00C7/$00CF)
+# Handler -> first display latch (SetupDisplayCellsAndPtrs immediate -> $00BF/$00C7/$00CF)
 HANDLERS = {
     0x00: ("MenuAction00_SortieResult", 0xE8),
     0x01: ("MenuAction01_AcademyResult", 0xDC),

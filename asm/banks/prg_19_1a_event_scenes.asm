@@ -9,6 +9,7 @@
 .include "6502_registers.h"
 .include "namco163.h"
 .include "functions.h"
+.include "ram_globals.h"
 
 
 .segment "CODE_BANK19"
@@ -882,7 +883,7 @@ CountryCensusBuild:
   LDY #$02                                ; $A50F: A0 02
   JSR ClampStatPair                        ; $A511: 20 2A A5
   JSR ValidateProvinceStats                ; $A514: 20 40 A5
-  JSR ValidateProvinceSlots                ; $A517: 20 82 A5
+  JSR CheckOfficerSlotStatus               ; $A517: 20 82 A5
   PLA                                     ; $A51A: 68
   SEC                                     ; $A51B: 38
   SBC #$01                                ; $A51C: E9 01
@@ -974,14 +975,14 @@ CountryCensusBuild:
 .endproc
 
 ;===============================================================================
-; $A582: ValidateProvinceSlots
-; Debug validation: scans Province-record Officer slots $11-$1A; every
-; non-empty slot must reference an Officer whose record byte $0B status
-; bits are 2. Wired in from TaxCollectionEvent ($A517) and RiceHarvestEvent
-; ($A6DC). Retail ROM stubs
-; the entry to RTS, so the scan body below is unreachable.
+; $A582: CheckOfficerSlotStatus
+; Debug validation: walks the Province-record officer roster slot run $11-$1A;
+; every non-empty slot must reference an Officer whose record byte $0B status
+; bits are 2 (province-rostered). Wired in from TaxCollectionEvent ($A517) and
+; RiceHarvestEvent ($A6DC). The shipped entry is a single RTS, so the scan body
+; below is unreachable.
 ;===============================================================================
-.proc ValidateProvinceSlots
+.proc CheckOfficerSlotStatus
   RTS                                     ; $A582: 60        ; entry stubbed to RTS
 @SlotScanStart:                           ; unreachable (entry stubbed)
   LDA #$11                                ; $A583: A9 11
@@ -1168,7 +1169,7 @@ CountryCensusBuild:
   LDY #$04                                ; $A6D4: A0 04
   JSR ClampStatPair                        ; $A6D6: 20 2A A5
   JSR ValidateProvinceStats                ; $A6D9: 20 40 A5
-  JSR ValidateProvinceSlots                ; $A6DC: 20 82 A5
+  JSR CheckOfficerSlotStatus               ; $A6DC: 20 82 A5
   PLA                                     ; $A6DF: 68
   SEC                                     ; $A6E0: 38
   SBC #$01                                ; $A6E1: E9 01
@@ -4802,14 +4803,14 @@ OfficerKill:
 ; --- Code Region ---
   LDA $0300                               ; $BFB9: AD 00 03
   CMP #$FF                                ; $BFBC: C9 FF
-  BNE ArrivalScanWait                     ; $BFBE: D0 5D
+  BNE *+95                                ; $BFBE: D0 5D (-> ArrivalScanWait at $C01D across the bank seam)
   LDA $0304                               ; $BFC0: AD 04 03
   CMP #$FF                                ; $BFC3: C9 FF
-  BNE ArrivalScanWait                     ; $BFC5: D0 56
+  BNE *+88                                ; $BFC5: D0 56 (-> ArrivalScanWait at $C01D across the bank seam)
   JSR MarkerSpriteDraw                    ; $BFC7: 20 C2 A1
   LDA a:$0081                             ; $BFCA: AD 81 00
   AND #$03                                ; $BFCD: 29 03
-  BEQ ArrivalScanWait                     ; $BFCF: F0 4C
+  BEQ *+78                                ; $BFCF: F0 4C (-> ArrivalScanWait at $C01D across the bank seam)
   LDA $040A                               ; $BFD1: AD 0A 04
   ASL                                     ; $BFD4: 0A
   ASL                                     ; $BFD5: 0A
@@ -4944,10 +4945,11 @@ ArrivalShiftRoster:
   CPY #$1B                                ; $C0C9: C0 1B
   BCC @RosterCountLoop                    ; $C0CB: 90 F4
   CPX #$00                                ; $C0CD: E0 00
-  BNE $C0D7                               ; $C0CF: D0 06
+  BNE @NextProvince                       ; $C0CF: D0 06
   LDY #$00                                ; $C0D1: A0 00
   LDA #$07                                ; $C0D3: A9 07
   STA ($10),Y                             ; $C0D5: 91 10
+@NextProvince:
   INC $0402                               ; $C0D7: EE 02 04
   LDA a:$0031                             ; $C0DA: AD 31 00
   STA $042C                               ; $C0DD: 8D 2C 04

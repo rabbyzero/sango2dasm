@@ -38,9 +38,9 @@ REGION_MAP = [
     (0xA02A, 0xA04A, "DomesticDisplay", "func",
      "Entry0C: Domestic affairs display (switches bank $21)"),
 
-    # Helper: setup display pointers from $0544
-    (0xA04A, 0xA06B, "SetupDisplayPtrs", "func",
-     "Setup display pointers from $0544 index"),
+    # Helper: select the strategy-mode display list source pointers from $0544
+    (0xA04A, 0xA06B, "SetupStrategyModeDisplayPtrs", "func",
+     "Setup strategy-mode display list pointers from $0544 index"),
 
     # Data: tile pointer table (28 bytes)
     (0xA06B, 0xA087, "DomesticTilePtrs", "table",

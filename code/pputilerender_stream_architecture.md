@@ -70,7 +70,7 @@ The strategy mode display engine uses a bytecode stream format to render menu UI
 
 ## MenuAction handler display latches
 
-Each handler calls `SetupDisplayPtrs` and sometimes `ResetDispatchState` on
+Each handler calls `SetupDisplayCellsAndPtrs` and sometimes `ResetDispatchState` on
 its first frame (`$04A1 == 0`). **These immediates are NOT stream positions**
 - they only latch the display cell block `$00BF/$00C7/$00CF` and
 `$00C0/$00C8/$00D0`, which the prg_19_1a cutscene handlers animate and

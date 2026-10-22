@@ -9,19 +9,20 @@
 .include "6502_registers.h"
 .include "namco163.h"
 .include "functions.h"
+.include "ram_globals.h"
 
 ;===============================================================================
 ; RAM map (WRAM $0400-$06FF work area, SRAM $6F00-$6FFF) - war/battle context
-; Cross-proc globals for this bank. Addresses shared with other scenes reuse
-; the canonical globals defined in the owning bank files:
-;   $0424/$0425 = menu_cursor_col/menu_cursor_page (prg_0c_0d_tactical_commands.asm)
+; Cross-proc globals for this bank. Cells shared with other banks are declared
+; once in include/ram_globals.h and used here by name:
+;   $0400/$0401 = scene_callback_id/scene_callback_st
+;   $0424/$0425 = menu_cursor_col/menu_cursor_page
 ;   $04D8       = army_slot_base (+1 target X, +2 target Y, +3 timer,
-;                 +4 group 1 owner, +5..+7 group 1 timers) (prg_0c_0d_tactical_commands.asm)
-;   $6F8B       = sram_request_mailbox (prg_0a_0b_strategy_ai.asm)
+;                 +4 group 1 owner, +5..+7 group 1 timers)
+;   $0500/$0501 = war_scene_id/war_scene_phase
+;   $6F8B       = sram_request_mailbox
 ;===============================================================================
 ; --- War scene state ($0500-$0514) ---
-war_scene_id        = $0500  ; battle scene/command id (state select)
-war_scene_phase     = $0501  ; battle scene phase/state index
 war_side_flag       = $0504  ; acting-side flag (bit7: 1=attacker, 0=defender)
 war_action_points   = $0505  ; AI action budget / status panel counter
 war_round_counter   = $0506  ; battle round/day counter
@@ -3770,9 +3771,8 @@ reserve_units          = $6F47  ; reserve unit id lists (2 x $14)
 ; faction officer table ($9D72) calling $F2AF for each until $FF sentinel.
 ;-------------------------------------------------------------------------------
 .proc WarPostProcess
-; --- Proc-local RAM (scene handoff, canonical names from prg_0c_0d_tactical_commands.asm) ---
-scene_callback_id      = $0400  ; next scene callback id ($0D post-battle)
-scene_callback_st      = $0401  ; next scene callback state
+; Scene handoff: scene_callback_id / scene_callback_st, declared in
+; include/ram_globals.h
   LDA a:$0087                           ; $BBA0: AD 87 00
   BPL @PostDone                         ; $BBA3: 10 12
   JSR SetupPostWarState                 ; $BBA5: 20 B8 BB

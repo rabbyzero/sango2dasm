@@ -44,6 +44,7 @@
 .include "6502_registers.h"
 .include "namco163.h"
 .include "functions.h"
+.include "ram_globals.h"
 
 .segment "CODE_BANK1F"
 
@@ -52,28 +53,14 @@
 ;===============================================================================
 ; These addresses have consistent meaning across the entire bank.
 ; Function-specific aliases are defined within .proc scopes.
+; The cells this bank services on behalf of every other bank - the state
+; machine, NMI and palette service, controller polling, PPU mirrors, scroll,
+; field-map caches, CHR bank numbers, RNG index and trampoline save
+; ($0050-$00B5) - are declared in include/ram_globals.h.
 
 ; --- Game State ---
-addr_game_state     = $007A                     ; State counter (0-14), indexes VectorTable
-addr_sub_state      = $0078                     ; Sub-state within each major state
 addr_dispatch_ptr   = $004E                     ; Indirect jump target (low)
 addr_dispatch_ptr_h = $004F                     ; Indirect jump target (high)
-
-; --- PPU ---
-addr_ppu_ctrl_ram   = $008B                     ; RAM copy of PPU control ($2000)
-addr_ppu_mask_ram   = $008C                     ; RAM copy of PPU mask ($2001)
-addr_display_mode   = $0098                     ; Display mode parameter
-addr_display_mode_h = $0099                     ; Display mode parameter (high)
-addr_pal_upload_arm = $007D                     ; Palette-upload armed latch (NmiSubDispatch $EE53 tests it, PaletteUpload clears it at $E71B); never an NMI pending flag
-addr_nmi_ctrl       = $007E                     ; NMI sub-dispatch control bits
-
-; --- Controller ---
-addr_pad1_edge      = $0081                     ; Pad 1 newly-pressed buttons
-addr_pad2_edge      = $0082                     ; Pad 2 newly-pressed buttons
-addr_pad1_raw       = $0083                     ; Pad 1 raw button state
-addr_pad1_prev      = $0084                     ; Pad 1 previous frame state
-addr_pad2_raw       = $0085                     ; Pad 2 raw button state
-addr_pad2_prev      = $0086                     ; Pad 2 previous frame state
 
 ; --- Bank Switch ---
 addr_bank_e6        = $00E6                     ; CHR bank register RAM copy (NAMCO_CHR_BANK_0)
@@ -86,7 +73,6 @@ addr_bank_ec        = $00EC                     ; Extended bank config
 addr_bank_ed        = $00ED                     ; Extended bank config
 
 ; --- RNG ---
-addr_rng_index      = $0050                     ; RNG table index
 addr_rng_saved_x    = $0051                     ; Saved X register (RNG)
 addr_rng2_index     = $0052                     ; RNG variant 2 table index
 addr_rng_temp_x     = $0053                     ; RNG temp X save (variants)
@@ -94,43 +80,11 @@ addr_rng3_index     = $0054                     ; RNG variant 3 table index
 addr_rng4_index     = $0055                     ; RNG variant 4 table index
 
 ; --- Trampoline ---
-addr_trampoline_saved_bank = $0058
 addr_trampoline_ret_lo     = $0059
 addr_trampoline_ret_hi     = $005A
 addr_trampoline_target_lo  = $005B
 addr_trampoline_target_hi  = $005C
 addr_trampoline_bank_param = $005D
-
-; --- Sprite ---
-addr_sprite_count   = $007C                     ; Current OAM slot index
-
-; --- Animation ---
-addr_anim_direction = $0087                     ; Palette animation direction
-addr_anim_step      = $0088                     ; Palette animation step
-addr_anim_speed     = $0089                     ; Palette animation speed
-addr_anim_counter   = $008A                     ; Palette animation tick counter
-
-; --- Scroll (actual PPU scroll) ---
-addr_scroll_x       = $008E                     ; Scroll X position
-addr_scroll_x_hi    = $008F                     ; Scroll X high (nametable bit)
-addr_scroll_y       = $0090                     ; Scroll Y position
-addr_scroll_y_hi    = $0091                     ; Scroll Y high
-
-; --- Field-map scroll state ---
-map_row_cache       = $0094                     ; Palette-row cache; $FF forces a palette reload
-map_col_cache       = $0095                     ; Scene-column cache; $FF forces an overlay reload
-map_dir_flags       = $009C                     ; Last field-map scroll step (7=E, 6=W, 4=N, 5=S)
-map_dir_prev        = $009D                     ; Previous-frame copy, snapshotted at $F95E
-
-; --- CHR Banks ---
-addr_chr_bank_0     = $00AE                     ; CHR bank 0 ($8000)
-addr_chr_bank_1     = $00AF                     ; CHR bank 1 ($8800)
-addr_chr_bank_2     = $00B0                     ; CHR bank 2 ($9000)
-addr_chr_bank_3     = $00B1                     ; CHR bank 3 ($9800)
-addr_chr_bank_4     = $00B2                     ; CHR bank 4 ($A000)
-addr_chr_bank_5     = $00B3                     ; CHR bank 5 ($A800)
-addr_chr_bank_6     = $00B4                     ; CHR bank 6 ($B000)
-addr_chr_bank_7     = $00B5                     ; CHR bank 7 ($B800)
 
 ; --- PRG Bank Select ---
 addr_prg_select_1a  = $00DE                     ; PRG bank select 1 (set A)
@@ -151,7 +105,6 @@ addr_menu_page      = $0425                     ; Cursor page (0-based)
 ; --- SRAM ---
 sram_map_cam_x       = $6F3F                    ; Map camera X pos low (Right/Left move it, bounds $10-$F8; parked at $80 by State_StrategyMapLaunch; high at $6F40)
 sram_map_cam_y       = $6F41                    ; Map camera Y pos low (Up/Down move it, bounds $10-$94; parked at $F0 = off-screen by State_StrategyMapLaunch; high at $6F42)
-sram_request_mailbox = $6F8B                    ; Strategy request mailbox ($FF = turn complete; see prg_0a_0b_strategy_ai StrategyAiTurnDispatch)
 
 ;===============================================================================
 ; $E000: Reset Handler
@@ -418,11 +371,8 @@ VectorTable:
 ;         $0068/$0069 = map data pointer
 ;===============================================================================
 .proc State_WarSceneLaunch
-war_scene_id    = $0500  ; launch selector, alias of prg_08_09_tactical_war war_scene_id
 map_scroll_y    = $0510
-map_scroll_y_hi = $0511
 map_scroll_x    = $0512
-map_scroll_x_hi = $0513
 map_data_ptr_lo = $0068
 map_data_ptr_hi = $0069
 

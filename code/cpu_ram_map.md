@@ -7,7 +7,8 @@ RAM (`$0000-$07FF`) and the battery-backed PRG-RAM window (`$6000-$7FFF`) of
 Sources: the analyzed bank files `asm/banks/prg_08_09_tactical_war.asm`, `prg_0a_0b_strategy_ai.asm`,
 `prg_0c_0d_tactical_commands.asm`, `prg_0e_0f_battle.asm`, `prg_17_18_duel_and_display.asm`, `prg_19_1a_event_scenes.asm`,
 `prg_1b_1c_strategy_mode.asm`, `prg_1d_1e_menu_screens.asm`, `prg_1f_boot.asm` (banks `$00-$07` and `$10-$16`
-are still unanalyzed stubs), plus the curated notes under `memory/`
+are still unanalyzed stubs) and the shared cross-bank declarations
+`include/ram_globals.h`, plus the curated notes under `memory/`
 (`officer-12-byte-record-field-layout`, `ruler-country-province-domain-model`,
 `strategy-layer-request-mailbox-protocol`, `frame-state-9-handler-and-6f8b-mailbox`,
 `battle-bank-ram-semantic-map-prg_08_09_tactical_war`, `scope-rule-for-04xx-ram-variables`).
@@ -18,8 +19,9 @@ comment-documented banks (`prg_19_1a_event_scenes`, `prg_1b_1c_strategy_mode`) w
 
 Naming follows the project conventions: shared kernel cells use `addr_*`,
 cross-proc mode globals use per-mode prefixes (`btl_`, `war_`, `snd_`, ...),
-and zero-page cells `$0000-$001F` are intentionally proc-local in
-`prg_0e_0f_battle.asm` (see `code/prg_0e_0f_ram_map.md`).
+every cell touched by more than one bank is declared once in
+`include/ram_globals.h`, and zero-page cells `$0000-$001F` are intentionally
+proc-local in `prg_0e_0f_battle.asm` (see `code/prg_0e_0f_ram_map.md`).
 
 > **Aliasing caveat.** Outside the kernel cells listed as "consistent meaning
 > everywhere", the same address routinely carries a *different* meaning in each
@@ -204,8 +206,10 @@ always two 4-byte slot headers owned by the frame engine.
 
 ## `$0400-$04FF`: shared scene / menu state
 
-This page is the cross-mode handshake area. `$0400-$0402` and `$0420-$0425`
-have canonical names used by several banks without redefinition.
+This page is the cross-mode handshake area. `$0400-$0402`, `$0420-$0425`,
+`$0470-$0473`, `$04D8`, `$0500/$0501` and `$0511/$0513` have one canonical name
+each, declared once in `include/ram_globals.h` and used by every bank that
+touches them.
 
 | Address | Canonical name | Meaning (owners) |
 |---------|----------------|------------------|
@@ -216,7 +220,7 @@ have canonical names used by several banks without redefinition.
 | `$040C-$040D` | — | multi-role cursor pair: detail cursor x/y (0c_0d), country-select cursor (08_09), strategy cursor (17_18), step/turn counters (19_1a, 1b_1c) |
 | `$0410` | — | detail officer id (0c_0d); country-select selected faction entry (08_09) |
 | `$0420` | `menu_scroll_state` | Menu scroll / render state (0c_0d, 1d_1e, 1f, 1b_1c) |
-| `$0424-$0425` | `menu_cursor_col/page` | Menu cursor column/page (0c_0d, 1f `addr_menu_column/page`, 19_1a, 1b_1c); troop-assign counters in 17_18; officer-list flag in 1d_1e |
+| `$0424-$0425` | `menu_cursor_col/page` | Menu cursor column/page (0c_0d, 1f `addr_menu_column/page`, 19_1a, 1b_1c - read as the dialog cursor row at `$D64A`); cleared as a pair by the duel command menus (17_18 `$B3FA`, `$B55F`); officer-list flag in 1d_1e |
 | `$042C-$042E` | — | most-referenced trio: action result lo/hi/cnt (08_09), formatted number data (1d_1e), selected officer id + ext (17_18), overlay Country/Province display values (19_1a), intro focus province (1b_1c), battle panel params base (0e_0f `btl_panel_params`) |
 | `$042F-$0431` | — | menu results / overlay values (19_1a, 1b_1c); damage amounts (17_18) |
 | `$0432-$0437` | — | scroll/step scratch (19_1a, 1b_1c, 17_18) |
@@ -235,9 +239,9 @@ have canonical names used by several banks without redefinition.
 | `$04C8` | — | `war_overlay_flag` (08_09) / `stratagem_result_latch` (0c_0d) / cutscene phase latch: trigger = stratagem code + 1 (armed by 0c_0d `StratagemState_Confirm` `$AA5E`), `$80` = panel build, `$81` = scene loop, cleared on end (19_1a `StratagemCutscene`) |
 | `$04C9-$04CE` | — | dispatch step + src/dst/data/offset pointers (17_18); row/scroll state (19_1a); cutscene state: `$04C9` stratagem code / scene index, `$04CA` cursor, `$04CB` sub-cursor, `$04CD`/`$04CE` frame counters (19_1a `StratagemCutscene`) |
 | `$04D0-$04D1` | — | menu display row counter (1d_1e); scroll row (19_1a); cutscene elapsed timer `$04D0` (ends at `$B0`) + step frame countdown `$04D1` (19_1a `StratagemCutscene`) |
-| `$04D2-$04D5` | `officer_rec_src/dst` | Officer record copy source/dest pointers (0c_0d, 1d_1e); dispatch data/offset ptrs (17_18) |
+| `$04D2-$04D5` | `dispatch_data_ptr` / `dispatch_offset_ptr` (17_18), `name_row_vram` / `name_tile_src` (1d_1e) | Event-message scroll dispatch data and offset pointers (17_18, written at `$DC56`-`$DC6F`); save-screen name row VRAM address and name tile source pointer, read by `OfficerNameRowsEmit` `$CB52` (1d_1e) |
 | `$04D6` | `menu_action_extra` | Menu action extra param (`$47` or `$A2` skips PPU init; 1d_1e, 19_1a, 1b_1c) |
-| `$04D8-$04DF` | — | `army_slot_base` 8-byte array (0c_0d, shared with 08_09); `officer_select_flg`-style scratch |
+| `$04D8-$04DF` | `army_slot_base` | 8-byte army group slot array (0c_0d, used by 08_09); `officer_select_flg`-style scratch |
 | `$04E0-$04E3` | — | province dirty bitmap: bit = `$04E0[id>>3]` mask `1<<(id&7)` (19_1a, 1b_1c) |
 | `$04E4` | — | sprite dirty mark (1b_1c); side-event work (19_1a) |
 
@@ -460,7 +464,7 @@ officer's decoded starting record.
 | `$6FE2-$6FE8` | — | per-country event backup flags (one per country; restored if `$6FE2 == $FF` means no backup) |
 | `$6FEA` | `csel_cheat_latch` (08_09) | Cheat latch bits: 0/1 arm the finalize Province reset, 2/3 force OfficerCardRender portrait mood (bank $19) |
 | `$6FFC-$6FFD` | — | save magic `"ID"` (`$49 $44`), stamped by the save routine immediately before the copy (`prg_19_1a_event_scenes` `$BC0A-$BC11`) |
-| `$6FFE-$6FFF` | — | outside the save snapshot (`$6000-$6FFD` is copied). `$6FFF` is the BRK debug error-code sink in prg_0a_0b_strategy_ai validate routines (`ValidateRecordStats` `$D5E8`, `ValidateRecordStatsAlt` `$D61F`, `ValidateRecordGold` `$D688`, `ClampRecordStatPairsAlt::@ValidateGold` `$D6D0`, `ValidateProvinceSlots` `$D6E6`): the error code is stored here immediately before `BRK` |
+| `$6FFE-$6FFF` | — | outside the save snapshot (`$6000-$6FFD` is copied). `$6FFF` is the BRK debug error-code sink in prg_0a_0b_strategy_ai validate routines (`ValidateRecordStats` `$D5E8`, `ValidateRecordStatsAlt` `$D61F`, `ValidateRecordGold` `$D688`, `ClampRecordStatPairsAlt::@ValidateGold` `$D6D0`, `CheckOfficerSlotFillOrder` `$D6E6`): the error code is stored here immediately before `BRK` |
 
 ### `$7000-$7FFF`: save snapshot
 
@@ -502,6 +506,7 @@ seeded `$AA`. They are only reachable from the anti-piracy path of
 
 | Bank file | RAM style | Key regions owned |
 |-----------|-----------|-------------------|
+| `include/ram_globals.h` | the only declaration of every cross-bank RAM global | `$0050-$00B5` kernel cells, `$0400-$0402`, `$0420-$0425`, `$0470-$0473`, `$04D8`, `$0500/$0501`, `$0511/$0513`, `$6F8B` mailbox |
 | `prg_08_09_tactical_war.asm` | file-top equates + proc locals | war engine `$0500-$052F`, result scene `$0540-$0580`, war unit arrays `$0600-$0677`, AI scratch `$6F8C-$6FDC` |
 | `prg_0a_0b_strategy_ai.asm` | file-top + proc-local equates | strategy AI work `$0020-$0045`, state cells `$0540-$0547`, SRAM game level/player, SRAM verify + load (`$DC2F`/`$DC97`) |
 | `prg_0c_0d_tactical_commands.asm` | file-top equates | tactical-turn + post-war screens `$0500-$0565`, menu/panel `$0400-$04D8` |

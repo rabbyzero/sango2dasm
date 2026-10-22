@@ -46,6 +46,7 @@
 .include "6502_registers.h"
 .include "namco163.h"
 .include "functions.h"
+.include "ram_globals.h"
 
 ;-------------------------------------------------------------------------------
 ; Page $04 WRAM ($0400-$04FF) - Tactical Turn Work Area
@@ -54,23 +55,20 @@
 ; In bank $0C/$0D it holds the tactical turn state plus the post-war
 ; officer redistribution screens.
 ; Addresses not listed here are unused by this bank.
+; Cells shared with other banks are declared once in include/ram_globals.h and
+; used here by name: scene_callback_id / scene_callback_st ($0400/$0401),
+; province_idx ($0402), menu_scroll_state ($0420), menu_cursor_col /
+; menu_cursor_page ($0424/$0425), anim_ppu_ptr_lo / anim_ppu_ptr_hi
+; ($0470/$0471), map_scroll_ptr_lo / map_scroll_ptr_hi ($0472/$0473),
+; army_slot_base ($04D8), map_scroll_y_hi ($0511), map_scroll_x_hi ($0513).
 ;-------------------------------------------------------------------------------
 
 ; --- Scene / province context ($0400-$040F) ---
-scene_callback_id   = $0400  ; scene callback ID (shared w/ 1D_1E)
-scene_callback_st   = $0401  ; scene callback state counter
-province_idx        = $0402  ; current province index (map bounds calc)
 ; $0403-$040B - unused in this bank
 detail_cursor_x     = $040C  ; officer-detail panel cursor X (init 0)
 detail_cursor_y     = $040D  ; officer-detail panel cursor Y (init 0)
 ; $040E-$040F - unused in this bank
 detail_officer_id   = $0410  ; officer ID shown in detail view (from $0664,Y)
-
-; --- Menu cursor state ($0420-$0425) ---
-menu_scroll_state   = $0420  ; menu scroll / render state (shared w/ 1D_1E, 1F)
-; $0421-$0423 - unused
-menu_cursor_col     = $0424  ; menu cursor column (0-based, shared w/ 1F MenuStep)
-menu_cursor_page    = $0425  ; menu cursor page   (0-based, shared w/ 1F MenuStep)
 
 ; --- Officer selection array ($042C-$044B, 32 bytes) ---
 ; Built by BuildOfficerList (ArmyDeploy / UnitWithdraw):
@@ -105,26 +103,13 @@ war_result_disp_base = $044C  ; war result display stats base (32 bytes)
 ; Copied from SRAM $6F3F-$6F42 in StratagemState_Init.
 country_param_copy  = $046C  ; country parameter snapshot (4 bytes)
 
-; --- Animation / scroll pointers ($0470-$0473) ---
-anim_ppu_ptr_lo     = $0470  ; animation PPU pointer lo (shared w/ 17_18)
-anim_ppu_ptr_hi     = $0471  ; animation PPU pointer hi
-map_scroll_ptr_lo   = $0472  ; map scroll source pointer lo
-map_scroll_ptr_hi   = $0473  ; map scroll source pointer hi
-
 ; --- Stratagem result latch ($04C8, shared w/ 08_09 battle_overlay_flag) ---
 stratagem_result_latch = $04C8  ; stratagem result latch ($0543+1; 0 = show result)
-
-; --- Officer record pointers ($04D2-$04D5, shared w/ 1D_1E) ---
-officer_rec_src_lo  = $04D2  ; officer record source ptr lo
-officer_rec_src_hi  = $04D3  ; officer record source ptr hi
-officer_rec_dst_lo  = $04D4  ; officer record dest ptr lo
-officer_rec_dst_hi  = $04D5  ; officer record dest ptr hi
 
 ; --- Army group slot array ($04D8-$04DF, 8 bytes) ---
 ; Two groups of 4 slots: group A at $04D8-$04DB, group B at $04DC-$04DF.
 ; Each slot: officer index into $06xx tables; $FF = empty.
 ; Populated by ExecStratagem_TenfoldAmbush; checked in move validation.
-army_slot_base      = $04D8  ; army group slot array base (8 bytes)
 ; $04D8-$04DB - group A slots (selected by $0504 >= 0)
 ; $04DC-$04DF - group B slots (selected by $0504 < 0)
 
@@ -160,9 +145,7 @@ ruler_status_flag   = $050F  ; ruler data byte 3 (alliance/status)
 ; Y at $0510/$0511, X at $0512/$0513 (the axis order bank $1F reads back at
 ; $E1BA). UnitAttack_ShowResult $A340 snapshots ZP $90/$91 and $8E/$8F into them.
 map_scroll_y_lo     = $0510  ; map scroll Y lo
-map_scroll_y_hi     = $0511  ; map scroll Y hi
 map_scroll_x_lo     = $0512  ; map scroll X lo
-map_scroll_x_hi     = $0513  ; map scroll X hi
 
 ; --- Army merit sums ($051A-$051F) ---
 ; Computed by SumArmyOfficerStats: merit = byte8 + (byte9 & 3).
@@ -320,7 +303,7 @@ TacticalTurnFrameUpdate:
   JSR MapScroll_Update                  ; $A08D: 20 EE D5
   LDA wait_timer                 ; $A090: AD 08 05
   BNE @NotReady                         ; $A093: D0 25
-  LDA $007E                             ; $A095: AD 7E 00
+  LDA a:$007E                             ; $A095: AD 7E 00
   BNE @NotReady                         ; $A098: D0 20
   INC tactical_turn_phase                      ; $A09A: EE 01 05
   LDA #$C0                              ; $A09D: A9 C0
@@ -368,7 +351,7 @@ TacticalTurnFrameUpdate:
 ; --- BankedCallbackTrampoline target ---
   .word B1D_1E_ProvinceDataHandler      ; $A0EB: $27 A0
   LDA #$C1                                    ; $A0ED: A9 C1
-  JSR B1F_OpenMsgWindow5                      ; $A0EF: 20 83 F2
+  JSR B1F_OpenMsgWindow2                      ; $A0EF: 20 83 F2
   LDA #$00                                    ; $A0F2: A9 00
   STA menu_cursor_col                                   ; $A0F4: 8D 24 04
   STA menu_cursor_page                                   ; $A0F7: 8D 25 04
@@ -395,7 +378,7 @@ WarOrderPhaseExit:
 .proc WarOrder_Menu
   ; Phase 3: Display command menu; handle selection and navigation
   LDA #$00                              ; $A118: A9 00
-  STA $00A4                             ; $A11A: 8D A4 00
+  STA a:$00A4                             ; $A11A: 8D A4 00
   JSR CenterMapOnOfficer                ; $A11D: 20 33 DC
   JSR TryAutoAdvance                       ; $A120: 20 DE A1
   LDA #$93                              ; $A123: A9 93
@@ -461,7 +444,7 @@ WarOrderPhaseExit:
 .proc WarOrder_Confirm
   ; Phase 4: Validate and confirm; advance phase on valid input
   LDA #$00                              ; $A1B8: A9 00
-  STA $00A4                             ; $A1BA: 8D A4 00
+  STA a:$00A4                             ; $A1BA: 8D A4 00
   JSR CenterMapOnOfficer                ; $A1BD: 20 33 DC
   JSR TryAutoAdvance                       ; $A1C0: 20 DE A1
   JSR TacticalOverlayIdleCheck             ; $A1C3: 20 27 DF
@@ -481,13 +464,13 @@ WarOrderPhaseExit:
 
 .proc TryAutoAdvance
   ; Conditionally advance phase: check frame tick ($005E) and $007E flags
-  LDA $005E                             ; $A1DE: AD 5E 00
+  LDA a:$005E                             ; $A1DE: AD 5E 00
   AND #$07                              ; $A1E1: 29 07
   BNE @Exit                             ; $A1E3: D0 11
-  LDA $007E                             ; $A1E5: AD 7E 00
+  LDA a:$007E                             ; $A1E5: AD 7E 00
   AND #$04                              ; $A1E8: 29 04
   BNE @Exit                             ; $A1EA: D0 0A
-  LDA $005E                             ; $A1EC: AD 5E 00
+  LDA a:$005E                             ; $A1EC: AD 5E 00
   AND #$10                              ; $A1EF: 29 10
   STA $12                               ; $A1F1: 85 12
   JSR UpdateCursorTile                             ; $A1F3: 20 CC D6
@@ -553,7 +536,7 @@ WarOrderPhaseExit:
   LDA detail_officer_id                             ; $A24B: AD 10 04
   STA $00                               ; $A24E: 85 00
   LDA #$00                              ; $A250: A9 00
-  STA $00A4                             ; $A252: 8D A4 00
+  STA a:$00A4                             ; $A252: 8D A4 00
   LDY #$39                              ; $A255: A0 39
   JSR B1F_BankedCallbackTrampoline      ; $A257: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -612,12 +595,12 @@ WarOrderPhaseExit:
   ; UI id $C3 via B1F_OpenMsgWindow5 (どのテキにコウゲキをしかけますか), advance phase,
   ; copy source officer index
   LDA #$C3                                    ; $A2A7: A9 C3
-  JSR B1F_OpenMsgWindow5                      ; $A2A9: 20 83 F2
+  JSR B1F_OpenMsgWindow2                      ; $A2A9: 20 83 F2
   INC $0501                                   ; $A2AC: EE 01 05
   LDA $0509                                   ; $A2AF: AD 09 05
   STA $050A                                   ; $A2B2: 8D 0A 05
   LDA #$00                                    ; $A2B5: A9 00
-  STA $00A4                                   ; $A2B7: 8D A4 00
+  STA a:$00A4                                   ; $A2B7: 8D A4 00
   RTS                                         ; $A2BA: 60
 .endproc
 
@@ -650,18 +633,64 @@ WarOrderPhaseExit:
   CMP #$FF                              ; $A2F1: C9 FF
   BNE @Done                             ; $A2F3: D0 16
   STY $0509                             ; $A2F5: 8C 09 05
-  JSR @CheckGridAdjacency               ; $A2F8: 20 68 A3
+  JSR UnitAttack_CheckGridAdjacency               ; $A2F8: 20 68 A3
   TXA                                   ; $A2FB: 8A
   BMI @Done                             ; $A2FC: 30 0D
   ; Target is adjacent: advance to animation phase
   INC $0501                             ; $A2FE: EE 01 05
   LDA #$02                              ; $A301: A9 02
-  STA $00A4                             ; $A303: 8D A4 00
+  STA a:$00A4                             ; $A303: 8D A4 00
   LDA #$CB                              ; $A306: A9 CB  かならずやテキを けちらして まいります
   JSR B1F_OpenMsgWindow2                ; $A308: 20 83 F2
 @Done:
   RTS                                   ; $A30B: 60
-@CheckGridAdjacency:
+  .endproc
+.proc UnitAttack_Animate
+  ; Wait for animation; on complete, advance phase and set up result
+  JSR PromptArrowDraw_Right                             ; $A30C: 20 63 DC
+  LDA $81                               ; $A30F: A5 81
+  AND #$01                              ; $A311: 29 01
+  BEQ @Done                             ; $A313: F0 0F
+  JSR B1F_PaletteCopyBuffer             ; $A315: 20 EE EC
+  INC $0501                             ; $A318: EE 01 05
+  DEC $0505                             ; $A31B: CE 05 05
+  DEC $0505                             ; $A31E: CE 05 05
+  JSR UnitAttack_SetupResult                          ; $A321: 20 D2 A3
+@Done:
+  RTS                                   ; $A324: 60
+  .endproc
+.proc UnitAttack_ShowResult
+  ; Wait for animation flag; set up result display with officer/ruler data
+  LDA a:$0087                             ; $A325: AD 87 00
+  BPL @Done                             ; $A328: 10 3D
+  LDA #$05                              ; $A32A: A9 05
+  STA a:$007A                             ; $A32C: 8D 7A 00
+  LDA #$00                              ; $A32F: A9 00
+  STA $0540                             ; $A331: 8D 40 05
+  STA $0541                             ; $A334: 8D 41 05
+  STA $0542                             ; $A337: 8D 42 05
+  STA $0543                             ; $A33A: 8D 43 05
+  STA a:$00A4                             ; $A33D: 8D A4 00
+  LDA $90                               ; $A340: A5 90
+  STA $0510                             ; $A342: 8D 10 05
+  LDA $91                               ; $A345: A5 91
+  STA $0511                             ; $A347: 8D 11 05
+  LDA $8E                               ; $A34A: A5 8E
+  STA $0512                             ; $A34C: 8D 12 05
+  LDA $8F                               ; $A34F: A5 8F
+  STA $0513                             ; $A351: 8D 13 05
+  LDY $0509                             ; $A354: AC 09 05
+  LDA $0600,Y                           ; $A357: B9 00 06
+  STA $10                               ; $A35A: 85 10
+  LDA $0614,Y                           ; $A35C: B9 14 06
+  STA $11                               ; $A35F: 85 11
+  JSR GetTerrainType                    ; $A361: 20 46 DB
+  STA $0544                             ; $A364: 8D 44 05
+@Done:
+  RTS                                   ; $A367: 60
+  .endproc
+  .proc UnitAttack_CheckGridAdjacency
+UnitAttack_CheckGridAdjacency:
   ; Check if source ($050A) and target (Y) officers are on adjacent grid cells
   ; Uses $0600 (grid X) and $0614 (grid Y) position tables
   ; Returns: X=0 if adjacent, X=$FF if not
@@ -722,21 +751,7 @@ WarOrderPhaseExit:
 @NotAdjacent:
   LDX #$FF                              ; $A3CF: A2 FF
   RTS                                   ; $A3D1: 60
-.endproc
-
-.proc UnitAttack_Animate
-  ; Wait for animation; on complete, advance phase and set up result
-  JSR PromptArrowDraw_Right                             ; $A30C: 20 63 DC
-  LDA $81                               ; $A30F: A5 81
-  AND #$01                              ; $A311: 29 01
-  BEQ @Done                             ; $A313: F0 0F
-  JSR B1F_PaletteCopyBuffer             ; $A315: 20 EE EC
-  INC $0501                             ; $A318: EE 01 05
-  DEC $0505                             ; $A31B: CE 05 05
-  DEC $0505                             ; $A31E: CE 05 05
-  JSR UnitAttack_SetupResult                          ; $A321: 20 D2 A3
-@Done:
-  RTS                                   ; $A324: 60
+  .endproc
 UnitAttack_SetupResult:
   ; Load both officers' data and resolve ruler associations for result display
   ; $0560/$0561 = officer IDs, $052C/$052D = status, $052E/$052F = power
@@ -802,38 +817,6 @@ UnitAttack_SetupResult:
   LDA ($00),Y                           ; $A447: B1 00
   STA $052E,X                           ; $A449: 9D 2E 05
   RTS                                   ; $A44C: 60
-.endproc
-
-.proc UnitAttack_ShowResult
-  ; Wait for animation flag; set up result display with officer/ruler data
-  LDA $0087                             ; $A325: AD 87 00
-  BPL @Done                             ; $A328: 10 3D
-  LDA #$05                              ; $A32A: A9 05
-  STA $007A                             ; $A32C: 8D 7A 00
-  LDA #$00                              ; $A32F: A9 00
-  STA $0540                             ; $A331: 8D 40 05
-  STA $0541                             ; $A334: 8D 41 05
-  STA $0542                             ; $A337: 8D 42 05
-  STA $0543                             ; $A33A: 8D 43 05
-  STA $00A4                             ; $A33D: 8D A4 00
-  LDA $90                               ; $A340: A5 90
-  STA $0510                             ; $A342: 8D 10 05
-  LDA $91                               ; $A345: A5 91
-  STA $0511                             ; $A347: 8D 11 05
-  LDA $8E                               ; $A34A: A5 8E
-  STA $0512                             ; $A34C: 8D 12 05
-  LDA $8F                               ; $A34F: A5 8F
-  STA $0513                             ; $A351: 8D 13 05
-  LDY $0509                             ; $A354: AC 09 05
-  LDA $0600,Y                           ; $A357: B9 00 06
-  STA $10                               ; $A35A: 85 10
-  LDA $0614,Y                           ; $A35C: B9 14 06
-  STA $11                               ; $A35F: 85 11
-  JSR GetTerrainType                    ; $A361: 20 46 DB
-  STA $0544                             ; $A364: 8D 44 05
-@Done:
-  RTS                                   ; $A367: 60
-.endproc
 
 .proc UnitMove
   ; (dispatch callback target)
@@ -841,7 +824,7 @@ UnitAttack_SetupResult:
   CMP #$02                              ; $A450: C9 02
   BCS @SkipReset                        ; $A452: B0 08
   LDA #$00                              ; $A454: A9 00
-  STA $00A4                             ; $A456: 8D A4 00
+  STA a:$00A4                             ; $A456: 8D A4 00
   JSR CenterMapOnOfficer                             ; $A459: 20 33 DC
 @SkipReset:
   LDA $0501                             ; $A45C: AD 01 05
@@ -858,7 +841,7 @@ UnitAttack_SetupResult:
 
 .proc MoveState_Init
   LDA #$C6                                    ; $A470: A9 C6
-  JSR B1F_OpenMsgWindow5                      ; $A472: 20 83 F2
+  JSR B1F_OpenMsgWindow2                      ; $A472: 20 83 F2
   INC $0501                                   ; $A475: EE 01 05
   LDA #$00                                    ; $A478: A9 00
   STA $050A                                   ; $A47A: 8D 0A 05
@@ -1015,12 +998,12 @@ UnitAttack_SetupResult:
   LDA army_slot_base,Y                           ; $A59A: B9 D8 04
   STA $0509                             ; $A59D: 8D 09 05
   LDA #$04                              ; $A5A0: A9 04
-  STA $00A4                             ; $A5A2: 8D A4 00
+  STA a:$00A4                             ; $A5A2: 8D A4 00
   LDA #$B9                              ; $A5A5: A9 B9
   JMP @ShowUI                           ; $A5A7: 4C B6 A5
 @NoAlly:
   LDA #$03                              ; $A5AA: A9 03
-  STA $00A4                             ; $A5AC: 8D A4 00
+  STA a:$00A4                             ; $A5AC: 8D A4 00
   LDA #$00                              ; $A5AF: A9 00
   STA $052E                             ; $A5B1: 8D 2E 05
   LDA #$B8                              ; $A5B4: A9 B8
@@ -1040,7 +1023,7 @@ UnitAttack_SetupResult:
 
 .proc MoveState_Confirm
   LDA #$03                              ; $A5CE: A9 03
-  STA $00A4                             ; $A5D0: 8D A4 00
+  STA a:$00A4                             ; $A5D0: 8D A4 00
   LDY $050A                             ; $A5D3: AC 0A 05
   JSR CenterMapOnSlot                             ; $A5D6: 20 36 DC
   JSR TryAutoAdvance                       ; $A5D9: 20 DE A1
@@ -1063,9 +1046,7 @@ UnitAttack_SetupResult:
   LDA $0664,Y                           ; $A600: B9 64 06
   STA officer_sel_list                             ; $A603: 8D 2C 04
   JSR OfficerLevelUpCheck           ; $A606: 20 E9 DE
-  BCS @Skip1                            ; $A609: 90 29 (inverted)
-  JMP MovePhase_Exit                    ; (was fall-through to @A634)
-@Skip1:
+  BCC MovePhase_Exit                               ; $A609: 90 29
   INC $0501                             ; $A60B: EE 01 05
   JSR B1F_BankPpuInit                   ; $A60E: 20 7F E5
   LDA #$7B                              ; $A611: A9 7B
@@ -1075,34 +1056,30 @@ UnitAttack_SetupResult:
 .endproc
 
 .proc MoveState_Cancel
-  JSR TacticalOverlayIdleCheck                             ; $A617: 20 27 DF
-  BCC @Done                             ; $A61A: 90 23
-  JSR PromptArrowDraw_Right                             ; $A61C: 20 63 DC
-  LDA $81                               ; $A61F: A5 81
-  AND #$03                              ; $A621: 29 03
-  BEQ @Done                             ; $A623: F0 1A
-  LDA officer_sel_list+1                             ; $A625: AD 2D 04
-  CMP #$FF                              ; $A628: C9 FF
-  BNE @ShowCancelUI                     ; $A62A: D0 14
-  JSR B1F_BankPpuInit                   ; $A62C: 20 7F E5
-  LDA #$1D                              ; $A62F: A9 1D
-  JSR B1F_SoundWrapperA                 ; $A631: 20 73 E6
-  JSR MovePhase_Exit                    ; (was fall-through to @A634)
-@Done:
-  RTS                                   ; $A63F: 60
-@ShowCancelUI:
-  LDA #$FF                              ; $A640: A9 FF
-  STA officer_sel_list+1                             ; $A642: 8D 2D 04
-  LDA #$4B                              ; $A645: A9 4B
-  JMP B1F_OpenMsgWindow5                ; $A647: 4C 93 F2
-.endproc
-
-.proc MovePhase_Exit
-  LDA #$00                              ; $A634: A9 00
-  STA $0500                             ; $A636: 8D 00 05
-  STA $0501                             ; $A639: 8D 01 05
-  JSR FinishSequence                    ; $A63C: 20 F7 A1
-  RTS
+  JSR TacticalOverlayIdleCheck                   ; $A617: 20 27 DF
+  BCC MoveState_Cancel_Done                      ; $A61A: 90 23
+  JSR PromptArrowDraw_Right                      ; $A61C: 20 63 DC
+  LDA $81                                        ; $A61F: A5 81
+  AND #$03                                       ; $A621: 29 03
+  BEQ MoveState_Cancel_Done                      ; $A623: F0 1A
+  LDA officer_sel_list+1                         ; $A625: AD 2D 04
+  CMP #$FF                                       ; $A628: C9 FF
+  BNE MoveState_Cancel_ShowCancelUI              ; $A62A: D0 14
+  JSR B1F_BankPpuInit                            ; $A62C: 20 7F E5
+  LDA #$1D                                       ; $A62F: A9 1D
+  JSR B1F_SoundWrapperA                          ; $A631: 20 73 E6
+::MovePhase_Exit:
+  LDA #$00                                       ; $A634: A9 00
+  STA $0500                                      ; $A636: 8D 00 05
+  STA $0501                                      ; $A639: 8D 01 05
+  JSR FinishSequence                             ; $A63C: 20 F7 A1
+MoveState_Cancel_Done:
+  RTS                                            ; $A63F: 60
+MoveState_Cancel_ShowCancelUI:
+  LDA #$FF                                       ; $A640: A9 FF
+  STA officer_sel_list+1                         ; $A642: 8D 2D 04
+  LDA #$4B                                       ; $A645: A9 4B
+  JMP B1F_OpenMsgWindow5                         ; $A647: 4C 93 F2
 .endproc
 
 .proc MovePhase_UndoStep
@@ -1344,11 +1321,11 @@ UnitAttack_SetupResult:
 ; Indexed by (direction × 4 + rank), 4 bytes per direction (3 costs + padding)
 @MoveCost_HighRank:
   .byte $03,$05,$05,$00,$04,$04,$04,$00,$02,$03,$03,$00,$05,$06,$03,$00; $A823: 03 05 05 00 04 04 04 00 02 03 03 00 05 06 03 00
-  .byte $05,$03,$06,$00,$06,$06,$06,$00,$06,$06,$06,$00,$02,$03,$03,$00; $A833: 05 03 06 00 06 06 06 00 06 06 06 00 02 03 03 00
+  .byte $05,$03,$06,$00,$06,$06,$06,$00,$06,$06,$06,$00; $A833: 05 03 06 00 06 06 06 00 06 06 06 00
 ; Movement cost table for low-rank officers (rank < 6)
 @MoveCost_LowRank:
-  .byte $03,$03,$03,$00,$01,$02,$02,$00,$03,$05,$02,$00,$03,$02,$04,$00; $A843: 03 03 03 00 01 02 02 00 03 05 02 00 03 02 04 00
-  .byte $04,$04,$04,$00,$04,$04,$04,$00   ; $A853: 04 04 04 00 04 04 04 00
+  .byte $02,$03,$03,$00,$03,$03,$03,$00,$01,$02,$02,$00,$03,$05,$02,$00; $A83F: 02 03 03 00 03 03 03 00 01 02 02 00 03 05 02 00
+  .byte $03,$02,$04,$00,$04,$04,$04,$00,$04,$04,$04,$00; $A84F: 03 02 04 00 04 04 04 00 04 04 04 00
 .endproc
 
 .proc MovePhase_RecordMove
@@ -1664,7 +1641,7 @@ UnitAttack_SetupResult:
 .endproc
 
 .proc StratagemState_Cancel
-  LDA $007E                             ; $AAA7: AD 7E 00
+  LDA a:$007E                             ; $AAA7: AD 7E 00
   BNE @Done                             ; $AAAA: D0 36
   LDA $050B                             ; $AAAC: AD 0B 05
   STA $0509                             ; $AAAF: 8D 09 05
@@ -1679,7 +1656,7 @@ UnitAttack_SetupResult:
   LDA $0544                             ; $AAC6: AD 44 05
   BEQ @CheckActionType                  ; $AAC9: F0 18
   LDA #$04                              ; $AACB: A9 04
-  STA $00A4                             ; $AACD: 8D A4 00
+  STA a:$00A4                             ; $AACD: 8D A4 00
   LDA #$73                              ; $AAD0: A9 73
   JSR B1F_OpenMsgWindow2                ; $AAD2: 20 83 F2
 @FinishAndExit:
@@ -1693,7 +1670,7 @@ UnitAttack_SetupResult:
   RTS                                         ; $AAE2: 60
 @CheckActionType:
   LDA #$03                                    ; $AAE3: A9 03
-  STA $00A4                                   ; $AAE5: 8D A4 00
+  STA a:$00A4                                   ; $AAE5: 8D A4 00
   LDA $0543                                   ; $AAE8: AD 43 05
   AND #$0F                                    ; $AAEB: 29 0F
   TAY                                         ; $AAED: A8
@@ -1733,9 +1710,7 @@ UnitAttack_SetupResult:
   LDA $0664,Y                           ; $AB3B: B9 64 06
   STA officer_sel_list                             ; $AB3E: 8D 2C 04
   JSR OfficerLevelUpCheck                             ; $AB41: 20 E9 DE
-  BCS @Skip2                            ; $AB44: 90 29 (inverted)
-  JMP StratagemPhase_RestorePosition       ; (was fall-through to @AB6F)
-@Skip2:
+  BCC StratagemPhase_RestorePosition                 ; $AB44: 90 29
   INC $0501                             ; $AB46: EE 01 05
   JSR B1F_BankPpuInit                   ; $AB49: 20 7F E5
   LDA #$7B                              ; $AB4C: A9 7B
@@ -1745,39 +1720,36 @@ UnitAttack_SetupResult:
 .endproc
 
 .proc StratagemState_CancelConfirm
-  JSR TacticalOverlayIdleCheck                             ; $AB52: 20 27 DF
-  BCC @Done                             ; $AB55: 90 2E
-  JSR PromptArrowDraw_Right                             ; $AB57: 20 63 DC
-  LDA $81                               ; $AB5A: A5 81
-  AND #$01                              ; $AB5C: 29 01
-  BEQ @Done                             ; $AB5E: F0 25
-  LDA officer_sel_list+1                             ; $AB60: AD 2D 04
-  CMP #$FF                              ; $AB63: C9 FF
-  BNE @ShowCancelUI                     ; $AB65: D0 1F
-  JSR B1F_BankPpuInit                   ; $AB67: 20 7F E5
-  LDA #$1D                              ; $AB6A: A9 1D
-  JSR B1F_SoundWrapperA                 ; $AB6C: 20 73 E6
-  JSR StratagemPhase_RestorePosition       ; (was fall-through to @AB6F)
-@Done:
-  RTS                                   ; $AB85: 60
-@ShowCancelUI:
-  LDA #$FF                              ; $AB86: A9 FF
-  STA officer_sel_list+1                             ; $AB88: 8D 2D 04
-  LDA #$4B                              ; $AB8B: A9 4B
-  JMP B1F_OpenMsgWindow5                ; $AB8D: 4C 93 F2
-.endproc
-
-.proc StratagemPhase_RestorePosition
-  LDY #$03                              ; $AB6F: A0 03
+  JSR TacticalOverlayIdleCheck                   ; $AB52: 20 27 DF
+  BCC StratagemState_Cancel_Done                 ; $AB55: 90 2E
+  JSR PromptArrowDraw_Right                      ; $AB57: 20 63 DC
+  LDA $81                                        ; $AB5A: A5 81
+  AND #$01                                       ; $AB5C: 29 01
+  BEQ StratagemState_Cancel_Done                 ; $AB5E: F0 25
+  LDA officer_sel_list+1                         ; $AB60: AD 2D 04
+  CMP #$FF                                       ; $AB63: C9 FF
+  BNE StratagemState_Cancel_ShowCancelUI         ; $AB65: D0 1F
+  JSR B1F_BankPpuInit                            ; $AB67: 20 7F E5
+  LDA #$1D                                       ; $AB6A: A9 1D
+  JSR B1F_SoundWrapperA                          ; $AB6C: 20 73 E6
+::StratagemPhase_RestorePosition:
+  LDY #$03                                       ; $AB6F: A0 03
 @CopyLoop:
-  LDA country_param_copy,Y                           ; $AB71: B9 6C 04
-  STA $6F3F,Y                           ; $AB74: 99 3F 6F
-  DEY                                   ; $AB77: 88
-  BPL @CopyLoop                         ; $AB78: 10 F7
-  LDA #$00                              ; $AB7A: A9 00
-  STA $0501                             ; $AB7C: 8D 01 05
-  STA $0500                             ; $AB7F: 8D 00 05
-  JMP FinishSequence                    ; $AB82: 4C F7 A1
+  LDA country_param_copy,Y                       ; $AB71: B9 6C 04
+  STA $6F3F,Y                                    ; $AB74: 99 3F 6F
+  DEY                                            ; $AB77: 88
+  BPL @CopyLoop                                  ; $AB78: 10 F7
+  LDA #$00                                       ; $AB7A: A9 00
+  STA $0501                                      ; $AB7C: 8D 01 05
+  STA $0500                                      ; $AB7F: 8D 00 05
+  JMP FinishSequence                             ; $AB82: 4C F7 A1
+StratagemState_Cancel_Done:
+  RTS                                            ; $AB85: 60
+StratagemState_Cancel_ShowCancelUI:
+  LDA #$FF                                       ; $AB86: A9 FF
+  STA officer_sel_list+1                         ; $AB88: 8D 2D 04
+  LDA #$4B                                       ; $AB8B: A9 4B
+  JMP B1F_OpenMsgWindow5                         ; $AB8D: 4C 93 F2
 .endproc
 
 .proc StratagemState_Reset
@@ -1861,9 +1833,9 @@ StratagemActionParamTable:
   BNE @CopyMsgLoop2                     ; $AC41: D0 F5
   LDA #$FF                              ; $AC43: A9 FF
   STA $0380,X                           ; $AC45: 9D 80 03
-  LDA $007E                             ; $AC48: AD 7E 00
+  LDA a:$007E                             ; $AC48: AD 7E 00
   ORA #$04                              ; $AC4B: 09 04
-  STA $007E                             ; $AC4D: 8D 7E 00
+  STA a:$007E                             ; $AC4D: 8D 7E 00
   RTS                                   ; $AC50: 60
 ; Tile address table for message building (16-bit pointers)
 @MsgTileAddrTable:
@@ -2002,27 +1974,27 @@ ValidStratagem_AmbushStrike = ValidStratagem_PitfallTrap
 .proc ValidStratagem_CastleRaid
   LDY $0A                               ; $ADFB: A4 0A
   CPY #$05                              ; $ADFD: C0 05
-  BNE @Fail                             ; $ADFF: D0 28
+  BNE CastleRaid_Fail                   ; $ADFF: D0 28
   JSR GetOfficerPosition                ; $AE01: 20 2D AE
   INC $00                               ; $AE04: E6 00
   JSR CheckAdjacentAlly                 ; $AE06: 20 42 AE
-  BCS @Success                          ; $AE09: B0 20
+  BCS CastleRaid_Success                ; $AE09: B0 20
   JSR GetOfficerPosition                ; $AE0B: 20 2D AE
   DEC $00                               ; $AE0E: C6 00
   JSR CheckAdjacentAlly                 ; $AE10: 20 42 AE
-  BCS @Success                          ; $AE13: B0 16
+  BCS CastleRaid_Success                ; $AE13: B0 16
   JSR GetOfficerPosition                ; $AE15: 20 2D AE
   INC $01                               ; $AE18: E6 01
   JSR CheckAdjacentAlly                 ; $AE1A: 20 42 AE
-  BCS @Success                          ; $AE1D: B0 0C
+  BCS CastleRaid_Success                ; $AE1D: B0 0C
   JSR GetOfficerPosition                ; $AE1F: 20 2D AE
   DEC $01                               ; $AE22: C6 01
   JSR CheckAdjacentAlly                 ; $AE24: 20 42 AE
-  BCS @Success                          ; $AE27: B0 02
-@Fail:
+  BCS CastleRaid_Success                ; $AE27: B0 02
+::CastleRaid_Fail:
   CLC                                   ; $AE29: 18
   RTS                                   ; $AE2A: 60
-@Success:
+CastleRaid_Success:
   SEC                                   ; $AE2B: 38
   RTS                                   ; $AE2C: 60
 .endproc
@@ -2044,14 +2016,14 @@ ValidStratagem_AmbushStrike = ValidStratagem_PitfallTrap
 .proc CheckAdjacentAlly
   LDA $00                               ; $AE42: A5 00
   CMP #$20                              ; $AE44: C9 20
-  BCS @Fail                             ; $AE46: B0 E1
+  BCS CastleRaid_Fail                   ; $AE46: B0 E1
   LDA $01                               ; $AE48: A5 01
   CMP #$14                              ; $AE4A: C9 14
-  BCS @Fail                             ; $AE4C: B0 DB
+  BCS CastleRaid_Fail                   ; $AE4C: B0 DB
   LDY $050A                             ; $AE4E: AC 0A 05
   LDA $0600,Y                           ; $AE51: B9 00 06
   CMP $00                               ; $AE54: C5 00
-  BNE @Fail                             ; $AE56: D0 D1
+  BNE CastleRaid_Fail                   ; $AE56: D0 D1
   LDA $0614,Y                           ; $AE58: B9 14 06
   CMP #$10                              ; $AE5B: C9 10
   BCC @SkipRowAdj                       ; $AE5D: 90 03
@@ -2059,12 +2031,10 @@ ValidStratagem_AmbushStrike = ValidStratagem_PitfallTrap
   SBC #$01                              ; $AE60: E9 01
 @SkipRowAdj:
   CMP $01                               ; $AE62: C5 01
-  BNE @Fail                             ; $AE64: D0 C3
+  BNE CastleRaid_Fail                   ; $AE64: D0 C3
   SEC                                   ; $AE66: 38
   RTS                                   ; $AE67: 60
 @Fail:
-  CLC                                   ; (shared exit with ValidStratagem_CastleRaid)
-  RTS
 .endproc
 
 .proc ValidStratagem_FriendlyFire
@@ -2110,7 +2080,7 @@ ValidStratagem_AmbushStrike = ValidStratagem_PitfallTrap
   BCS @ReturnEmpty                      ; $AEAE: B0 11
   CMP #$0F                              ; $AEB0: C9 0F
   BNE @SkipRowAdj                       ; $AEB2: D0 03
-  INC $0001                             ; $AEB4: EE 01 00
+  INC a:$0001                             ; $AEB4: EE 01 00
 @SkipRowAdj:
   JSR SearchRosterByTileCoord                             ; $AEB7: 20 B6 D6
   TYA                                   ; $AEBA: 98
@@ -2208,7 +2178,7 @@ ValidStratagem_AmbushStrike = ValidStratagem_PitfallTrap
   BCS @ReturnInvalid                    ; $AF4E: B0 20
   CMP #$0F                              ; $AF50: C9 0F
   BNE @SkipRowAdj                       ; $AF52: D0 03
-  INC $0001                             ; $AF54: EE 01 00
+  INC a:$0001                             ; $AF54: EE 01 00
 @SkipRowAdj:
   JSR SearchRosterByTileCoord                             ; $AF57: 20 B6 D6
   TYA                                   ; $AF5A: 98
@@ -3187,7 +3157,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDY $0509                                   ; $B62F: AC 09 05
   LDA $0664,Y                                 ; $B632: B9 64 06
   STA officer_sel_list+6                                   ; $B635: 8D 32 04
-  STY $0000                                   ; $B638: 8C 00 00
+  STY a:$0000                                   ; $B638: 8C 00 00
   LDY #$28                                    ; $B63B: A0 28
   JSR B1F_BankedCallbackTrampoline            ; $B63D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -3656,7 +3626,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 .proc UnitRetreat
   ; (dispatch callback target)
   LDA #$00                              ; $B94A: A9 00
-  STA $00A4                             ; $B94C: 8D A4 00
+  STA a:$00A4                             ; $B94C: 8D A4 00
   JSR CenterMapOnOfficer                             ; $B94F: 20 33 DC
   LDA $0501                             ; $B952: AD 01 05
   JSR B1F_CallbackDispatcher            ; $B955: 20 DE EA
@@ -3671,7 +3641,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 
 .proc RetreatState_Init
   LDA #$D6                                    ; $B964: A9 D6
-  JSR B1F_OpenMsgWindow5                      ; $B966: 20 83 F2
+  JSR B1F_OpenMsgWindow2                      ; $B966: 20 83 F2
   INC $0501                                   ; $B969: EE 01 05
   RTS                                         ; $B96C: 60
 .endproc
@@ -3680,7 +3650,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   JSR PromptArrowDraw_Left                             ; $B96D: 20 70 DC
   JSR TryAutoAdvance                       ; $B970: 20 DE A1
   JSR TacticalOverlayIdleCheck                             ; $B973: 20 27 DF
-  BCC @Done                             ; $B976: 90 3D
+  BCC RetreatStateExit                  ; $B976: 90 3D
   LDA $81                               ; $B978: A5 81
   AND #$02                              ; $B97A: 29 02
   BEQ @CheckConfirm                     ; $B97C: F0 0D
@@ -3692,7 +3662,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 @CheckConfirm:
   LDA $81                               ; $B98B: A5 81
   AND #$01                              ; $B98D: 29 01
-  BEQ @Done                             ; $B98F: F0 24
+  BEQ RetreatStateExit                  ; $B98F: F0 24
   INC $0501                             ; $B991: EE 01 05
   LDA #$D7                              ; $B994: A9 D7
   JSR B1F_OpenMsgWindow2                ; $B996: 20 83 F2
@@ -3702,12 +3672,12 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   JSR ProvinceSelect_InitList            ; $B9A1: 20 84 BB
   LDA $050A                             ; $B9A4: AD 0A 05
   CMP #$FF                              ; $B9A7: C9 FF
-  BNE @Done                             ; $B9A9: D0 0A
+  BNE RetreatStateExit                  ; $B9A9: D0 0A
   LDA #$05                              ; $B9AB: A9 05
   STA $0501                             ; $B9AD: 8D 01 05
   LDA #$D9                              ; $B9B0: A9 D9
   JSR B1F_OpenMsgWindow2                ; $B9B2: 20 83 F2
-@Done:
+::RetreatStateExit:
   RTS                                   ; $B9B5: 60
 .endproc
 
@@ -3734,7 +3704,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDA $12                               ; $B9DF: A5 12
   JSR B1F_PointerTableLookup            ; $B9E1: 20 F5 ED
   JSR TacticalOverlayIdleCheck                             ; $B9E4: 20 27 DF
-  BCC @Done                             ; $B9E7: 90 CC
+  BCC RetreatStateExit                  ; $B9E7: 90 CC
   LDA $81                               ; $B9E9: A5 81
   AND #$02                              ; $B9EB: 29 02
   BEQ @CheckConfirm                     ; $B9ED: F0 0D
@@ -3857,8 +3827,8 @@ MenuTypeItemListPtrs:                     ; $BA9F
 
 ; Menu item index lists: each contains sequential indices 0..N-1 followed
 ; by $FF padding. Pieces are laid out in ascending address order.
-MenuItemIndexPool0F:                      ; $BABF: 16 items
-  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$0F; $BABF: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
+MenuItemIndexPool0F:                      ; $BABF: 16 items + 2 pad
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$0F,$FF,$FF; $BABF: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F FF FF
 MenuItemIndexPool0D:                      ; $BAD1: 14 items + 2 pad
   .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$FF,$FF; $BAD1: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D FF FF
 MenuItemIndexPool0B:                      ; $BAE1: 12 items + 2 pad
@@ -4081,7 +4051,7 @@ ProvinceSelect_GetRecord = ProvinceSelect_CheckSlot::ProvinceSelect_GetRecord
 
 .proc TurnEndState_Init
   LDA #$00                              ; $BCB3: A9 00
-  STA $00A4                             ; $BCB5: 8D A4 00
+  STA a:$00A4                             ; $BCB5: 8D A4 00
   LDA #$CA                              ; $BCB8: A9 CA
   JSR B1F_OpenMsgWindow2                ; $BCBA: 20 83 F2
   INC $0501                             ; $BCBD: EE 01 05
@@ -4132,7 +4102,7 @@ ProvinceSelect_GetRecord = ProvinceSelect_CheckSlot::ProvinceSelect_GetRecord
   STA officer_sel_list                                   ; $BD07: 8D 2C 04
   INC $0501                                   ; $BD0A: EE 01 05
   LDA $050A                                   ; $BD0D: AD 0A 05
-  JMP B1F_OpenMsgWindow5                      ; $BD10: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                      ; $BD10: 4C 83 F2
 .endproc
 
 .proc TurnEndState_Reset
@@ -4166,22 +4136,19 @@ ProvinceSelect_GetRecord = ProvinceSelect_CheckSlot::ProvinceSelect_GetRecord
 .proc TurnEndState_Execute
   LDA $052E                             ; $BD41: AD 2E 05
   BNE @CheckAlly                        ; $BD44: D0 03
-  JSR ArmyTurnEnd_RestoreAndExit        ; $BD46: 4C 97 BD
-  RTS
+  JMP ArmyTurnEnd_RestoreAndExit        ; $BD46: 4C 97 BD
 @CheckAlly:
   LDY $052F                             ; $BD49: AC 2F 05
   LDA $6FA1,Y                           ; $BD4C: B9 A1 6F
   CMP #$FF                              ; $BD4F: C9 FF
   BEQ @SetupConfirm                     ; $BD51: F0 03
-  JSR ArmyTurnEnd_RestoreAndExit        ; $BD53: 4C 97 BD
-  RTS
+  JMP ArmyTurnEnd_RestoreAndExit        ; $BD53: 4C 97 BD
 @SetupConfirm:
   LDA #$6D                              ; $BD56: A9 6D
   STA officer_sel_list                             ; $BD58: 8D 2C 04
   JSR OfficerLevelUpCheck                             ; $BD5B: 20 E9 DE
   BCS @ConfirmOk                        ; $BD5E: B0 03
-  JSR ArmyTurnEnd_RestoreAndExit        ; $BD60: 4C 97 BD
-  RTS
+  JMP ArmyTurnEnd_RestoreAndExit        ; $BD60: 4C 97 BD
 @ConfirmOk:
   INC $0501                             ; $BD63: EE 01 05
   JSR B1F_BankPpuInit                   ; $BD66: 20 7F E5
@@ -4210,8 +4177,6 @@ ProvinceSelect_GetRecord = ProvinceSelect_CheckSlot::ProvinceSelect_GetRecord
   JSR B1F_BankPpuInit                   ; $BD8F: 20 7F E5
   LDA #$1D                              ; $BD92: A9 1D
   JSR B1F_SoundWrapperA                 ; $BD94: 20 73 E6
-  JSR ArmyTurnEnd_RestoreAndExit        ; $BD97: AD 70 04
-  RTS
 .endproc
 
 .proc ArmyTurnEnd_RestoreAndExit
@@ -4347,7 +4312,7 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   .word @CancelWait                         ; $BEA2: $D1 C1
   .word @Exit                               ; $BEA4: $EB C1
 @Init:
-  LDA $0087                             ; $BEA6: AD 87 00
+  LDA a:$0087                             ; $BEA6: AD 87 00
   BPL @Done                             ; $BEA9: 10 0E
   LDA #$00                              ; $BEAB: A9 00
   STA $6F8B                             ; $BEAD: 8D 8B 6F
@@ -4359,7 +4324,7 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
 @SelectOfficer:
   LDA $6F8B                             ; $BEBA: AD 8B 6F
   CMP #$FF                              ; $BEBD: C9 FF
-  BNE @Done                             ; $BEBF: D0 3F
+  BNE @SelectDone                       ; $BEBF: D0 3F
   LDA $6F8F                             ; $BEC1: AD 8F 6F
   CMP #$03                              ; $BEC4: C9 03
   BEQ @AdvanceState                     ; $BEC6: F0 35
@@ -4381,9 +4346,9 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   STA $6F42                             ; $BEED: 8D 42 6F
   JSR MapScroll_Update                             ; $BEF0: 20 EE D5
   LDA $0508                             ; $BEF3: AD 08 05
-  BNE @Done                             ; $BEF6: D0 08
-  LDA $007E                             ; $BEF8: AD 7E 00
-  BNE @Done                             ; $BEFB: D0 03
+  BNE @SelectDone                       ; $BEF6: D0 08
+  LDA a:$007E                             ; $BEF8: AD 7E 00
+  BNE @SelectDone                       ; $BEFB: D0 03
 @AdvanceState:
   INC $0501                             ; $BEFD: EE 01 05
 @SelectDone:
@@ -4402,7 +4367,7 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
 @DispatchTable:
   .byte $03,$05,$08,$0C,$0D               ; $BF14: 03 05 08 0C 0D
 @ApplyMovement:
-  LDA $007E                             ; $BF19: AD 7E 00
+  LDA a:$007E                             ; $BF19: AD 7E 00
   BEQ @InitMovement                     ; $BF1C: F0 01
   RTS                                   ; $BF1E: 60
 @InitMovement:
@@ -4426,7 +4391,7 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   EOR #$01                              ; $BF41: 49 01
   TAX                                   ; $BF43: AA
   LDA $02                               ; $BF44: A5 02
-  STA $0000,X                           ; $BF46: 9D 00 00
+  STA a:$0000,X                           ; $BF46: 9D 00 00
   LDY $0509                             ; $BF49: AC 09 05
   LDA $0600,Y                           ; $BF4C: B9 00 06
   CLC                                   ; $BF4F: 18
@@ -4437,7 +4402,7 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   ADC $01                               ; $BF59: 65 01
   STA $0614,Y                           ; $BF5B: 99 14 06
   CMP #$0F                              ; $BF5E: C9 0F
-  BNE @AdvanceState                     ; $BF60: D0 16
+  BNE @MoveAdvance                      ; $BF60: D0 16
   LDA $01                               ; $BF62: A5 01
   BMI @MoveUp                           ; $BF64: 30 09
   LDA $0614,Y                           ; $BF66: B9 14 06
@@ -4474,12 +4439,12 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
 ; --- BankedCallbackTrampoline target ---
   .word B1D_1E_ProvinceDataHandler      ; $BFA3: $27 A0
   LDA #$02                                    ; $BFA5: A9 02
-  STA $00A4                                   ; $BFA7: 8D A4 00
+  STA a:$00A4                                   ; $BFA7: 8D A4 00
   DEC $0505                                   ; $BFAA: CE 05 05
   DEC $0505                                   ; $BFAD: CE 05 05
   INC $0501                                   ; $BFB0: EE 01 05
   LDA #$A0                                    ; $BFB3: A9 A0
-  JMP B1F_OpenMsgWindow5                      ; $BFB5: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                      ; $BFB5: 4C 83 F2
 @WaitConfirm:
   LDY $6F8D                             ; $BFB8: AC 8D 6F
   JSR CenterMapOnSlot                             ; $BFBB: 20 36 DC
@@ -4499,8 +4464,8 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
 @EnterBattle:
   LDY $6F8D                             ; $BFDC: AC 8D 6F
   JSR CenterMapOnSlot                             ; $BFDF: 20 36 DC
-  LDA $0087                             ; $BFE2: AD 87 00
-  BPL @BattleWait                       ; $BFE5: 10 1C
+  LDA a:$0087                             ; $BFE2: AD 87 00
+  BPL *+30                                ; $BFE5: 10 1C (-> @NextDone at $C003 in CODE_BANK0D; *+30 = $BFE5+30)
   LDA $6F8D                             ; $BFE7: AD 8D 6F
   STA $0509                             ; $BFEA: 8D 09 05
   LDA $6F8C                             ; $BFED: AD 8C 6F
@@ -4509,9 +4474,9 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   STA $0500                             ; $BFF5: 8D 00 05
   STA $0501                             ; $BFF8: 8D 01 05
   LDA #$00                              ; $BFFB: A9 00
-  STA $00A4                             ; $BFFD: 8D A4 00
+  STA a:$00A4                             ; $BFFD: 8D A4 00
 .segment "CODE_BANK0D"
-  JMP UnitAttack_Animate::UnitAttack_SetupResult                          ; $C000: 4C D2 A3
+  JMP UnitAttack_SetupResult                          ; $C000: 4C D2 A3
 @NextDone:
   RTS                                   ; $C003: 60
 @ShowCost:
@@ -4537,7 +4502,7 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   STA officer_sel_list+1                                   ; $C030: 8D 2D 04
   STA officer_sel_list+2                                   ; $C033: 8D 2E 04
   LDA #$A1                                    ; $C036: A9 A1
-  JSR B1F_OpenMsgWindow5                      ; $C038: 20 83 F2
+  JSR B1F_OpenMsgWindow2                      ; $C038: 20 83 F2
   LDA #$65                                    ; $C03B: A9 65
   JSR B1F_SoundWrapperF                 ; $C03D: 20 9B E6
   INC $0501                                   ; $C040: EE 01 05
@@ -4548,18 +4513,18 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
 @NextOfficer:
   INC officer_sel_list+1                             ; $C054: EE 2D 04
   LDA #$00                              ; $C057: A9 00
-  STA $00A4                             ; $C059: 8D A4 00
+  STA a:$00A4                             ; $C059: 8D A4 00
   LDY $6F8E                             ; $C05C: AC 8E 6F
   JSR CenterMapOnSlot                             ; $C05F: 20 36 DC
   LDA $6F8C                             ; $C062: AD 8C 6F
   STA $0509                             ; $C065: 8D 09 05
   JSR TryAutoAdvance                       ; $C068: 20 DE A1
   JSR TacticalOverlayIdleCheck                             ; $C06B: 20 27 DF
-  BCC @NextDone                         ; $C06E: 90 0C
+  BCC @NoActionExit                     ; $C06E: 90 0C
   JSR PromptArrowDraw_Right                             ; $C070: 20 63 DC
   LDA $81                               ; $C073: A5 81
   AND #$03                              ; $C075: 29 03
-  BEQ @NextDone                         ; $C077: F0 03
+  BEQ @NoActionExit                     ; $C077: F0 03
   INC $0501                             ; $C079: EE 01 05
 @NoActionExit:
   RTS                                   ; $C07C: 60
@@ -4585,12 +4550,12 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   LDA $0544                             ; $C0AF: AD 44 05
   BEQ @ShowMsg                          ; $C0B2: F0 0A
   LDA #$03                              ; $C0B4: A9 03
-  STA $00A4                             ; $C0B6: 8D A4 00
+  STA a:$00A4                             ; $C0B6: 8D A4 00
   LDA #$A2                              ; $C0B9: A9 A2
   JMP B1F_OpenMsgWindow2                ; $C0BB: 4C 83 F2
 @ShowMsg:
   LDA #$04                              ; $C0BE: A9 04
-  STA $00A4                             ; $C0C0: 8D A4 00
+  STA a:$00A4                             ; $C0C0: 8D A4 00
   LDA $0543                             ; $C0C3: AD 43 05
   AND #$0F                              ; $C0C6: 29 0F
   TAY                                   ; $C0C8: A8
@@ -4669,10 +4634,10 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   STA officer_sel_list                                   ; $C16D: 8D 2C 04
   INC $0501                                   ; $C170: EE 01 05
   LDA #$BD                                    ; $C173: A9 BD
-  JMP B1F_OpenMsgWindow5                      ; $C175: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                      ; $C175: 4C 83 F2
 @ConfirmAction:
   LDA #$00                              ; $C178: A9 00
-  STA $00A4                             ; $C17A: 8D A4 00
+  STA a:$00A4                             ; $C17A: 8D A4 00
   LDY $050A                             ; $C17D: AC 0A 05
   JSR CenterMapOnSlot                             ; $C180: 20 36 DC
   JSR TryAutoAdvance                       ; $C183: 20 DE A1
@@ -4681,7 +4646,7 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   JSR PromptArrowDraw_Right                             ; $C18B: 20 63 DC
   LDA $81                               ; $C18E: A5 81
   AND #$03                              ; $C190: 29 03
-  BEQ @WaitInput                        ; $C192: F0 1A
+  BEQ @ConfirmActionDone                ; $C192: F0 1A
   LDA #$00                              ; $C194: A9 00
   STA $12                               ; $C196: 85 12
   JSR UpdateCursorTile                             ; $C198: 20 CC D6
@@ -4693,7 +4658,7 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
 ; Advance to final state
   LDA #$10                              ; $C1A9: A9 10
   STA $0501                             ; $C1AB: 8D 01 05
-@CancelPending:
+@ConfirmActionDone:
   RTS                                   ; $C1AE: 60
 @ExecuteAction:
   LDA $6F8D                             ; $C1AF: AD 8D 6F
@@ -4719,16 +4684,16 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   LDA #$05                              ; $C1E2: A9 05
   JSR B1F_OpenMsgWindow5                ; $C1E4: 20 93 F2
   INC $0501                             ; $C1E7: EE 01 05
-@ExitPending:
+@CancelPending:
   RTS                                   ; $C1EA: 60
 @Exit:
   JSR TacticalOverlayIdleCheck                             ; $C1EB: 20 27 DF
-  BCC @ExitPending                      ; $C1EE: 90 0B
+  BCC @ExitDone                         ; $C1EE: 90 0B
 @ClearState:
   LDA #$00                              ; $C1F0: A9 00
   STA $0500                             ; $C1F2: 8D 00 05
   STA $0501                             ; $C1F5: 8D 01 05
-  STA $00A4                             ; $C1F8: 8D A4 00
+  STA a:$00A4                             ; $C1F8: 8D A4 00
 @ExitDone:
   RTS                                   ; $C1FB: 60
 .endproc
@@ -4906,7 +4871,7 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   LDA detail_officer_id                             ; $C354: AD 10 04
   STA $00                               ; $C357: 85 00
   LDA #$00                              ; $C359: A9 00
-  STA $00A4                             ; $C35B: 8D A4 00
+  STA a:$00A4                             ; $C35B: 8D A4 00
   LDY #$39                              ; $C35E: A0 39
   JSR B1F_BankedCallbackTrampoline      ; $C360: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -4928,7 +4893,7 @@ ArmyTurnEnd_SwitchRuler_CheckPhase:
   JSR MapScroll_Update                             ; $C389: 20 EE D5
   LDA $0508                                   ; $C38C: AD 08 05
   BNE @Done                             ; $C38F: D0 39
-  LDA $007E                                   ; $C391: AD 7E 00
+  LDA a:$007E                                   ; $C391: AD 7E 00
   BNE @Done                             ; $C394: D0 34
   LDA #$06                                    ; $C396: A9 06
   STA $BB                                     ; $C398: 85 BB
@@ -5503,7 +5468,7 @@ FindOfficerInRoster:
   BPL @CallUpdateUI                   ; $C7CB: 10 03
   JMP @CallUpdateUI                   ; $C7CD: 4C D0 C7
 @CallUpdateUI:
-  STY $0000                             ; $C7D0: 8C 00 00
+  STY a:$0000                             ; $C7D0: 8C 00 00
   LDY #$28                              ; $C7D3: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $C7D5: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -5566,7 +5531,7 @@ FindOfficerInRoster:
   BNE @ClearAllyFlag                    ; $C841: D0 08
   LDA #$04                              ; $C843: A9 04
   STA $6FA1,Y                           ; $C845: 99 A1 6F
-  JMP @FinishListAction                 ; $C848: 4C 50 C8
+  JMP @UpdateUI                         ; $C848: 4C 50 C8
 @ClearAllyFlag:
   LDA #$FF                              ; $C84B: A9 FF
   STA $6FA1,Y                           ; $C84D: 99 A1 6F
@@ -5699,11 +5664,11 @@ AdjustStatsByIndex:
   LDA $051B                             ; $C945: AD 1B 05
   SBC $03                               ; $C948: E5 03
   STA $051B                             ; $C94A: 8D 1B 05
-  BCS RestoreY                          ; $C94D: B0 3C
+  BCS AdjustStatsByIndexExit            ; $C94D: B0 3C
   LDA #$00                              ; $C94F: A9 00
   STA $051A                             ; $C951: 8D 1A 05
   STA $051B                             ; $C954: 8D 1B 05
-  JMP RestoreY                          ; $C957: 4C 8B C9
+  JMP AdjustStatsByIndexExit            ; $C957: 4C 8B C9
 @SubtractFromGroupA2:
   DEC $051F                             ; $C95A: CE 1F 05
   LDA $0664,X                           ; $C95D: BD 64 06
@@ -5722,10 +5687,11 @@ AdjustStatsByIndex:
   LDA $051D                             ; $C979: AD 1D 05
   SBC $03                               ; $C97C: E5 03
   STA $051D                             ; $C97E: 8D 1D 05
-  BCS RestoreY                          ; $C981: B0 08
+  BCS AdjustStatsByIndexExit            ; $C981: B0 08
   LDA #$00                              ; $C983: A9 00
   STA $051C                             ; $C985: 8D 1C 05
   STA $051D                             ; $C988: 8D 1D 05
+AdjustStatsByIndexExit:
   RTS                                   ; $C98B: 60
 .endproc
 
@@ -5751,7 +5717,7 @@ AdjustStatsByIndex:
 @State_Select:
   JSR TacticalOverlayIdleCheck                             ; $C9AD: 20 27 DF
   BCC @Done                             ; $C9B0: 90 10
-  LDA $007E                             ; $C9B2: AD 7E 00
+  LDA a:$007E                             ; $C9B2: AD 7E 00
   BNE @Done                             ; $C9B5: D0 0B
   INC $0501                             ; $C9B7: EE 01 05
   JSR @BuildWarResultMsg                 ; $C9BA: 20 53 CA
@@ -5760,7 +5726,7 @@ AdjustStatsByIndex:
 @Done:
   RTS                                   ; $C9C2: 60
 @State_Menu:
-  LDA $007E                             ; $C9C3: AD 7E 00
+  LDA a:$007E                             ; $C9C3: AD 7E 00
   BNE @Done                             ; $C9C6: D0 FA
   LDA #$E1                              ; $C9C8: A9 E1
   STA $E6                               ; $C9CA: 85 E6
@@ -5791,12 +5757,12 @@ AdjustStatsByIndex:
   RTS                                   ; $C9FD: 60
 @State_Confirm:
   JSR WarSideStatDigitsRender               ; $C9FE: 20 29 CC
-  JSR TacticalOverlayIdleCheck                             ; $CA01: 20 27 DF
-  BCC @Done                             ; $CA04: 90 0C
+  JSR TacticalOverlayIdleCheck          ; $CA01: 20 27 DF
+  BCC @CancelExit                             ; $CA04: 90 0C
   JSR PromptArrowDraw_Right                             ; $CA06: 20 63 DC
   LDA $81                               ; $CA09: A5 81
   AND #$01                              ; $CA0B: 29 01
-  BEQ @Done                             ; $CA0D: F0 03
+  BEQ @CancelExit                             ; $CA0D: F0 03
   INC $0501                             ; $CA0F: EE 01 05
 @CancelExit:
   RTS                                   ; $CA12: 60
@@ -5866,9 +5832,9 @@ AdjustStatsByIndex:
   INY                                   ; $CA83: C8
   CPY #$0F                              ; $CA84: C0 0F
   BCC @CopyLoop2                        ; $CA86: 90 F5
-  LDA $007E                             ; $CA88: AD 7E 00
+  LDA a:$007E                             ; $CA88: AD 7E 00
   ORA #$04                              ; $CA8B: 09 04
-  STA $007E                             ; $CA8D: 8D 7E 00
+  STA a:$007E                             ; $CA8D: 8D 7E 00
   RTS                                   ; $CA90: 60
 ; --- Message pointer tables (4 entries each) ---
 @MsgPtrTable1:
@@ -6060,7 +6026,7 @@ AdjustStatsByIndex:
   JSR B1F_SwitchBank8_B                 ; $CC2B: 20 5F F2
   LDA #$00                              ; $CC2E: A9 00
   STA $0A                               ; $CC30: 85 0A
-  LDA $005E                             ; $CC32: AD 5E 00
+  LDA a:$005E                             ; $CC32: AD 5E 00
   AND #$01                              ; $CC35: 29 01
   BNE @SwapOrder                        ; $CC37: D0 06
   JSR @CalcHighNibble                   ; $CC39: 20 45 CC
@@ -6138,7 +6104,7 @@ AdjustStatsByIndex:
   CMP #$FF                              ; $CCB1: C9 FF
   BEQ @DigitDone                        ; $CCB3: F0 29
   LDY $0A                               ; $CCB5: A4 0A
-  LDX $007C                             ; $CCB7: AE 7C 00
+  LDX a:$007C                             ; $CCB7: AE 7C 00
   CLC                                   ; $CCBA: 18
   ADC $0B                               ; $CCBB: 65 0B
   STA $0201,X                           ; $CCBD: 9D 01 02  ; tile index
@@ -6158,13 +6124,14 @@ AdjustStatsByIndex:
   INX                                   ; $CCD9: E8
 @SkipDigit:
   INX                                   ; $CCDA: E8
-  STX $007C                             ; $CCDB: 8E 7C 00
+  STX a:$007C                             ; $CCDB: 8E 7C 00
 @DigitDone:
   RTS                                   ; $CCDE: 60
 @IncPtr:
   INC $06                               ; $CCDF: E6 06
-  BNE @DigitDone                        ; $CCE1: D0 02
+  BNE @IncPtrDone                       ; $CCE1: D0 02
   INC $07                               ; $CCE3: E6 07
+@IncPtrDone:
   RTS                                   ; $CCE5: 60
 ; --- Digit position tables (12 entries used by code, extra padding in ROM) ---
 @DigitYTable:
@@ -6172,7 +6139,7 @@ AdjustStatsByIndex:
   .byte $10,$10,$18,$18,$10,$10,$18,$18,$10,$10,$18,$18; $CCF2: entries 12-23 (unused)
 @DigitXTable:
   .byte $28,$30,$28,$30,$38,$40,$38,$40,$48,$50,$48,$50; $CCFE: entries 0-11
-  .byte $28,$30,$28,$30,$38,$40,$38,$40                   ; $CD0A: entries 12-19 (unused)
+  .byte $28,$30,$28,$30,$38,$40,$38,$40,$48,$50,$48,$50; $CD0A: entries 12-23 (unused)
 .endproc
 
 .proc UnitWithdraw
@@ -6214,9 +6181,9 @@ AdjustStatsByIndex:
   RTS                                   ; $CD51: 60
 @State_Select:
   ; Handle officer selection input; on confirm, assign officers to new ruler
-  JSR WarSideStatDigitsRender               ; $CD52: 20 29 CC
+  JSR WarSideStatDigitsRender           ; $CD52: 20 29 CC
   JSR TacticalOverlayIdleCheck                             ; $CD55: 20 27 DF
-  BCC @Done                             ; $CD58: 90 09
+  BCC @SelectDone                             ; $CD58: 90 09
   JSR PromptArrowDraw_Right                             ; $CD5A: 20 63 DC
 @CheckConfirm:
   LDA $81                               ; $CD5D: A5 81
@@ -6323,10 +6290,10 @@ AdjustStatsByIndex:
   LDA $12                               ; $CE1B: A5 12
   JSR B1F_PointerTableLookup            ; $CE1D: 20 F5 ED
   JSR TacticalOverlayIdleCheck                             ; $CE20: 20 27 DF
-  BCC @ConfirmDone                        ; $CE23: 90 30
+  BCC @MenuDone                         ; $CE23: 90 30
   LDA $81                               ; $CE25: A5 81
   AND #$01                              ; $CE27: 29 01
-  BEQ @ConfirmDone                        ; $CE29: F0 2A
+  BEQ @MenuDone                         ; $CE29: F0 2A
   LDY $12                               ; $CE2B: A4 12
   LDA officer_sel_list,Y                           ; $CE2D: B9 2C 04
   STA $0540                             ; $CE30: 8D 40 05
@@ -6335,7 +6302,7 @@ AdjustStatsByIndex:
   BEQ @AdvanceToConfirm                     ; $CE38: F0 07
   LDA $0550,Y                           ; $CE3A: B9 50 05
   CMP #$0A                              ; $CE3D: C9 0A
-  BCS @ConfirmDone                        ; $CE3F: B0 14
+  BCS @MenuDone                        ; $CE3F: B0 14
 @AdvanceToConfirm:
   INC $0501                             ; $CE41: EE 01 05
   LDA #$DD                              ; $CE44: A9 DD
@@ -6346,7 +6313,7 @@ AdjustStatsByIndex:
 @ShowConfirmUI:
   JSR B1F_OpenMsgWindow2                ; $CE4F: 20 83 F2
   JSR LoadDisplayRulerId               ; $CE52: 20 C3 D0
-@ConfirmDone:
+@MenuDone:
   RTS                                   ; $CE55: 60
 @State_Confirm:
   ; Wait for A-button; rebuild officer list and show confirmation dialog
@@ -6362,7 +6329,7 @@ AdjustStatsByIndex:
   LDA #$DE                              ; $CE6D: A9 DE
   JSR B1F_OpenMsgWindow4                ; $CE6F: 20 8B F2
   INC $0501                             ; $CE72: EE 01 05
-@ExecuteDone:
+@ConfirmDone:
   RTS                                   ; $CE75: 60
 @State_Execute:
   ; Remove selected officer from the grid and advance
@@ -6382,7 +6349,7 @@ AdjustStatsByIndex:
   LDA #$00                              ; $CE95: A9 00
   STA menu_cursor_col                             ; $CE97: 8D 24 04
   STA menu_cursor_page                             ; $CE9A: 8D 25 04
-@CancelDone:
+@ExecuteDone:
   RTS                                   ; $CE9D: 60
 @State_Cancel:
   ; Undo officer selections; show cancel menu and toggle selection flags
@@ -6435,7 +6402,7 @@ AdjustStatsByIndex:
 @ShowCancelUI:
   JSR B1F_OpenMsgWindow2                ; $CEFD: 20 83 F2
   INC $0501                             ; $CF00: EE 01 05
-@FinalizeDone:
+@CancelDone:
   RTS                                   ; $CF03: 60
 @OfficerGridConfig:
   .byte $00,$07,$00,$F8,$80             ; $CF04: menu slot config (5 bytes)
@@ -6462,6 +6429,7 @@ AdjustStatsByIndex:
   STA $0501                             ; $CF2A: 8D 01 05
   JSR ExecuteAllTransfers               ; $CF2D: 20 F9 D1
   JMP @State_Init                       ; $CF30: 4C 2A CD
+@FinalizeDone:
   RTS                                   ; $CF33: 60
 ; --- Officer grid slot PPU addresses (7 rows x 3 columns = 21 entries) ---
 OfficerGridPPUAddrs:
@@ -6504,10 +6472,10 @@ OfficerGridPoolPtrs:
   .byte $10,$11,$12,$13,$FF,$FF,$FF,$FF ; $CFB0: 20 items + 4 FF
 @Pool_02:
   .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$0F; $CFB8
-  .byte $10,$11,$12,$FF,$FF,$00,$FF,$01 ; $CFC8: 19 items + padding
+  .byte $10,$11,$12,$FF,$FF,$FF,$FF,$FF ; $CFC8: 19 items + 5 FF
 @Pool_03:
-  .byte $02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$0F,$10,$11; $CFD0
-  .byte $FF,$FF,$FF,$FF,$FF             ; $CFE0: 18 items + 3 FF (includes $CFE2-$CFE4)
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$0F; $CFD0
+  .byte $10,$11,$FF,$FF,$FF             ; $CFE0: 18 items + 3 FF
 @Pool_04:
   .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$0F; $CFE5
   .byte $10,$FF,$FF,$FF,$FF             ; $CFF5: 17 items + 4 FF
@@ -6695,7 +6663,7 @@ ToggleOfficerSelect:
 RenderOfficerGrid:
   ; Render all selected officers in the officer grid
   LDA #$08                              ; $D1BC: A9 08
-  STA $00AF                             ; $D1BE: 8D AF 00
+  STA a:$00AF                             ; $D1BE: 8D AF 00
   LDA #$36                              ; $D1C1: A9 36
   STA $0115                             ; $D1C3: 8D 15 01
   LDA #$16                              ; $D1C6: A9 16
@@ -6764,10 +6732,10 @@ ExecuteAllTransfers:
   ASL                                   ; $D22B: 0A
   ASL                                   ; $D22C: 0A
   ASL                                   ; $D22D: 0A
-  STA $0002                             ; $D22E: 8D 02 00
+  STA a:$0002                             ; $D22E: 8D 02 00
   JSR B1F_RandomMod8                    ; $D231: 20 56 E8
   CLC                                   ; $D234: 18
-  ADC $0002                             ; $D235: 6D 02 00
+  ADC a:$0002                             ; $D235: 6D 02 00
   TAY                                   ; $D238: A8
   LDA $9D72,Y                           ; $D239: B9 72 9D
   BPL @AssignProvince                   ; $D23C: 10 03
@@ -7166,7 +7134,7 @@ TacticalMapAnimFrameUpdate:
   ; Advance animation frame counter ($0318/$0319); triggers refresh every 15 frames
   LDA $0318                                   ; $D4FB: AD 18 03
   STA $00                                     ; $D4FE: 85 00
-  LDA $0083                                   ; $D500: AD 83 00
+  LDA a:$0083                                   ; $D500: AD 83 00
   AND #$F0                                    ; $D503: 29 F0
   STA $0318                                   ; $D505: 8D 18 03
   BEQ @ResetCounter                     ; $D508: F0 1B
@@ -7178,7 +7146,7 @@ TacticalMapAnimFrameUpdate:
   BCC @AnimDone                         ; $D516: 90 0C
   LDA #$0F                                    ; $D518: A9 0F
   STA $0319                                   ; $D51A: 8D 19 03
-  LDA $005E                                   ; $D51D: AD 5E 00
+  LDA a:$005E                                   ; $D51D: AD 5E 00
   AND #$03                                    ; $D520: 29 03
   BEQ @DoScroll                         ; $D522: F0 0C
 @AnimDone:
@@ -7191,7 +7159,7 @@ TacticalMapAnimFrameUpdate:
   LDA #$00                              ; $D52B: A9 00
   STA $0319                             ; $D52D: 8D 19 03
 @DoScroll:
-  LDA $0083                             ; $D530: AD 83 00
+  LDA a:$0083                             ; $D530: AD 83 00
   BPL @CheckLeft                        ; $D533: 10 2B
   LDX $6F40                             ; $D535: AE 40 6F
   CPX #$01                              ; $D538: E0 01
@@ -7250,7 +7218,7 @@ TacticalMapAnimFrameUpdate:
 @ScrollDown:
   LDA $6F41                             ; $D59A: AD 41 6F
   SEC                                   ; $D59D: 38
-  SBC $0090                             ; $D59E: ED 90 00
+  SBC a:$0090                             ; $D59E: ED 90 00
   CMP #$A0                              ; $D5A1: C9 A0
   BCS @DownDone                         ; $D5A3: B0 19
   LDA $6F41                             ; $D5A5: AD 41 6F
@@ -7279,7 +7247,7 @@ TacticalMapAnimFrameUpdate:
 @ScrollUp:
   LDA $6F41                             ; $D5CE: AD 41 6F
   SEC                                   ; $D5D1: 38
-  SBC $0090                             ; $D5D2: ED 90 00
+  SBC a:$0090                             ; $D5D2: ED 90 00
   CMP #$10                              ; $D5D5: C9 10
   BCC @ScrollExit                       ; $D5D7: 90 14
   LDA $6F41                             ; $D5D9: AD 41 6F
@@ -7298,39 +7266,39 @@ MapScroll_Update:
   JSR PixelToTileCoord               ; $D5EE: 20 17 DA
   LDA #$00                              ; $D5F1: A9 00
   STA $04                               ; $D5F3: 85 04
-  LDA $0002                             ; $D5F5: AD 02 00
+  LDA a:$0002                             ; $D5F5: AD 02 00
   SEC                                   ; $D5F8: 38
-  SBC $0000                             ; $D5F9: ED 00 00
+  SBC a:$0000                             ; $D5F9: ED 00 00
   BCC @NeedScrollLeft                   ; $D5FC: 90 04
   CMP #$03                              ; $D5FE: C9 03
   BCS @CheckRight                       ; $D600: B0 0D
 @NeedScrollLeft:
-  LDY $0090                             ; $D602: AC 90 00
+  LDY a:$0090                             ; $D602: AC 90 00
   BEQ @CheckRight                       ; $D605: F0 08
   LDA #$20                              ; $D607: A9 20
-  STA $0004                             ; $D609: 8D 04 00
+  STA a:$0004                             ; $D609: 8D 04 00
   JMP @CheckVert                        ; $D60C: 4C 1F D6
 @CheckRight:
   CMP #$07                              ; $D60F: C9 07
   BCC @CheckVert                        ; $D611: 90 0C
-  LDY $0090                             ; $D613: AC 90 00
+  LDY a:$0090                             ; $D613: AC 90 00
   CPY #$8E                              ; $D616: C0 8E
   BCS @CheckVert                        ; $D618: B0 05
   LDA #$10                              ; $D61A: A9 10
-  STA $0004                             ; $D61C: 8D 04 00
+  STA a:$0004                             ; $D61C: 8D 04 00
 @CheckVert:
-  LDA $0003                             ; $D61F: AD 03 00
+  LDA a:$0003                             ; $D61F: AD 03 00
   SEC                                   ; $D622: 38
-  SBC $0001                             ; $D623: ED 01 00
+  SBC a:$0001                             ; $D623: ED 01 00
   BCC @NeedScrollUp                     ; $D626: 90 04
   CMP #$04                              ; $D628: C9 04
   BCS @CheckDown                        ; $D62A: B0 0F
 @NeedScrollUp:
   LDY $8E                               ; $D62C: A4 8E
   BEQ @CheckDown                        ; $D62E: F0 0B
-  LDA $0004                             ; $D630: AD 04 00
+  LDA a:$0004                             ; $D630: AD 04 00
   ORA #$40                              ; $D633: 09 40
-  STA $0004                             ; $D635: 8D 04 00
+  STA a:$0004                             ; $D635: 8D 04 00
   JMP @StoreFlags                       ; $D638: 4C 4D D6
 @CheckDown:
   CMP #$0C                              ; $D63B: C9 0C
@@ -7338,62 +7306,62 @@ MapScroll_Update:
   LDY $8E                               ; $D63F: A4 8E
   CPY #$FE                              ; $D641: C0 FE
   BCS @StoreFlags                       ; $D643: B0 08
-  LDA $0004                             ; $D645: AD 04 00
+  LDA a:$0004                             ; $D645: AD 04 00
   ORA #$80                              ; $D648: 09 80
-  STA $0004                             ; $D64A: 8D 04 00
+  STA a:$0004                             ; $D64A: 8D 04 00
 @StoreFlags:
   LDA $0508                             ; $D64D: AD 08 05
-  ORA $0004                             ; $D650: 0D 04 00
+  ORA a:$0004                             ; $D650: 0D 04 00
   STA $0508                             ; $D653: 8D 08 05
   RTS                                   ; $D656: 60
 RenderScrollOamSprites:
   ; Copy scroll pos to sprite params and write OAM via B1F_SpriteOamWriterScroll
   LDA $6F41                             ; $D657: AD 41 6F
-  STA $000A                             ; $D65A: 8D 0A 00
+  STA a:$000A                             ; $D65A: 8D 0A 00
   LDA $6F42                             ; $D65D: AD 42 6F
-  STA $000B                             ; $D660: 8D 0B 00
+  STA a:$000B                             ; $D660: 8D 0B 00
   LDA $6F3F                             ; $D663: AD 3F 6F
-  STA $000C                             ; $D666: 8D 0C 00
+  STA a:$000C                             ; $D666: 8D 0C 00
   LDA $6F40                             ; $D669: AD 40 6F
-  STA $000D                             ; $D66C: 8D 0D 00
+  STA a:$000D                             ; $D66C: 8D 0D 00
   LDA #$81                              ; $D66F: A9 81
-  STA $0000                             ; $D671: 8D 00 00
+  STA a:$0000                             ; $D671: 8D 00 00
   LDA #$D6                              ; $D674: A9 D6
-  STA $0001                             ; $D676: 8D 01 00
+  STA a:$0001                             ; $D676: 8D 01 00
   LDA #$00                              ; $D679: A9 00
-  STA $0002                             ; $D67B: 8D 02 00
+  STA a:$0002                             ; $D67B: 8D 02 00
   JMP B1F_SpriteOamWriterScroll         ; $D67E: 4C 92 F0
 MapScrollOamData:
   .byte $00,$05,$00,$04,$08,$06,$00,$04,$80; $D681: 00 05 00 04 08 06 00 04 80
 ScrollToTileSearch:
   ; Convert scroll position to tile coords (÷16) and search city roster for match
   LDA $6F3F                             ; $D68A: AD 3F 6F
-  STA $0000                             ; $D68D: 8D 00 00
+  STA a:$0000                             ; $D68D: 8D 00 00
   LDA $6F40                             ; $D690: AD 40 6F
   LSR                                   ; $D693: 4A
-  ROR $0000                             ; $D694: 6E 00 00
-  ROR $0000                             ; $D697: 6E 00 00
-  ROR $0000                             ; $D69A: 6E 00 00
-  ROR $0000                             ; $D69D: 6E 00 00
+  ROR a:$0000                             ; $D694: 6E 00 00
+  ROR a:$0000                             ; $D697: 6E 00 00
+  ROR a:$0000                             ; $D69A: 6E 00 00
+  ROR a:$0000                             ; $D69D: 6E 00 00
   LDA $6F41                             ; $D6A0: AD 41 6F
-  STA $0001                             ; $D6A3: 8D 01 00
+  STA a:$0001                             ; $D6A3: 8D 01 00
   LDA $6F42                             ; $D6A6: AD 42 6F
 @ScrollToTileSearch_Y:
   ; (dispatch callback target) Entry with Y pre-loaded for tile search
   LSR                                   ; $D6A9: 4A
-  ROR $0001                             ; $D6AA: 6E 01 00
-  ROR $0001                             ; $D6AD: 6E 01 00
-  ROR $0001                             ; $D6B0: 6E 01 00
-  ROR $0001                             ; $D6B3: 6E 01 00
+  ROR a:$0001                             ; $D6AA: 6E 01 00
+  ROR a:$0001                             ; $D6AD: 6E 01 00
+  ROR a:$0001                             ; $D6B0: 6E 01 00
+  ROR a:$0001                             ; $D6B3: 6E 01 00
 SearchRosterByTileCoord:
   ; Search city roster ($0600/$0614) for tile coords in $0000/$0001; returns Y=slot
   LDY #$13                              ; $D6B6: A0 13
 @ScanLoop:
   LDA $0600,Y                           ; $D6B8: B9 00 06
-  CMP $0000                             ; $D6BB: CD 00 00
+  CMP a:$0000                             ; $D6BB: CD 00 00
   BNE @Next                             ; $D6BE: D0 08
   LDA $0614,Y                           ; $D6C0: B9 14 06
-  CMP $0001                             ; $D6C3: CD 01 00
+  CMP a:$0001                             ; $D6C3: CD 01 00
   BEQ @Found                            ; $D6C6: F0 03
 @Next:
   DEY                                   ; $D6C8: 88
@@ -7410,7 +7378,7 @@ UpdateCursorTile:
   STA $10                               ; $D6D6: 85 10
   LDA $0614,Y                           ; $D6D8: B9 14 06
   STA $11                               ; $D6DB: 85 11
-  LDA $0090                             ; $D6DD: AD 90 00
+  LDA a:$0090                             ; $D6DD: AD 90 00
   LSR                                   ; $D6E0: 4A
   LSR                                   ; $D6E1: 4A
   LSR                                   ; $D6E2: 4A
@@ -7652,9 +7620,9 @@ UpdateCursorTile:
   STA $038A                             ; $D87D: 8D 8A 03
   LDA #$FF                              ; $D880: A9 FF
   STA $038E                             ; $D882: 8D 8E 03
-  LDA $007E                             ; $D885: AD 7E 00
+  LDA a:$007E                             ; $D885: AD 7E 00
   ORA #$04                              ; $D888: 09 04
-  STA $007E                             ; $D88A: 8D 7E 00
+  STA a:$007E                             ; $D88A: 8D 7E 00
   RTS                                   ; $D88D: 60
 @CalcAdjacentTiles:
   ; Check 4 adjacent tiles around cursor and set directional bits in $00
@@ -7855,7 +7823,7 @@ UpdateCursorTile:
   LDA $00                               ; $D9F5: A5 00
   AND #$3F                              ; $D9F7: 29 3F
   ORA #$80                              ; $D9F9: 09 80
-  STA $0000                             ; $D9FB: 8D 00 00
+  STA a:$0000                             ; $D9FB: 8D 00 00
 @LE_ChkUp:
   DEC $03                               ; $D9FE: C6 03
   LDA $02                               ; $DA00: A5 02
@@ -7872,9 +7840,9 @@ UpdateCursorTile:
   RTS                                   ; $DA16: 60
 PixelToTileCoord:
   ; Convert pixel coords ($0090/$8E/$6F41/$6F3F) to tile coords ($00-$03) by ÷16
-  LDA $0090                             ; $DA17: AD 90 00
+  LDA a:$0090                             ; $DA17: AD 90 00
   STA $00                               ; $DA1A: 85 00
-  LDA $0091                             ; $DA1C: AD 91 00
+  LDA a:$0091                             ; $DA1C: AD 91 00
   LSR                                   ; $DA1F: 4A
   ROR $00                               ; $DA20: 66 00
   LSR $00                               ; $DA22: 46 00
@@ -7930,9 +7898,9 @@ TileToPixelCoord:
   RTS                                   ; $DA82: 60
 SumArmyGroupA_Stats:                    ; $DA83: sum merit for group A ($0628 >= 0)
   LDA #$00                              ; $DA83: A9 00
-  STA $000A                             ; $DA85: 8D 0A 00
-  STA $000B                             ; $DA88: 8D 0B 00
-  STA $000C                             ; $DA8B: 8D 0C 00
+  STA a:$000A                             ; $DA85: 8D 0A 00
+  STA a:$000B                             ; $DA88: 8D 0B 00
+  STA a:$000C                             ; $DA8B: 8D 0C 00
   LDX #$13                              ; $DA8E: A2 13
 @LoopA:
   LDA $0628,X                           ; $DA90: BD 28 06
@@ -7944,25 +7912,25 @@ SumArmyGroupA_Stats:                    ; $DA83: sum merit for group A ($0628 >=
   LDY #$09                              ; $DA9F: A0 09
   LDA ($00),Y                           ; $DAA1: B1 00
   AND #$03                              ; $DAA3: 29 03
-  STA $0002                             ; $DAA5: 8D 02 00
+  STA a:$0002                             ; $DAA5: 8D 02 00
   LDY #$08                              ; $DAA8: A0 08
   LDA ($00),Y                           ; $DAAA: B1 00
   CLC                                   ; $DAAC: 18
-  ADC $000B                             ; $DAAD: 6D 0B 00
-  STA $000B                             ; $DAB0: 8D 0B 00
-  LDA $000C                             ; $DAB3: AD 0C 00
-  ADC $0002                             ; $DAB6: 6D 02 00
-  STA $000C                             ; $DAB9: 8D 0C 00
-  INC $000A                             ; $DABC: EE 0A 00
+  ADC a:$000B                             ; $DAAD: 6D 0B 00
+  STA a:$000B                             ; $DAB0: 8D 0B 00
+  LDA a:$000C                             ; $DAB3: AD 0C 00
+  ADC a:$0002                             ; $DAB6: 6D 02 00
+  STA a:$000C                             ; $DAB9: 8D 0C 00
+  INC a:$000A                             ; $DABC: EE 0A 00
 @NextA:
   DEX                                   ; $DABF: CA
   BPL @LoopA                            ; $DAC0: 10 CE
   RTS                                   ; $DAC2: 60
 SumArmyGroupB_Stats:                    ; $DAC3: sum merit for group B ($0628 < 0)
   LDA #$00                              ; $DAC3: A9 00
-  STA $000A                             ; $DAC5: 8D 0A 00
-  STA $000B                             ; $DAC8: 8D 0B 00
-  STA $000C                             ; $DACB: 8D 0C 00
+  STA a:$000A                             ; $DAC5: 8D 0A 00
+  STA a:$000B                             ; $DAC8: 8D 0B 00
+  STA a:$000C                             ; $DACB: 8D 0C 00
   LDX #$13                              ; $DACE: A2 13
 @LoopB:
   LDA $0628,X                           ; $DAD0: BD 28 06
@@ -7974,16 +7942,16 @@ SumArmyGroupB_Stats:                    ; $DAC3: sum merit for group B ($0628 < 
   LDY #$09                              ; $DADF: A0 09
   LDA ($00),Y                           ; $DAE1: B1 00
   AND #$03                              ; $DAE3: 29 03
-  STA $0002                             ; $DAE5: 8D 02 00
+  STA a:$0002                             ; $DAE5: 8D 02 00
   LDY #$08                              ; $DAE8: A0 08
   LDA ($00),Y                           ; $DAEA: B1 00
   CLC                                   ; $DAEC: 18
-  ADC $000B                             ; $DAED: 6D 0B 00
-  STA $000B                             ; $DAF0: 8D 0B 00
-  LDA $000C                             ; $DAF3: AD 0C 00
-  ADC $0002                             ; $DAF6: 6D 02 00
-  STA $000C                             ; $DAF9: 8D 0C 00
-  INC $000A                             ; $DAFC: EE 0A 00
+  ADC a:$000B                             ; $DAED: 6D 0B 00
+  STA a:$000B                             ; $DAF0: 8D 0B 00
+  LDA a:$000C                             ; $DAF3: AD 0C 00
+  ADC a:$0002                             ; $DAF6: 6D 02 00
+  STA a:$000C                             ; $DAF9: 8D 0C 00
+  INC a:$000A                             ; $DAFC: EE 0A 00
 @NextB:
   DEX                                   ; $DAFF: CA
   BPL @LoopB                            ; $DB00: 10 CE
@@ -8005,19 +7973,19 @@ CalcOfficerMeritLevels:                 ; $DB03: compute (byte8|(byte9&3)<<8)/10
   LDY #$09                              ; $DB1B: A0 09
   LDA ($00),Y                           ; $DB1D: B1 00
   AND #$03                              ; $DB1F: 29 03
-  STA $0001                             ; $DB21: 8D 01 00
+  STA a:$0001                             ; $DB21: 8D 01 00
   PLA                                   ; $DB24: 68
-  STA $0000                             ; $DB25: 8D 00 00
+  STA a:$0000                             ; $DB25: 8D 00 00
   LDA #$00                              ; $DB28: A9 00
-  STA $0002                             ; $DB2A: 8D 02 00
+  STA a:$0002                             ; $DB2A: 8D 02 00
   LDA #$64                              ; $DB2D: A9 64
-  STA $0003                             ; $DB2F: 8D 03 00
+  STA a:$0003                             ; $DB2F: 8D 03 00
   LDA #$00                              ; $DB32: A9 00
-  STA $0004                             ; $DB34: 8D 04 00
+  STA a:$0004                             ; $DB34: 8D 04 00
   JSR B1F_MathDiv24                     ; $DB37: 20 A5 EA
   PLA                                   ; $DB3A: 68
   TAX                                   ; $DB3B: AA
-  LDA $0000                             ; $DB3C: AD 00 00
+  LDA a:$0000                             ; $DB3C: AD 00 00
 @StoreMerit:
   STA $063C,X                           ; $DB3F: 9D 3C 06
   DEX                                   ; $DB42: CA
@@ -8034,12 +8002,12 @@ GetTerrainType:
 @GetTerrainCode:
   ; Look up terrain code from map data via banked callback; returns raw tile value
   LDY #$00                              ; $DB50: A0 00
-  LDA $0010                             ; $DB52: AD 10 00
+  LDA a:$0010                             ; $DB52: AD 10 00
   CMP #$10                              ; $DB55: C9 10
   BCC @CheckRowQ                        ; $DB57: 90 02
   LDY #$01                              ; $DB59: A0 01
 @CheckRowQ:
-  LDA $0011                             ; $DB5B: AD 11 00
+  LDA a:$0011                             ; $DB5B: AD 11 00
   CMP #$10                              ; $DB5E: C9 10
   BCC @LookupTile                       ; $DB60: 90 04
   TYA                                   ; $DB62: 98
@@ -8047,25 +8015,25 @@ GetTerrainType:
   TAY                                   ; $DB65: A8
 @LookupTile:
   LDA ($A8),Y                           ; $DB66: B1 A8
-  STA $0000                             ; $DB68: 8D 00 00
+  STA a:$0000                             ; $DB68: 8D 00 00
   LDY #$37                              ; $DB6B: A0 37
   JSR B1F_BankedCallbackTrampoline      ; $DB6D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B17_18_FieldMapCropResolve      ; $DB70: $12 A0
   LDA #$9E                                    ; $DB72: A9 9E
-  STA $0002                                   ; $DB74: 8D 02 00
+  STA a:$0002                                   ; $DB74: 8D 02 00
   LDA #$DB                                    ; $DB77: A9 DB
-  STA $0003                                   ; $DB79: 8D 03 00
-  LDA $0010                                   ; $DB7C: AD 10 00
+  STA a:$0003                                   ; $DB79: 8D 03 00
+  LDA a:$0010                                   ; $DB7C: AD 10 00
   AND #$0F                                    ; $DB7F: 29 0F
-  STA $0008                                   ; $DB81: 8D 08 00
+  STA a:$0008                                   ; $DB81: 8D 08 00
   LDX #$00                                    ; $DB84: A2 00
-  LDA $0011                                   ; $DB86: AD 11 00
+  LDA a:$0011                                   ; $DB86: AD 11 00
   ASL A                                       ; $DB89: 0A
   ASL A                                       ; $DB8A: 0A
   ASL A                                       ; $DB8B: 0A
   ASL A                                       ; $DB8C: 0A
-  ORA $0008                                   ; $DB8D: 0D 08 00
+  ORA a:$0008                                   ; $DB8D: 0D 08 00
   TAY                                         ; $DB90: A8
   LDA ($00),Y                                 ; $DB91: B1 00
   TAY                                         ; $DB93: A8
@@ -8106,9 +8074,9 @@ CenterMapOnOfficer:
 CenterMapOnSlot:
   ; Center map on officer in roster slot Y
   LDA $0664,Y                           ; $DC36: B9 64 06
-  STA $0000                             ; $DC39: 8D 00 00
+  STA a:$0000                             ; $DC39: 8D 00 00
   LDA #$A7                              ; $DC3C: A9 A7
-  STA $000A                             ; $DC3E: 8D 0A 00
+  STA a:$000A                             ; $DC3E: 8D 0A 00
   LDX #$00                              ; $DC41: A2 00
   LDY #$39                              ; $DC43: A0 39
   JSR B1F_BankedCallbackTrampoline      ; $DC45: 20 07 EE
@@ -8134,26 +8102,26 @@ CheckOfficerArmyGroup:
 PromptArrowDraw_Right:
   ; Draw blinking bottom-right A-prompt arrow (right variant, Y=$D8 X=$A0)
   LDA #$D8                              ; $DC63: A9 D8
-  STA $000A                             ; $DC65: 8D 0A 00
+  STA a:$000A                             ; $DC65: 8D 0A 00
   LDA #$A0                              ; $DC68: A9 A0
-  STA $000C                             ; $DC6A: 8D 0C 00
+  STA a:$000C                             ; $DC6A: 8D 0C 00
   JMP PromptArrowDraw_Common                       ; $DC6D: 4C 7A DC
 PromptArrowDraw_Left:
   ; Draw blinking bottom-right A-prompt arrow (left variant, Y=$E0 X=$A0)
   LDA #$E0                              ; $DC70: A9 E0
-  STA $000A                             ; $DC72: 8D 0A 00
+  STA a:$000A                             ; $DC72: 8D 0A 00
   LDA #$A0                              ; $DC75: A9 A0
-  STA $000C                             ; $DC77: 8D 0C 00
+  STA a:$000C                             ; $DC77: 8D 0C 00
 PromptArrowDraw_Common:
-  LDA $005E                             ; $DC7A: AD 5E 00
+  LDA a:$005E                             ; $DC7A: AD 5E 00
   AND #$10                              ; $DC7D: 29 10
   BNE @ArrowExit                        ; $DC7F: D0 12
   LDA #$94                              ; $DC81: A9 94
-  STA $0000                             ; $DC83: 8D 00 00
+  STA a:$0000                             ; $DC83: 8D 00 00
   LDA #$DC                              ; $DC86: A9 DC
-  STA $0001                             ; $DC88: 8D 01 00
+  STA a:$0001                             ; $DC88: 8D 01 00
   LDA #$00                              ; $DC8B: A9 00
-  STA $0002                             ; $DC8D: 8D 02 00
+  STA a:$0002                             ; $DC8D: 8D 02 00
   JMP B1F_SpriteOamWriterSimple         ; $DC90: 4C AD F1
 @ArrowExit:
   RTS                                   ; $DC93: 60
@@ -8328,7 +8296,7 @@ WarCollapseCheck:
   CMP #$03                              ; $DDE8: C9 03
   BNE @NotRuler3A                       ; $DDEA: D0 0B
   LDA #$04                              ; $DDEC: A9 04
-  STA $00A4                             ; $DDEE: 8D A4 00
+  STA a:$00A4                             ; $DDEE: 8D A4 00
   LDA #$54                              ; $DDF1: A9 54
   STA $050A                             ; $DDF3: 8D 0A 05
   RTS                                   ; $DDF6: 60
@@ -8343,7 +8311,7 @@ WarCollapseCheck:
   LDA #$0A                              ; $DE04: A9 0A
   STA $0509                             ; $DE06: 8D 09 05
   LDA #$03                              ; $DE09: A9 03
-  STA $00A4                             ; $DE0B: 8D A4 00
+  STA a:$00A4                             ; $DE0B: 8D A4 00
   LDA #$53                              ; $DE0E: A9 53
   STA $050A                             ; $DE10: 8D 0A 05
   RTS                                   ; $DE13: 60
@@ -8376,7 +8344,7 @@ WarCollapseCheck:
   CMP #$03                              ; $DE43: C9 03
   BNE @NotRuler3B                       ; $DE45: D0 0B
   LDA #$04                              ; $DE47: A9 04
-  STA $00A4                             ; $DE49: 8D A4 00
+  STA a:$00A4                             ; $DE49: 8D A4 00
   LDA #$54                              ; $DE4C: A9 54
   STA $050A                             ; $DE4E: 8D 0A 05
   RTS                                   ; $DE51: 60
@@ -8388,7 +8356,7 @@ WarCollapseCheck:
   LDA #$00                              ; $DE5D: A9 00
   STA $0509                             ; $DE5F: 8D 09 05
   LDA #$03                              ; $DE62: A9 03
-  STA $00A4                             ; $DE64: 8D A4 00
+  STA a:$00A4                             ; $DE64: 8D A4 00
   LDA #$53                              ; $DE67: A9 53
   STA $050A                             ; $DE69: 8D 0A 05
   RTS                                   ; $DE6C: 60
@@ -8403,14 +8371,14 @@ WarCollapseCheck:
   JMP B1F_OpenMsgWindow5                ; $DE7F: 4C 93 F2
 @FindFirstOfficerByGroup:
   ; Find first officer in army group matching flag in A; carry set if found, Y=slot
-  STA $0002                             ; $DE82: 8D 02 00
+  STA a:$0002                             ; $DE82: 8D 02 00
   LDY #$00                              ; $DE85: A0 00
 @SearchLoop:
   LDA $0628,Y                           ; $DE87: B9 28 06
   CMP #$FF                              ; $DE8A: C9 FF
   BEQ @SearchNext                       ; $DE8C: F0 07
   AND #$80                              ; $DE8E: 29 80
-  CMP $0002                             ; $DE90: CD 02 00
+  CMP a:$0002                             ; $DE90: CD 02 00
   BEQ @SearchFound                      ; $DE93: F0 07
 @SearchNext:
   INY                                   ; $DE95: C8

@@ -64,6 +64,7 @@
 .include "6502_registers.h"
 .include "namco163.h"
 .include "functions.h"
+.include "ram_globals.h"
 
 ;===============================================================================
 ; RAM map ($0000-$07FF) - battle overlay / battlefield context
