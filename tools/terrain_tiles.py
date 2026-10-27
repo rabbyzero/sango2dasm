@@ -39,9 +39,20 @@ pines, solid blue water (record $00 swaps land and water).
 Blocked bytes ($80-$FF) have no `MetaTileData` entry at all - the engine never
 looks one up - and are reported as None.
 
+The castle and the towns are not in the crop bytes either: `DrawStratagemTargetMarkers`
+draws them as OAM sprites at the positions of two bank $31 tables -
+`ProvincePixelPositionTable` ($9D58, the castle) and `ProvinceTacticalFacilityTiles`
+($9BA4, up to three towns per province) - both in tile coordinates of the
+battlefield. `terrain_model.load_castles` / `load_facilities` decode them into the
+map cell each marker covers; this module only supplies the sprite art. The
+$61/$79/$7A/$7B stamps in the crops are the designer's notes for the same cells,
+and the authored data is not consistent: 12 of the 67 pairs have no stamp and 2
+stamps sit one row off from their pair.
+
 Usage:
     python3 tools/terrain_tiles.py                        # province 3 at 2x
     python3 tools/terrain_tiles.py --province all --scale 1
+    python3 tools/terrain_tiles.py --province 15 --objects --scale 2
 """
 import os
 import sys
@@ -71,42 +82,14 @@ RIVER_PALETTE = 1               # what the crops' attribute heads say for River
 # DrawStratagemTargetMarkers (prg_08_09_tactical_war $D24D) from @ProvinceMarkerOam ($D315)
 # and @CityMarkerOam ($D326). Each list is (xoff, tile, attr, yoff); all four
 # sprites share attribute $01 = sprite palette 1, colour 0 transparent.
+# The routine takes the positions from two bank $31 tables, not from the map
+# bytes, so the tables are where a town actually is; the $61/$79/$7A/$7B stamps
+# agree with them on 55 of the 67 facility pairs and on all 30 castles.
 MARKER_TILES = {'castle': (0x02, 0x03, 0x0E, 0x0F),
                 'facility': (0x3C, 0x3D, 0x3E, 0x3F)}
 MARKER_PALETTE = 1
 OBJECT_TILES = {0x61: 'castle', 0x79: 'facility', 0x7A: 'facility',
                 0x7B: 'facility'}          # terrain 5 / 6 / 7 / 8
-FACILITY_CPU = 0x9BA4             # ProvinceTacticalFacilityTiles, bank $31
-FACILITY_ROWS, FACILITY_STRIDE = 30, 6
-FACILITY_SLOTS = ('House 民家', 'Armory 武器屋', 'Hospital 病院')
-
-
-def facility_pair(row, slot):
-    """(cell_x, cell_y) of one facility slot, or None when the slot is unused.
-
-    X bit7 marks an unused pair (every reader tests it with BMI/BPL; the
-    authored padding is $FF $FF). Y >= $10 is decremented for the map's blank
-    gap row, the same fixup the march readers and `AiExecuteMove` apply.
-    """
-    x, y = row[2 * slot], row[2 * slot + 1]
-    if x >= 0x80:
-        return None
-    return (x, y - 1 if y >= 0x10 else y)
-
-
-def load_facilities(root=None):
-    """30 x 3 facility cells from bank $31, or None when the ROM is missing."""
-    path = os.path.join(root or ROOT, 'rom', 'prg', 'prg_11.bin')
-    try:
-        with open(path, 'rb') as f:
-            f.seek(FACILITY_CPU - 0x8000)
-            blob = f.read(FACILITY_ROWS * FACILITY_STRIDE)
-    except OSError:
-        return None
-    if len(blob) != FACILITY_ROWS * FACILITY_STRIDE:
-        return None
-    return [[facility_pair(blob[p * FACILITY_STRIDE:(p + 1) * FACILITY_STRIDE], s)
-             for s in range(3)] for p in range(FACILITY_ROWS)]
 
 
 def head_palette(head, cx, cy):
@@ -224,6 +207,23 @@ def load(root=None):
     return TileSet(metatile, DISPLAY_RECORD, palette, metatile_path)
 
 
+def blit_cell(img, rgb, col, row, scale, over=False):
+    """Write one 16x16 RGB cell into the pixel buffer at map position (col,row).
+
+    With `over`, None entries are transparent and leave what is underneath, which
+    is how an OAM sprite behaves over the map.
+    """
+    for y in range(CELL_PX):
+        for x in range(CELL_PX):
+            px = rgb[y][x]
+            if px is None and over:
+                continue
+            for sy in range(scale):
+                for sx in range(scale):
+                    img[(row * CELL_PX + y) * scale + sy][
+                        (col * CELL_PX + x) * scale + sx] = px
+
+
 def main(argv=None):
     """Render province maps at their real size, as a check on the mapping."""
     import argparse
@@ -231,6 +231,8 @@ def main(argv=None):
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--province', default='3', help='0-29 or "all"')
     ap.add_argument('--scale', type=int, default=2)
+    ap.add_argument('--objects', action='store_true',
+                    help='draw the castle and town marker sprites too')
     ap.add_argument('--out', default=os.path.join(ROOT, 'build'))
     args = ap.parse_args(argv)
 
@@ -244,6 +246,10 @@ def main(argv=None):
                  else [int(args.province)])
     images = {b: model.read_bank(b) for b in model.TERRAIN_BANKS}
     s = max(1, args.scale)
+    castles = model.load_castles() if args.objects else None
+    facilities = model.load_facilities() if args.objects else None
+    if args.objects and (castles is None or facilities is None):
+        raise SystemExit('--objects needs rom/prg/prg_11.bin for $9D58 and $9BA4')
     for prov in provinces:
         w, h = model.MAP_COLS * CELL_PX * s, model.MAP_H * CELL_PX * s
         img = [[(0, 0, 0)] * w for _ in range(h)]
@@ -259,16 +265,17 @@ def main(argv=None):
                 bgpal = head_palette(images[bank][off - HEAD_BYTES:off], gx, gy)
                 rgb = tiles.cell_rgb(tile, bgpal) \
                     or [[(255, 0, 255)] * CELL_PX] * CELL_PX
-                for y in range(CELL_PX):
-                    for x in range(CELL_PX):
-                        for sy in range(s):
-                            for sx in range(s):
-                                img[cy * CELL_PX * s + y * s + sy][
-                                    cx * CELL_PX * s + x * s + sx] = rgb[y][x]
+                blit_cell(img, rgb, cx, cy, s)
+        if args.objects:
+            towns = [(castles[prov], 'castle')] + [
+                (pair, 'facility') for pair in facilities[prov] if pair]
+            for (col, row), kind in towns:
+                blit_cell(img, tiles.marker_rgb(kind), col, row, s, over=True)
         path = os.path.join(args.out, 'terrain_tiles_p%02d.png' % prov)
         ppu.write_png(path, img)
-        print('%s  %dx%d  province %d  (%s)'
-              % (path, w, h, prov, tiles.summary()))
+        print('%s  %dx%d  province %d  (%s%s)'
+              % (path, w, h, prov, tiles.summary(),
+                 '  + %d markers' % len(towns) if args.objects else ''))
     return 0
 
 

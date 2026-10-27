@@ -169,6 +169,18 @@ officer-diff:
 checkofficers:
 	@python3 tools/check_officer_pipeline.py
 
+# Launch the standalone province GUI editor (needs python3-tk)
+province-editor:
+	@python3 editor/province_editor.py
+
+# Show the province edits that are live relative to the stock ROM
+province-diff:
+	@python3 tools/verify_data_banks.py --allow-edits
+
+# Full lossless-loop check: ROM <-> docs CSVs <-> asm <-> province editor
+checkprovinces:
+	@python3 tools/check_province_pipeline.py
+
 # Split ROM into banks
 split:
 	@python3 tools/split_rom.py "Sangokushi 2 - Haou no Tairiku (J).nes" $(ROM_DIR)
@@ -211,7 +223,7 @@ help:
 	@echo "  banks     - Generate PRG bank stub files"
 	@echo '  databanks   - Re-render annotated seed-data banks $$10/$$11 from the ROM'
 	@echo '  databanks-csv - Re-render them from the edited docs/*.csv (records, names,'
-	@echo '                arrival schedule, death years, province rosters)'
+	@echo '                arrival schedule, death years, province fields/rosters)'
 	@echo '  verifydata  - Assemble banks $$10/$$11 and prove byte-exactness'
 	@echo '  databank02  - Re-render sound/note data bank $$02 from the ROM'
 	@echo '  verifydata02 - Assemble bank $$02 and prove byte-exactness'
@@ -228,6 +240,9 @@ help:
 	@echo '  officer-editor - Open the standalone officer GUI editor (editor/)'
 	@echo '  officer-diff - List the officer seed edits still live vs the stock ROM'
 	@echo '  checkofficers - Prove the officer CSV/asm/editor loop is lossless'
+	@echo '  province-editor - Open the standalone province GUI editor (editor/)'
+	@echo '  province-diff - List the province edits still live vs the stock ROM'
+	@echo '  checkprovinces - Prove the province CSV/asm/editor loop is lossless'
 	@echo "  disasm    - Disassemble a binary (FILE, ADDR, LEN)"
 	@echo "  analyze   - Analyze ROM structure"
 	@echo "  disasterrng - Re-enumerate the disaster pick RNG sequences + coherence stats"
@@ -243,5 +258,6 @@ help:
 .PHONY: all split banks databanks databanks-csv verifydata databank02 verifydata02 \
         databank06 verifydata06 databank16 verifydata16 terrain terrain-csv \
         terrain-diff verifyterrain checkterrain map-editor \
-        officer-editor officer-diff checkofficers disasm analyze \
+        officer-editor officer-diff checkofficers \
+        province-editor province-diff checkprovinces disasm analyze \
         disasterrng verify clean distclean help

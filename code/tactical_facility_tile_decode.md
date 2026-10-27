@@ -11,10 +11,25 @@ Annotated rows: `asm/banks/data_11_officer.asm` label `ProvinceTacticalFacilityT
 
 30 rows x 6 bytes, one row per province id $050E: three ordered (X,Y) tile
 pairs. A pair is unused when its X byte has bit7 set (all readers BMI/BPL on
-it; the authored padding is `$FF $FF`). Coordinates are tiles of the 32x32
-tactical-mode battlefield (observed range $01-$1D); the march readers
-normalize `Y >= $10` by `Y -= 1` (map gap row), matching the same quirk in
-`AiExecuteMove`/`WarClashResolve` coordinate handling.
+it; the authored padding is `$FF $FF`). Coordinates are tiles of the tactical
+battlefield (observed X $01-$1D, Y $01-$13). Neither table ever uses tile row
+$0F: that is the province map's blank ribbon gap, the row `@GetTileTerrain`
+indexes at y = 15, so a Y of $10 or more addresses authored map row `Y - 1` —
+the same skipping the bank $06 deployment pools and the march readers show
+(`GetOrderedDestination` subtracts 1 from >=$10).
+
+## Marker positions vs the map stamps
+
+`@DrawCityTargetMarker` ($D296) scales a pair by 16 and draws `@CityMarkerOam`
+there: the terrain byte under the cell never enters, so **the table is where the
+town is**. The `$79`/`$7A`/`$7B` stamps in the crops are the designer's notes for
+the same cells (they only decide the terrain *id*, and ids 6/7/8 are clamped to
+Plain by `GetTileTerrainClamped`). The authored data agrees on 55 of the 67
+pairs; 12 pairs sit on ordinary terrain (10 of them in provinces 9 西平关, 15
+建业, 16 扬州, 26 成都, whose maps stamp nothing but the castle) and 2 stamps
+have no pair, one row below theirs: province 12 洛阳 pair (19,17) vs `$7B`
+(19,18), province 21 荆州 pair (5,10) vs `$79` (5,11). `tools/check_terrain_pipeline.py`
+section 7/9 asserts the ledger, and that no pair ever lands on a `$61` castle cell.
 
 ## Slot semantics — fixed facility order
 
@@ -45,7 +60,11 @@ Stride-6 (correct row addressing, `$050E *3` then `*2`):
 * `DrawStratagemTargetMarkers` prg_08_09_tactical_war $D24D-$D295 — while a battle command
   $0500 < $0C is pending, draws a 16x16 city-target marker
   (`@CityMarkerOam` tiles $3C-$3F) at pixel `(X*16, Y*16)` for each used pair,
-  plus the province marker from the 4-byte strategy-map pixel table at $9D58.
+  plus `@ProvinceMarkerOam` at the 4-byte row of `ProvincePixelPositionTable`
+  $9D58 (pixel Y then pixel X, 16-bit). That table is a tactical position: its
+  cell is each province's single $61 castle tile, 30/30 under the row rule above
+  (its largest stored pixel, X $0180, is tile 24 of 32 — the "outside the
+  battlefield, so strategy-layer space" reading came from swapping Y and X).
   `@CheckPositionHitsCityTile` $D337 suppresses a marker when the position is
   already occupied (battlefield unit coords $0600/$0614, 20 slots) unless
   $005E bit6 is set.

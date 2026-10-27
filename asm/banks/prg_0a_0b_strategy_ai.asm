@@ -4297,9 +4297,9 @@ AbsorbUpdateRecord:
   BCC @PoachScanOwnLoop                                           ; $B9C9: 90 D0
   LDA a:$0038                                         ; $B9CB: AD 38 00
   CMP #$FF                                            ; $B9CE: C9 FF
-  .byte $D0,$03                                       ; $B9D0: D0 03
+  BNE @PoachScanRivalInit                             ; $B9D0: D0 03  ; receiving province found -> phase 2
   JMP ExitToActionLoop                               ; $B9D2: 4C 16 B6  ; no candidate -> exit
-  ; --- Phase 2: find the least-loyal officer across rival provinces ---
+@PoachScanRivalInit:                                               ; --- Phase 2: find the least-loyal officer across rival provinces ---
   LDA #$00                                            ; $B9D5: A9 00
   STA a:$0036                                         ; $B9D7: 8D 36 00  ; reset province index
   LDA #$FF                                            ; $B9DA: A9 FF
@@ -4319,9 +4319,9 @@ AbsorbUpdateRecord:
   BCC @PoachScanRivalLoop                                           ; $B9FB: 90 E8
   LDA a:$003E                                         ; $B9FD: AD 3E 00  ; best army value
   CMP #$46                                            ; $BA00: C9 46  ; lowest loyalty >= 70 -> nobody worth poaching
-  .byte $90,$03                                       ; $BA02: 90 03
+  BCC @PoachComputeOdds                               ; $BA02: 90 03  ; eligible target found -> phase 3
   JMP @PoachNoTarget                              ; $BA04: 4C 7E BA  ; abort: no eligible target
-  ; --- Phase 3: compute poaching odds ---
+@PoachComputeOdds:                                                 ; --- Phase 3: compute poaching odds ---
   LDA a:$003D                                         ; $BA07: AD 3D 00  ; best target char ID
   LDY #$04                                            ; $BA0A: A0 04  ; offset 4 = Benevolence (人徳)
   JSR ::GetOfficerRecordField::Alt                                           ; $BA0C: 20 AB D2  ; read stat -> A
@@ -4554,7 +4554,7 @@ AbsorbUpdateRecord:
   LDY a:$003C                                         ; $BB8D: AC 3C 00
   LDA ($20),Y                                         ; $BB90: B1 20
   CMP #$FF                                            ; $BB92: C9 FF
-  .byte $F0,$11                                       ; $BB94: F0 11
+  BEQ @ScanArmySlotsNext                              ; $BB94: F0 11  ; empty slot -> next
   LDY #$0B                                            ; $BB96: A0 0B
   JSR ::GetOfficerRecordField::Alt                                           ; $BB98: 20 AB D2
   LSR A                                               ; $BB9B: 4A
@@ -4562,8 +4562,9 @@ AbsorbUpdateRecord:
   LSR A                                               ; $BB9D: 4A
   LSR A                                               ; $BB9E: 4A
   CMP a:$0039                                         ; $BB9F: CD 39 00
-  .byte $90,$03                                       ; $BBA2: 90 03
+  BCC @ScanArmySlotsNext                              ; $BBA2: 90 03  ; not a new minimum -> next
   STA a:$0039                                         ; $BBA4: 8D 39 00
+@ScanArmySlotsNext:
   INC a:$003C                                         ; $BBA7: EE 3C 00
   LDA a:$003C                                         ; $BBAA: AD 3C 00
   CMP #$1B                                            ; $BBAD: C9 1B
@@ -8170,10 +8171,10 @@ ArmyResultTable:                                      ; $CED3
   sram_request_mailbox     = $6F8B
 
   STA $20                                             ; $D12D: 85 20
-  LDA $6F5D                                           ; $D12F: AD 5D 6F
+  LDA sram_action_budget                              ; $D12F: AD 5D 6F
   SEC                                                 ; $D132: 38
   SBC $20                                             ; $D133: E5 20
-  STA $6F5D                                           ; $D135: 8D 5D 6F
+  STA sram_action_budget                              ; $D135: 8D 5D 6F
   BCC GameOver                                       ; $D138: 90 06
   INC $6F5E                                           ; $D13A: EE 5E 6F
   JMP AiActionChoose                                  ; $D13D: 4C 9C A1
@@ -8190,10 +8191,10 @@ GameOver:
 
 Entry1:
   STA $20                                             ; $D152: 85 20
-  LDA $6F5D                                           ; $D154: AD 5D 6F
+  LDA sram_action_budget                              ; $D154: AD 5D 6F
   SEC                                                 ; $D157: 38
   SBC $20                                             ; $D158: E5 20
-  STA $6F5D                                           ; $D15A: 8D 5D 6F
+  STA sram_action_budget                              ; $D15A: 8D 5D 6F
   BEQ @Entry1_Exit                                    ; $D15D: F0 02
   BCS @Entry1_RTS                                     ; $D15F: B0 03
 @Entry1_Exit:
@@ -8203,10 +8204,10 @@ Entry1:
 
 Entry2:
   STA $20                                             ; $D165: 85 20
-  LDA $6F5D                                           ; $D167: AD 5D 6F
+  LDA sram_action_budget                              ; $D167: AD 5D 6F
   SEC                                                 ; $D16A: 38
   SBC $20                                             ; $D16B: E5 20
-  STA $6F5D                                           ; $D16D: 8D 5D 6F
+  STA sram_action_budget                              ; $D16D: 8D 5D 6F
   BCS @Entry2_RTS                                     ; $D170: B0 05
   PLA                                                 ; $D172: 68
   PLA                                                 ; $D173: 68
@@ -8216,10 +8217,10 @@ Entry2:
 
 Entry4:
   STA $20                                             ; $D178: 85 20
-  LDA $6F5D                                           ; $D17A: AD 5D 6F
+  LDA sram_action_budget                              ; $D17A: AD 5D 6F
   SEC                                                 ; $D17D: 38
   SBC $20                                             ; $D17E: E5 20
-  STA $6F5D                                           ; $D180: 8D 5D 6F
+  STA sram_action_budget                              ; $D180: 8D 5D 6F
   BCS @Entry4_RTS                                     ; $D183: B0 07
   PLA                                                 ; $D185: 68
   PLA                                                 ; $D186: 68
@@ -8231,10 +8232,10 @@ Entry4:
 
 Entry6:
   STA $20                                             ; $D18D: 85 20
-  LDA $6F5D                                           ; $D18F: AD 5D 6F
+  LDA sram_action_budget                              ; $D18F: AD 5D 6F
   SEC                                                 ; $D192: 38
   SBC $20                                             ; $D193: E5 20
-  STA $6F5D                                           ; $D195: 8D 5D 6F
+  STA sram_action_budget                              ; $D195: 8D 5D 6F
   BCS @Entry6_RTS                                     ; $D198: B0 09
   PLA                                                 ; $D19A: 68
   PLA                                                 ; $D19B: 68

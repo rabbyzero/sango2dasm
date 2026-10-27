@@ -2,6 +2,8 @@
 
 > The officer seed-data editor (banks `$10`/`$11`) has its own README:
 > [`README_officer.md`](README_officer.md).
+> The province seed-data editor (bank `$10` `$8C00`/`$9A1A`) has:
+> [`README_province.md`](README_province.md).
 
 A standalone desktop editor for the tactical (war-layer) terrain maps of
 *Sangokushi 2 - Haou no Tairiku* (Famicom, Namco-163 / mapper 19). It paints the
@@ -189,46 +191,61 @@ The one thing tile mode does not claim is **blocked bytes**: `$80-$FF` have no
 magenta. In practice `$FF` is the only one present in the four banks, and only as
 bank filler.
 
-## Settlement objects (castle / village / house)
+## Settlement objects (castle / town)
 
 **These are not in the terrain map.** `$61` (Castle 城) and `$79`/`$7A`/`$7B`
 (settlement 村/民家) are *gameplay ids* stamped onto map cells: their
-`MetaTileData` entry is byte-for-byte the plain-ground metatile, so there is no
-building art behind them. What you see in the game is a **16x16 OAM sprite**
-drawn over the cell by `DrawStratagemTargetMarkers` (`prg_08_09_tactical_war.asm:$D24D`):
+`MetaTileData` entry is byte-for-byte the plain-ground metatile, and the field-map
+renderer (`FieldMapCropResolve`, bank `$17`) expands crop bytes through that table
+with no special case — so nothing in the map art draws a building. What you see in
+the game is a **16x16 OAM sprite** drawn over the cell by
+`DrawStratagemTargetMarkers` (`prg_08_09_tactical_war.asm:$D24D`):
 
-| Object | Map byte | Sprite | Source of its position |
-|---|---|---|---|
-| Castle / province city | `$61` | `@ProvinceMarkerOam` (`$D315`, tiles $02 $03 $0E $0F) | the map cell itself |
-| 民家 House, 武器屋 Armory, 病院 Hospital | `$79` / `$7A` / `$7B` | `@CityMarkerOam` (`$D326`, tiles $3C $3D $3E $3F) | map cell, cross-checked against `ProvinceTacticalFacilityTiles` |
+| Object | Sprite | Its position comes from |
+|---|---|---|
+| Castle / province city | `@ProvinceMarkerOam` (`$D315`, tiles $02 $03 $0E $0F) | `ProvincePixelPositionTable` (bank `$31` `$9D58`) |
+| 民家 House, 武器屋 Armory, 病院 Hospital | `@CityMarkerOam` (`$D326`, tiles $3C $3D $3E $3F) | `ProvinceTacticalFacilityTiles` (`$9BA4`) |
 
-The two render modes spell these out differently, on purpose:
+So the **tables decide where a town is**, not the map byte:
 
-* **classes** draws a **character**, never game art: `c` for the castle, and for
-  a settlement cell the letter of its facility slot — `h` 民家 House, `a` 武器屋
-  Armory, `b` 病院 Hospital, or `v` when the table has no pair for that cell. The
-  white Castle ring stays.
-* **real tiles** draws the **sprites**, when the `objects` checkbox is ticked
+* `$9D58` is 30 rows of two 16-bit pixels, **Y then X**; the routine feeds them
+  straight to the sprite writer, so the castle sits on cell `(X/16, Y/16)` — which
+  is exactly the province's single `$61` cell in **30 of 30** provinces.
+* `$9BA4` is 30 rows x 6 B = three `(X,Y)` tile pairs in House/Armory/Hospital slot
+  order, X bit7 = unused (`$FF $FF`). Each used pair is drawn at pixel `(X*16,
+  Y*16)`, and the same slot index is what `MoveState_CheckDest` (`$A4DD`) matches
+  an arriving officer against to open the rice / armory / hospital panel.
+* Both tables **skip tile row `$0F`** — the province map's blank ribbon gap, the
+  row `@GetTileTerrain` reads at y = 15 — so a Y of `$10` or more addresses
+  authored row `Y - 1`. The bank `$06` deployment pools follow the same rule.
+
+The stamps and the tables agree, but not perfectly: of the **67** pairs **55** land
+on a `$79`/`$7A`/`$7B` cell and **12** sit on ordinary terrain — 10 of those in
+成都, 建业, 扬州 and 西平关, whose maps stamp nothing but the castle, and 2 in
+provinces whose stamp is one row away (the 洛阳 pair at (19,17) under a `$7B` at
+(19,18), the 荆州 pair at (5,10) under a `$79` at (5,11)). Those two are also the
+only settlements with no pair of their own, so there the sprite draws one row
+*above* the stamp. The editor draws what the console draws and names the difference:
+
+* **classes** writes a **character**, never game art: `c` castle, and `h`/`a`/`b`
+  for the House/Armory/Hospital pair the table puts on that cell — even when the
+  byte under it is plain ground. `v` is a `$79`/`$7A`/`$7B` stamp no table pair
+  covers, i.e. a settlement the game never draws. The white Castle ring stays.
+* **real tiles** draws the **sprites** when the `objects` checkbox is ticked
   (transparent where the sprite leaves holes, so the map shows through).
 
-The census names the letters it used (`settlement objects (not art in the map):
-1 b=Hospital, 1 c=castle`), and hovering such a cell reports the object kind plus
-its table slot.
+The census lists what it drew (`towns as the game draws them (bank $31 tables):
+1 a=Armory, 1 c=castle, 1 v=unpaired stamp`), and hovering a cell reports its
+marker, the table it came from, and the map byte underneath.
 
-`ProvinceTacticalFacilityTiles` (bank `$31` `$9BA4`, 30 rows x 6 B = three
-`(X,Y)` tile pairs, X bit7 = unused, `Y >= $10` normalised by `Y -= 1` for the
-map's gap row) is the authored *identity* of each facility. It agrees with the
-map bytes on **55 of 67** pairs; the other 12 sit on ordinary terrain, and a
-province's `$61` castle is never in the table at all — so the map byte is what
-decides *where* a marker is drawn, and the table only labels it.
+Suppression, for reference: the markers run while the battle command `$0500 < $0C`,
+and `@CheckPositionHitsCityTile` (`$D337`) drops any marker landing on a cell a unit
+occupies (`$0600`/`$0614`, 20 slots) unless `$005E` bit 6 is set.
+
 `tools/check_terrain_pipeline.py` section 9 asserts the ground-not-building
-property, that `$62-$64` stay unused, that both sprites decode with
-transparency, and that the pairs stay in bounds.
-
-Note `ProvincePixelPositionTable` (bank `$31` `$9D58`, 30 x 4 B) is **not** a
-tactical position: its values run to (224, 384), outside the 512x320 px
-battlefield, i.e. it is strategy-layer map space. It is deliberately not used
-for the overlay.
+property, that `$62-$64` stay unused, that both sprites decode with transparency,
+that `$9D58` is each province's `$61` cell, and the 55/12/2 ledger; section 7
+asserts the editor's overlay equals the table cells for all 30 provinces.
 
 ## How the data is linked
 

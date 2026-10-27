@@ -42,6 +42,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from charmap_kana import decode_name                # noqa: E402
 import extract_officer_data as officer_tool         # noqa: E402
 import extract_province_data as province_tool       # noqa: E402
+from extract_officer_names import romanize          # noqa: E402
 import officer_model                                # noqa: E402
 import bank_asm_names as bank_names                 # noqa: E402
 
@@ -365,11 +366,17 @@ def load_provinces(from_csv, rom_rows):
                              % row['id'])
         out = dict(row)
         out['label'] = label
-        out['name_bytes'] = bytes.fromhex(row['name_hex']).ljust(
-            PROV_NAME_STRIDE, b'\x00')[:PROV_NAME_STRIDE]
         if from_csv:
+            try:
+                out['name_bytes'] = officer_model.encode_province_name(
+                    row['katakana'])
+            except officer_model.NameEncodeError as exc:
+                raise SystemExit('docs/province_data.csv: province %d %s'
+                                 % (row['id'], exc))
             out['record'] = province_record_from_fields(row)
         else:
+            out['name_bytes'] = bytes.fromhex(row['name_hex']).ljust(
+                PROV_NAME_STRIDE, b'\x00')[:PROV_NAME_STRIDE]
             out['record'] = bytes.fromhex(row['hex'])
         rows.append(out)
     return rows
@@ -1860,6 +1867,23 @@ def build_context(bank, from_csv):
             src = csv_provs[row['id']]
             merged = dict(row)
             merged.update({k: int(src[k]) for k in PROV_CSV_INT})
+            # The name field is part of the editing surface too: re-encode the
+            # CSV katakana instead of falling back to the ROM bytes, so a
+            # renamed province renders the name the editor showed.
+            name_text = str(src.get('katakana', '')).strip()
+            if not name_text:
+                raise SystemExit('docs/province_data.csv: province %d has an '
+                                 'empty katakana name - every province has one, '
+                                 'and the field is a $00-terminated string'
+                                 % row['id'])
+            merged['katakana'] = name_text
+            merged['romaji'] = romanize(name_text)
+            kanji = dict(merged.get('kanji') or {})
+            for key in ('zh_hans', 'kanji_ja', 'pinyin'):
+                text = str(src.get(key, '')).strip()
+                if text:
+                    kanji[key] = text
+            merged['kanji'] = kanji
             merged['roster'] = [int(o) for o in src['officer_ids'].split()]
             # officer_count / active_troops / ruler_officer_id are derived from
             # the roster, and tools/officer_model.py recomputes them on every

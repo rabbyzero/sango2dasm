@@ -3,10 +3,16 @@
 Bank $31 (physical `rom/prg/prg_11.bin`) `$9BA4-$9C57`, label
 `ProvinceTacticalFacilityTiles` in `asm/banks/data_11_officer.asm`. 30 rows x 6 bytes;
 three ordered (X,Y) tile pairs per province giving the facility
-locations of that province's tactical-mode battlefield (32x32 tile
-grid, values observed $01-$1D). Slot order: 0 House 民家 (rice market),
+locations of that province's tactical battlefield (tile coords; X
+$01-$1D, Y $01-$13). Tile row $0F never appears - it is the province
+map's blank ribbon gap - so a Y of $10+ is authored map row Y-1, the
+rule the bank $06 deployment pools follow too. @DrawCityTargetMarker
+draws the sprite at pixel (X*16, Y*16), so these pairs - not the
+$79/$7A/$7B stamps in the terrain crops - are where a town is.
+Slot order: 0 House 民家 (rice market),
 1 Armory 武器屋, 2 Hospital 病院. Pair unused when X has bit7 set
-(stored `$FF $FF`). Full reader evidence: `code/tactical_facility_tile_decode.md`.
+(stored `$FF $FF`). Full reader evidence, including the stamp ledger:
+`code/tactical_facility_tile_decode.md`.
 
 | id | province | House 民家 (X,Y) | Armory 武器屋 (X,Y) | Hospital 病院 (X,Y) |
 |---:|---|---|---|---|

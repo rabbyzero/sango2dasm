@@ -84,9 +84,14 @@ DEATH_YEAR_OFFSET = 100        # table byte = death year - 100
 PROVINCE_COUNT = 30
 PROV_RECORD_STRIDE = 32
 PROV_RECORD_CPU = 0x8C00       # bank $30
+PROV_NAME_CPU = 0x9A1A         # bank $30, id * 8, $00-terminated
+PROV_NAME_STRIDE = 8
+PROV_NAME_MAX_GLYPHS = 6       # CmdDrawNameFromData draws at most six
 ROSTER_START = 0x11            # record +$11..+$1A; +$11 is the 太守 governor
 ROSTER_SLOTS = 10
 EMPTY_SLOT = 0xFF
+PROVINCE_RECORD_BASE = 0x6000  # SRAM image after SramInit
+PROVINCE_COUNTRY_NONE = 7      # 空白地 UnclaimedLand
 SRAM_RECORD_BASE = 0x63C0
 
 # The kanji name plate is a *second*, independent name encoding: 13 bytes per id
@@ -441,12 +446,30 @@ def encode_name(text, stride=NAME_STRIDE):
                 '%r: no code for %r - the name space is the katakana of '
                 'tools/charmap_kana.py plus the ゛/゜ marks' % (text, ch))
         codes += entry
-    if len(codes) > NAME_MAX_CODES:
+    max_codes = stride - 1          # the last byte must stay the $00 terminator
+    if len(codes) > max_codes:
         raise NameEncodeError(
             '%r: %d kana codes, but a name field is %d bytes and must keep the '
             '$00 terminator (max %d codes)'
-            % (text, len(codes), stride, NAME_MAX_CODES))
+            % (text, len(codes), stride, max_codes))
     return bytes(codes).ljust(stride, b'\x00')
+
+
+def encode_province_name(text):
+    """Encode a province name into the 8-byte bank $30 $9A1A field.
+
+    CmdDrawNameFromData walks at most six glyphs, so the 7-code capacity of the
+    field is not the real limit: a seventh glyph would render as garbage.
+    """
+    raw = encode_name(text, stride=PROV_NAME_STRIDE)
+    glyphs = sum(1 for b in raw if b not in (NAME_TERMINATOR, DAKUTEN,
+                                             HANDAKUTEN))
+    if glyphs > PROV_NAME_MAX_GLYPHS:
+        raise NameEncodeError(
+            '%r: %d glyphs, but a province name field is %d bytes and the '
+            'reader draws at most %d glyphs'
+            % (text, glyphs, PROV_NAME_STRIDE, PROV_NAME_MAX_GLYPHS))
+    return raw
 
 
 # --- record codec --------------------------------------------------------
@@ -525,6 +548,70 @@ FIELD_BY_KEY = {f.key: f for f in FIELDS}
 EDITABLE = tuple(f.key for f in FIELDS)
 
 AFFINITY_EN = {0: 'Plains', 1: 'Mountain', 2: 'Naval'}
+
+# --- province master record ----------------------------------------------
+# The 30 x 32-byte seed records at bank $30 $8C00. The same one table drives
+# both province front-ends; the officer editor uses only the roster half.
+PROVINCE_POPULATION_STEP = 100     # panel draws stored value followed by "00"
+PROVINCE_LIMITS = {
+    'gold': (0, 9999),
+    'rice': (0, 9999),
+    'population': (0, 0xFFFF * PROVINCE_POPULATION_STEP),
+    'land_value': (0, 999),
+    'industry': (0, 999),
+    'disaster_prevention': (0, 99),
+    'governance': (0, 100),
+    'reserve_troops': (0, 9999),
+    'treasure': (0, 99),
+}
+COUNTRY_LABELS = {i: 'Country %d' % i for i in range(PROVINCE_COUNTRY_NONE)}
+COUNTRY_LABELS[PROVINCE_COUNTRY_NONE] = '空白地 UnclaimedLand'
+
+PROVINCE_FIELDS = (
+    Field('katakana', '名前', 'Name', 'text', 'identity'),
+    Field('country_id', '所属国', 'Country', 'choice', 'identity',
+          choices=[(i, '%d %s' % (i, COUNTRY_LABELS[i]))
+                   for i in range(PROVINCE_COUNTRY_NONE + 1)]),
+    Field('gold', '金', 'Gold', 'int', 'resources', *PROVINCE_LIMITS['gold']),
+    Field('rice', '米', 'Rice', 'int', 'resources', *PROVINCE_LIMITS['rice']),
+    Field('population', '人口', 'Population', 'int', 'resources',
+          *PROVINCE_LIMITS['population']),
+    Field('land_value', '土地', 'LandValue', 'int', 'resources',
+          *PROVINCE_LIMITS['land_value']),
+    Field('industry', '産業', 'Industry', 'int', 'resources',
+          *PROVINCE_LIMITS['industry']),
+    Field('disaster_prevention', '防災', 'DisasterPrevention', 'int',
+          'resources', *PROVINCE_LIMITS['disaster_prevention']),
+    Field('governance', '統治度', 'Governance', 'int', 'resources',
+          *PROVINCE_LIMITS['governance']),
+    Field('reserve_troops', '控え', 'ReserveTroops', 'int', 'resources',
+          *PROVINCE_LIMITS['reserve_troops']),
+    Field('treasure', '宝', 'Treasure', 'int', 'resources',
+          *PROVINCE_LIMITS['treasure']),
+)
+PROVINCE_FIELD_BY_KEY = {f.key: f for f in PROVINCE_FIELDS}
+PROVINCE_EDITABLE = tuple(f.key for f in PROVINCE_FIELDS)
+
+# Column spec shared by the province GUI and the pipeline check:
+# (key, heading, alignment).
+PROVINCE_COLUMNS = (
+    ('id', 'id', 'e'),
+    ('katakana', '名前 kana', 'w'),
+    ('zh_hans', '漢字', 'w'),
+    ('country', '国', 'e'),
+    ('gold', '金', 'e'),
+    ('rice', '米', 'e'),
+    ('population', '人口', 'e'),
+    ('land_value', '土地', 'e'),
+    ('industry', '産業', 'e'),
+    ('disaster_prevention', '防災', 'e'),
+    ('governance', '統治', 'e'),
+    ('reserve_troops', '控え', 'e'),
+    ('treasure', '宝', 'e'),
+    ('roster', '武将', 'e'),
+    ('active_troops', '現役', 'e'),
+    ('governor', '太守', 'w'),
+)
 
 
 # --- stratagem availability ----------------------------------------------
@@ -890,15 +977,60 @@ class Officer:
         return tuple(self.get(key) for key in EDITABLE)
 
 
-class Province:
-    """The roster half of a province record - all the officer editor owns."""
+def _read16(data, ofs):
+    return data[ofs] | data[ofs + 1] << 8
 
-    def __init__(self, pid, katakana='', zh_hans='', record=None):
+
+def _write16(data, ofs, value):
+    data[ofs] = value & 0xFF
+    data[ofs + 1] = (value >> 8) & 0xFF
+
+
+class Province:
+    """One 32-byte province master record plus its roster.
+
+    The officer editor owns the roster half; the province editor owns the whole
+    record. `raw_record` is the load-time image (for provenance), while
+    `record_bytes()` is the live encoding the generator renders.
+    """
+
+    def __init__(self, pid, katakana='', zh_hans='', record=None,
+                 kanji_ja='', pinyin=''):
         self.id = pid
         self.katakana = katakana
         self.zh_hans = zh_hans
+        self.kanji_ja = kanji_ja
+        self.pinyin = pinyin
         self.roster = []          # officer ids in slot order, no holes
-        self.record = bytearray(record or ())
+        self.raw_record = bytes(record or ())
+        self.country_id = PROVINCE_COUNTRY_NONE
+        self.gold = 0
+        self.rice = 0
+        self.population = 0       # displayed value; the record stores / 100
+        self.land_value = 0
+        self.industry = 0
+        self.disaster_prevention = 0
+        self.governance = 0
+        self.reserve_troops = 0
+        self.treasure = 0
+        if self.raw_record:
+            self.apply_record(self.raw_record)
+
+    def apply_record(self, rec):
+        """Decode the editable fields from a 32-byte master record."""
+        rec = bytes(rec)
+        if len(rec) < PROV_RECORD_STRIDE:
+            return
+        self.country_id = rec[0x00] & 0x0F
+        self.gold = _read16(rec, 0x02)
+        self.rice = _read16(rec, 0x04)
+        self.population = _read16(rec, 0x06) * PROVINCE_POPULATION_STEP
+        self.land_value = _read16(rec, 0x08)
+        self.disaster_prevention = rec[0x0A]
+        self.governance = rec[0x0B]
+        self.reserve_troops = _read16(rec, 0x0C)
+        self.industry = _read16(rec, 0x0E)
+        self.treasure = rec[0x10]
 
     @property
     def name(self):
@@ -912,18 +1044,44 @@ class Province:
         """太守 = whoever occupies roster slot +$11, i.e. index 0 here."""
         return self.roster[0] if self.roster else None
 
-    def roster_record(self):
-        """The 32 record bytes with the roster slots rewritten from `roster`."""
-        if not self.record:
-            return None
-        rec = bytearray(self.record)
+    def get(self, key):
+        if key not in PROVINCE_FIELD_BY_KEY:
+            raise FieldError('no such province field: %r' % key)
+        return getattr(self, key)
+
+    def state(self):
+        """Everything editable, as one comparable tuple (for diff/undo)."""
+        return tuple(self.get(key) for key in PROVINCE_EDITABLE)
+
+    def record_bytes(self):
+        """The live 32-byte record: fields + roster, runtime bytes zeroed.
+
+        +1 and +1C..+1F are runtime scratch and +1B starts at 0 in the seed, so
+        the seed image the generator emits never carries them.
+        """
+        rec = bytearray(PROV_RECORD_STRIDE)
+        rec[0x00] = self.country_id & 0x0F
+        _write16(rec, 0x02, self.gold)
+        _write16(rec, 0x04, self.rice)
+        _write16(rec, 0x06, self.population // PROVINCE_POPULATION_STEP)
+        _write16(rec, 0x08, self.land_value)
+        rec[0x0A] = self.disaster_prevention
+        rec[0x0B] = self.governance
+        _write16(rec, 0x0C, self.reserve_troops)
+        _write16(rec, 0x0E, self.industry)
+        rec[0x10] = self.treasure
         for slot in range(ROSTER_SLOTS):
             rec[ROSTER_START + slot] = (self.roster[slot] if slot <
                                         len(self.roster) else EMPTY_SLOT)
         return bytes(rec)
 
+    def roster_record(self):
+        """Backwards-compatible name: the full record including the roster."""
+        return self.record_bytes()
+
 
 Change = namedtuple('Change', 'oid field jp old new')
+ProvinceChange = namedtuple('ProvinceChange', 'pid field jp old new')
 
 
 def _load_chr_chunk(chr_dir, page):
@@ -1030,7 +1188,9 @@ class Model:
             for row in rows:
                 prov = Province(_int(row['id']), row.get('katakana', ''),
                                 row.get('zh_hans', ''),
-                                _hex_bytes(row.get('hex')))
+                                _hex_bytes(row.get('hex')),
+                                row.get('kanji_ja', ''),
+                                row.get('pinyin', ''))
                 prov.roster = [_int(o) for o in row.get('officer_ids',
                                                          '').split()]
                 m.provinces.append(prov)
@@ -1378,6 +1538,28 @@ class Model:
         off.schedule_province_id = None
         off.appear_year = None
 
+    def set_province(self, pid, key, value):
+        """Validate and apply one province record edit; returns the old value."""
+        prov = self.province(pid)
+        spec = PROVINCE_FIELD_BY_KEY.get(key)
+        if spec is None:
+            raise FieldError('no such province field: %r (editable: %s)'
+                             % (key, ', '.join(PROVINCE_EDITABLE)))
+        old = prov.get(key)
+        if key == 'katakana':
+            text = str(value).strip()
+            encode_province_name(text)      # fail before the edit lands
+            prov.katakana = text
+            return old
+        new = self._coerce(None, spec, value)
+        if key == 'population' and new % PROVINCE_POPULATION_STEP:
+            raise FieldError(
+                '人口 %d is not a multiple of %d - the record stores the '
+                'displayed value / %d, so the remainder would be lost'
+                % (new, PROVINCE_POPULATION_STEP, PROVINCE_POPULATION_STEP))
+        setattr(prov, key, new)
+        return old
+
     def assign(self, oid, pid, slot=None):
         """Place an officer in a province roster (状態 becomes 2).
 
@@ -1401,12 +1583,16 @@ class Model:
             if not 0 <= index < ROSTER_SLOTS:
                 raise FieldError('roster slot %d out of range 0-%d'
                                  % (index, ROSTER_SLOTS - 1))
-        if off.roster_province is not None and off.roster_province != prov.id:
+        moving_in = off.roster_province is None \
+            or off.roster_province != prov.id
+        if moving_in and len(prov.roster) >= ROSTER_SLOTS:
+            # Check before unassign(): a full target must not take the officer
+            # out of his old roster and then refuse him.
+            raise FieldError('province %d (%s) already fills all %d roster '
+                             'slots' % (prov.id, prov.name, ROSTER_SLOTS))
+        if moving_in and off.roster_province is not None:
             self.unassign(off.id)
         if off.roster_province is None:
-            if len(prov.roster) >= ROSTER_SLOTS:
-                raise FieldError('province %d (%s) already fills all %d roster '
-                                 'slots' % (prov.id, prov.name, ROSTER_SLOTS))
             prov.roster.insert(len(prov.roster) if index is None else index,
                                off.id)
         elif index is not None and index != off.roster_slot:
@@ -1542,6 +1728,15 @@ class Model:
         """All 237 name fields concatenated, as bank $30 `$901A` holds them."""
         return b''.join(off.name_bytes() for off in self.officers)
 
+    def province_record_bytes(self):
+        """All 30 master records, as bank $30 `$8C00` holds them."""
+        return b''.join(p.record_bytes() for p in self.provinces)
+
+    def province_name_bytes(self):
+        """All 30 province name fields, as bank $30 `$9A1A` holds them."""
+        return b''.join(encode_province_name(p.katakana)
+                        for p in self.provinces)
+
     def death_bytes(self):
         """The 237 death-year bytes, or None when that CSV is not loaded."""
         if not self.has_deaths:
@@ -1638,22 +1833,48 @@ class Model:
                     out.append('%s: rostered twice (provinces %s and %s)'
                                % (tag, rostered[off.id], off.roster_province))
         if self.has_rosters:
+            if len(self.provinces) != PROVINCE_COUNT:
+                out.append('expected %d provinces, got %d'
+                           % (PROVINCE_COUNT, len(self.provinces)))
+            pids = [p.id for p in self.provinces]
+            if sorted(pids) != list(range(PROVINCE_COUNT)):
+                out.append('province ids are not exactly 0-%d'
+                           % (PROVINCE_COUNT - 1))
             for prov in self.provinces:
+                tag = 'province %d (%s)' % (prov.id, prov.name)
+                if not 0 <= prov.country_id <= PROVINCE_COUNTRY_NONE:
+                    out.append('%s: 所属国 is %d, valid 0-%d'
+                               % (tag, prov.country_id, PROVINCE_COUNTRY_NONE))
+                for key, (lo, hi) in PROVINCE_LIMITS.items():
+                    value = prov.get(key)
+                    if not lo <= value <= hi:
+                        out.append('%s: %s is %d, must be %d-%d'
+                                   % (tag, PROVINCE_FIELD_BY_KEY[key].jp,
+                                      value, lo, hi))
+                if prov.population % PROVINCE_POPULATION_STEP:
+                    out.append('%s: 人口 %d is not a multiple of %d'
+                               % (tag, prov.population,
+                                  PROVINCE_POPULATION_STEP))
+                try:
+                    encode_province_name(prov.katakana)
+                except NameEncodeError as exc:
+                    out.append('%s: 名前 %s' % (tag, exc))
                 if len(prov.roster) > ROSTER_SLOTS:
-                    out.append('province %d (%s): %d officers in %d roster slots'
-                               % (prov.id, prov.name, len(prov.roster),
-                                  ROSTER_SLOTS))
+                    out.append('%s: %d officers in %d roster slots'
+                               % (tag, len(prov.roster), ROSTER_SLOTS))
+                if len(set(prov.roster)) != len(prov.roster):
+                    out.append('%s: roster lists an officer twice'
+                               % tag)
                 for oid in prov.roster:
                     if not 0 <= oid < OFFICER_COUNT:
-                        out.append('province %d (%s): roster slot holds %d, '
-                                   'must be < %d'
-                                   % (prov.id, prov.name, oid, OFFICER_COUNT))
+                        out.append('%s: roster slot holds %d, must be < %d'
+                                   % (tag, oid, OFFICER_COUNT))
                 rulers = [o for o in prov.roster
                           if self.by_id.get(o) and self.by_id[o].is_ruler]
                 if len(rulers) > 1:
-                    out.append('province %d (%s): %d officers with 忠誠度 100 '
-                               '(%s) - only one can be the 君主 ruler'
-                               % (prov.id, prov.name, len(rulers),
+                    out.append('%s: %d officers with 忠誠度 100 (%s) - only one '
+                               'can be the 君主 ruler'
+                               % (tag, len(rulers),
                                   ', '.join(str(r) for r in rulers)))
         # A schedule block is ARRIVAL_STRIDE bytes = ARRIVAL_PAIRS pairs and
         # the renderer emits exactly that many, so this bound holds whether or
@@ -1801,6 +2022,7 @@ class Model:
     def snapshot(self):
         """An opaque, comparable copy of everything editable (undo / diff)."""
         return {'officers': {o.id: o.state() for o in self.officers},
+                'provinces': {p.id: p.state() for p in self.provinces},
                 'rosters': {p.id: list(p.roster) for p in self.provinces},
                 'reinforce': tuple((country, oid, year)
                                    for country, pairs in self.reinforce_pools
@@ -1820,6 +2042,10 @@ class Model:
             for key, value in zip(EDITABLE, state):
                 setattr(off, key, value)
         for prov in self.provinces:
+            state = snap.get('provinces', {}).get(prov.id)
+            if state is not None:
+                for key, value in zip(PROVINCE_EDITABLE, state):
+                    setattr(prov, key, value)
             roster = snap['rosters'].get(prov.id)
             if roster is not None:
                 prov.roster = list(roster)
@@ -1863,6 +2089,42 @@ class Model:
                 out.append(Change(new[1], 'join_year', '継承年',
                                   old[2], new[2]))
         return out
+
+    def province_changes(self, snap=None):
+        """Province record field changes (name + resources) against `snap`."""
+        snap = snap or self._baseline
+        out = []
+        states = snap.get('provinces', {})
+        for prov in self.provinces:
+            old = states.get(prov.id)
+            if old is None:
+                continue
+            for key, was, now in zip(PROVINCE_EDITABLE, old, prov.state()):
+                if was != now:
+                    out.append(ProvinceChange(prov.id, key,
+                                              PROVINCE_FIELD_BY_KEY[key].jp,
+                                              was, now))
+        return out
+
+    def province_change_lines(self, changes=None):
+        lines = []
+        for ch in changes if changes is not None else self.province_changes():
+            prov = self.province(ch.pid)
+            lines.append('province %d (%s) %s %s: %s -> %s'
+                         % (ch.pid, prov.name, ch.jp,
+                            PROVINCE_FIELD_BY_KEY[ch.field].en,
+                            _show_province(ch.field, ch.old),
+                            _show_province(ch.field, ch.new)))
+        return lines
+
+    def province_problem_ids(self):
+        """Province ids that trip a hard invariant, for highlighting a list."""
+        ids = set()
+        for line in self.problems():
+            match = re.match(r'^province (\d+)', line)
+            if match:
+                ids.add(int(match.group(1)))
+        return ids
 
     def commit(self):
         """Make the current state the new diff/undo baseline."""
@@ -1952,12 +2214,23 @@ class Model:
         return {k: row.get(k, '') for k in self.fieldnames['officer']}
 
     def province_row(self, prov):
-        """The CSV row for one province, roster-derived columns recomputed."""
+        """The CSV row for one province, record and derived columns current."""
         row = dict(self.rows['province'].get(prov.id, {'id': prov.id}))
         rostered = [self.by_id[o] for o in prov.roster if o in self.by_id]
         ruler = [o.id for o in rostered if o.is_ruler]
-        rec = prov.roster_record()
+        rec = prov.record_bytes()
         row.update({
+            'katakana': prov.katakana,
+            'country_id': prov.country_id,
+            'gold': prov.gold,
+            'rice': prov.rice,
+            'population': prov.population,
+            'land_value': prov.land_value,
+            'industry': prov.industry,
+            'disaster_prevention': prov.disaster_prevention,
+            'governance': prov.governance,
+            'reserve_troops': prov.reserve_troops,
+            'treasure': prov.treasure,
             'officer_ids': ' '.join(str(o) for o in prov.roster),
             'officer_count': len(prov.roster),
             'active_troops': sum(o.troop_count for o in rostered),
@@ -1965,7 +2238,7 @@ class Model:
                                       for o in rostered),
             'ruler_officer_id': '' if not ruler else ruler[-1],
         })
-        if rec is not None and 'hex' in row:
+        if 'hex' in row:
             row['hex'] = rec.hex().upper()
         return {k: row.get(k, '') for k in self.fieldnames['province']}
 
@@ -2050,6 +2323,12 @@ def _show(key, value):
                                AFFINITY_EN.get(value, '?'))
     if key == 'officer_status_bits':
         return '%d %s' % (value, OFFICER_STATUS.get(value, '?'))
+    return str(value)
+
+
+def _show_province(key, value):
+    if key == 'country_id':
+        return '%d %s' % (value, COUNTRY_LABELS.get(value, '?'))
     return str(value)
 
 
@@ -2160,6 +2439,85 @@ def sort(model, officers, key, reverse=False):
         def value(off):
             return cell_text(model, off, key)
     return sorted(officers, key=value, reverse=reverse)
+
+
+# --- province list view ---------------------------------------------------
+def province_active_troops(model, prov):
+    return sum(model.by_id[o].troop_count for o in prov.roster
+               if o in model.by_id)
+
+
+def province_governor_name(model, prov):
+    off = model.by_id.get(prov.governor) if prov.governor is not None else None
+    return off.name if off is not None else '-'
+
+
+def province_ruler(model, prov):
+    for oid in prov.roster:
+        off = model.by_id.get(oid)
+        if off is not None and off.is_ruler:
+            return off
+    return None
+
+
+def province_cell_text(model, prov, key):
+    """One province list cell as text; never raises on a partially bad row."""
+    if key == 'id':
+        return str(prov.id)
+    if key in ('zh_hans', 'kanji_ja', 'pinyin'):
+        return getattr(prov, key, '') or ''
+    if key == 'country':
+        return '-' if prov.country_id == PROVINCE_COUNTRY_NONE \
+            else str(prov.country_id)
+    if key == 'roster':
+        return str(len(prov.roster))
+    if key == 'active_troops':
+        return str(province_active_troops(model, prov))
+    if key == 'governor':
+        return province_governor_name(model, prov)
+    value = prov.get(key)
+    return '' if value is None else str(value)
+
+
+def province_row_values(model, prov):
+    return tuple(province_cell_text(model, prov, key)
+                 for key, _, _ in PROVINCE_COLUMNS)
+
+
+def province_matches(model, prov, text='', country=None):
+    """The province filter predicate (id / names / country / governor)."""
+    if country is not None and prov.country_id != country:
+        return False
+    if text:
+        needle = text.strip().lower()
+        haystack = ' '.join(str(x).lower() for x in (
+            prov.id, prov.katakana, prov.zh_hans, prov.kanji_ja, prov.pinyin,
+            prov.country_id, COUNTRY_LABELS.get(prov.country_id, ''),
+            province_governor_name(model, prov)))
+        if needle not in haystack:
+            return False
+    return True
+
+
+def visible_provinces(model, text='', country=None):
+    return [p for p in model.provinces if province_matches(model, p, text,
+                                                           country)]
+
+
+def province_totals(model, provinces):
+    """Aggregates the live country pane prints (no per-country ROM table)."""
+    return {
+        'provinces': len(provinces),
+        'gold': sum(p.gold for p in provinces),
+        'rice': sum(p.rice for p in provinces),
+        'population': sum(p.population for p in provinces),
+        'land_value': sum(p.land_value for p in provinces),
+        'industry': sum(p.industry for p in provinces),
+        'reserve_troops': sum(p.reserve_troops for p in provinces),
+        'roster': sum(len(p.roster) for p in provinces),
+        'active_troops': sum(province_active_troops(model, p)
+                             for p in provinces),
+    }
 
 
 def sibling_path(path, name):

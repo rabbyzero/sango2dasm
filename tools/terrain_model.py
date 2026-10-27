@@ -634,6 +634,79 @@ def province_map(get_byte, province):
             for row in province_cells(province)]
 
 
+# --- settlement markers --------------------------------------------------
+# The castle and the towns you see on a tactical map are 16x16 OAM sprites that
+# `DrawStratagemTargetMarkers` (prg_08_09_tactical_war $D24D) places from two
+# bank $31 tables, both in tile coordinates of the battlefield:
+#
+#   $9D58 ProvincePixelPositionTable   30 x (pixel Y, pixel X) little-endian
+#   $9BA4 ProvinceTacticalFacilityTiles 30 x three (X, Y) tile pairs, X bit7 =
+#                                       unused (the authored padding is $FF $FF)
+#
+# A marker covers cell (X, Y) with Y >= $10 one row lower than the number reads,
+# because the province map's blank ribbon gap row is not addressable in these
+# tables - $0F never appears in either of them, nor in the bank $06 deployment
+# pools. The $61/$79/$7A/$7B stamps in the crop bytes name the same cells for the
+# designer and are what @GetTileTerrain decodes as terrain 5/6/7/8, but they are
+# not what draws a building: of the 67 town pairs 55 sit on a stamp, 12 sit on
+# ordinary terrain, and 2 stamps have no pair (tools/check_terrain_pipeline.py
+# section 7/9 asserts all of it, castle 30/30 included).
+MARKER_BANK = 0x11               # physical prg_11.bin, mapped by the game as $31
+CASTLE_CPU = 0x9D58              # ProvincePixelPositionTable
+CASTLE_STRIDE = 4
+FACILITY_CPU = 0x9BA4            # ProvinceTacticalFacilityTiles
+FACILITY_STRIDE = 6
+FACILITY_SLOTS = ('House 民家', 'Armory 武器屋', 'Hospital 病院')
+MARKER_PX = 16                   # one 16x16 sprite per map cell
+GAP_TILE_ROW = TOP_ROWS          # $0F: the row both tables skip
+
+
+def marker_row(tile_y):
+    """Authored map row of a marker's tile Y."""
+    return tile_y - 1 if tile_y > GAP_TILE_ROW else tile_y
+
+
+def castle_cell(row):
+    """(cell_x, cell_y) of one ProvincePixelPositionTable row (4 bytes)."""
+    y = row[0] | row[1] << 8
+    x = row[2] | row[3] << 8
+    return (x // MARKER_PX, marker_row(y // MARKER_PX))
+
+
+def facility_pair(row, slot):
+    """(cell_x, cell_y) of one facility slot, or None when X has bit7 set."""
+    x, y = row[2 * slot], row[2 * slot + 1]
+    if x >= 0x80:
+        return None
+    return (x, marker_row(y))
+
+
+def _marker_rows(cpu, stride):
+    """The 30 rows of a bank $31 marker table, or None when the ROM is missing."""
+    try:
+        blob = read_bank(MARKER_BANK)
+    except OSError:
+        return None
+    start, end = cpu - WINDOW_CPU, cpu - WINDOW_CPU + PROVINCES * stride
+    if len(blob) < end:
+        return None
+    return [blob[start + p * stride:start + (p + 1) * stride]
+            for p in range(PROVINCES)]
+
+
+def load_castles():
+    """30 castle cells from $9D58, or None when bank $31 is not readable."""
+    rows = _marker_rows(CASTLE_CPU, CASTLE_STRIDE)
+    return None if rows is None else [castle_cell(row) for row in rows]
+
+
+def load_facilities():
+    """30 x 3 town cells from $9BA4, or None when bank $31 is not readable."""
+    rows = _marker_rows(FACILITY_CPU, FACILITY_STRIDE)
+    return None if rows is None else [[facility_pair(row, slot) for slot in range(3)]
+                                      for row in rows]
+
+
 # --- rows: the CSV/asm serialization ----------------------------------
 def rows_from_bank(bank, data):
     """Flatten one bank into owner-keyed rows (physical order)."""

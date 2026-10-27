@@ -56,12 +56,18 @@ Render modes
 
 Settlement objects
 ------------------
-`$61` (Castle) and `$79`/`$7A`/`$7B` are gameplay ids, not art - their metatile
-is plain ground. The classes view therefore writes them as **letters** (`c`
-castle; `h`/`a`/`b` for the House/Armory/Hospital slot that
-`ProvinceTacticalFacilityTiles` assigns to that cell, `v` for a settlement with
-no pair), and only the real-tiles view draws the game's 16x16 OAM markers
-(`@ProvinceMarkerOam`, `@CityMarkerOam`) when `objects` is ticked.
+The buildings are not in the crop bytes. `$61` (Castle) and `$79`/`$7A`/`$7B` are
+gameplay ids whose metatile is plain ground, and `DrawStratagemTargetMarkers`
+draws the picture as a 16x16 OAM sprite at the position of two bank `$31` tables:
+`ProvincePixelPositionTable` `$9D58` (the castle) and
+`ProvinceTacticalFacilityTiles` `$9BA4` (up to three towns per province, in
+House 民家 / Armory 武器屋 / Hospital 病院 slot order). So the *tables* decide where
+a town is; the map bytes are the designer's stamps for the same cells, and the
+authored data is not consistent - 12 of the 67 pairs have no stamp and 2 stamps
+sit one row off from their pair. The classes view writes letters (`c` castle,
+`h`/`a`/`b` the town the table marks, `v` a stamp with no marker), and only the
+real-tiles view draws the sprites (`@ProvinceMarkerOam`, `@CityMarkerOam`), when
+`objects` is ticked.
 
 Running it
 ----------
@@ -97,9 +103,10 @@ CELL_MAX = 96                # one cell per screen quarter-ish; keeps pan useful
 ZOOM_STEP = 1.25             # per wheel notch / per +/- keypress
 GLYPH_MIN_PX = 10            # below this cell edge a tile glyph is unreadable
 TILE_PX = 16                 # a map cell is 16x16 px: MetaTileData is 2x2 tiles
-# Classes-view letters for the settlement objects (the map byte only says
-# castle-vs-settlement, so the facility letters follow the table slot order
-# House 民家 / Armory 武器屋 / Hospital 病院; 'v' = 村 with no table pair).
+# Classes-view letters for the settlement markers. The bank $31 tables decide
+# which cell shows a building, so the letters follow them: 'c' castle
+# ($9D58), 'h'/'a'/'b' = the House 民家 / Armory 武器屋 / Hospital 病院 pair in
+# $9BA4 slot order. 'v' marks a $79/$7A/$7B stamp that no table pair covers.
 OBJECT_CHARS = {'castle': 'c', 'facility': 'hab', 'village': 'v'}
 LABEL = 26                   # left/top ruler width/height
 CANVAS_W = 700               # requested grid pane, see _build_ui (a canvas
@@ -240,12 +247,18 @@ def crop_view(m, zone):
 
 
 def province_name(m, prov):
-    """Province name from docs/province_names.csv when the repo is present."""
+    """Province name from the repo's province CSVs, when they are present.
+
+    docs/province_data.csv is the editing surface the province editor writes,
+    so it wins over the extraction-time docs/province_names.csv.
+    """
     if prov in _PROVINCE_NAMES:
         return _PROVINCE_NAMES[prov]
-    path = os.path.join(m.ROOT, 'docs', 'province_names.csv')
     name = 'id %d' % prov
-    if os.path.exists(path):
+    for csv_name in ('province_data.csv', 'province_names.csv'):
+        path = os.path.join(m.ROOT, 'docs', csv_name)
+        if not os.path.exists(path):
+            continue
         import csv
         with open(path, encoding='utf-8') as f:
             for row in csv.DictReader(f):
@@ -256,6 +269,8 @@ def province_name(m, prov):
                     if kanji:
                         name = '%s (%s)' % (kanji, kana) if kana else kanji
                     break
+        if name != 'id %d' % prov:
+            break
     _PROVINCE_NAMES[prov] = name
     return name
 
@@ -289,7 +304,9 @@ class TacticalMapEditor(tk.Tk):
         self.render_mode = tk.StringVar(value='class')
         self.tiles = None
         self.tile_codec = None               # the terrain_tiles module, if found
-        self.facilities = None               # bank $31 ProvinceTacticalFacilityTiles
+        # bank $31: $9BA4 ProvinceTacticalFacilityTiles + $9D58 the castle
+        self.facilities = model.load_facilities()
+        self.castles = model.load_castles()
         self._images = {}                  # (tile, cell px) -> PhotoImage
         self._markers = {}                 # (kind, cell px)  -> marker PhotoImage
         self.tile_table = model.TILE_TERRAIN_TABLE
@@ -505,14 +522,14 @@ class TacticalMapEditor(tk.Tk):
             self.log_line('real tiles unavailable: %s' % self.tiles.error)
             return
         self.tile_codec = module
-        self.facilities = module.load_facilities(self.m.ROOT)
         for button in self._mode_buttons:
             button.config(state='normal')
         self.log_line('real tiles: %s' % self.tiles.summary())
-        self.log_line('settlement markers: %s' % (
-            '%d provinces from ProvinceTacticalFacilityTiles'
-            % len(self.facilities) if self.facilities else
-            'bank $31 not readable, positions come from the map bytes only'))
+        self.log_line('town markers: %s' % (
+            '%d towns + %d castles from bank $31 $9BA4/$9D58'
+            % (sum(1 for row in self.facilities for pair in row if pair),
+               len(self.castles)) if self.facilities and self.castles else
+            'bank $31 not readable, so only the $61/$79/$7A/$7B map bytes show'))
 
     def _tiles_ready(self):
         return (self.tiles is not None and self.tiles.available
@@ -573,8 +590,42 @@ class TacticalMapEditor(tk.Tk):
         self._markers[key] = image
         return image
 
+    def _map_cell(self, cell):
+        """(province, map_x, map_y) a grid position stands for, in any view."""
+        m = self.m
+        prov, quad = m.zone_meta(cell.zone)[0], cell.quad
+        gx = cell.col & (m.GRID - 1)
+        return (prov, gx if quad in ('TL', 'BL') else m.GRID + gx,
+                cell.crop_row if quad in ('TL', 'TR') else m.TOP_ROWS + cell.crop_row)
+
+    def _town(self, cell):
+        """('castle', None) or ('facility', slot) where the ROM tables put a marker.
+
+        `DrawStratagemTargetMarkers` takes both positions from bank $31 - the
+        castle from `ProvincePixelPositionTable` ($9D58) and each town from
+        `ProvinceTacticalFacilityTiles` ($9BA4) - so these cells are where the
+        console really draws a building. The $61/$79/$7A/$7B stamps in the crop
+        bytes only mark the same cells for the designer: 12 of the 67 pairs have
+        no stamp and 2 stamps sit one row off from their pair.
+        """
+        prov, x, y = self._map_cell(cell)
+        if self.castles and self.castles[prov] == (x, y):
+            return 'castle', None
+        if self.facilities:
+            for slot, pair in enumerate(self.facilities[prov]):
+                if pair == (x, y):
+                    return 'facility', slot
+        return None
+
+    def _stamp(self, cell):
+        """'castle' / 'facility' when the map *byte* here is a settlement id."""
+        if self.tile_codec is None:
+            return None
+        return self.tile_codec.OBJECT_TILES.get(
+            self.get_byte(cell.bank, cell.offset))
+
     def _object_marker(self, cell):
-        """'castle' / 'facility' when this cell should show its OAM sprite.
+        """The marker sprite kind to draw on this cell, or None.
 
         Markers belong to the real-tiles view only; the classes view spells the
         same objects out as characters instead.
@@ -582,59 +633,53 @@ class TacticalMapEditor(tk.Tk):
         if (self.tile_codec is None or not self.show_objects.get()
                 or self.render_mode.get() != 'tile'):
             return None
-        return self.tile_codec.OBJECT_TILES.get(
-            self.get_byte(cell.bank, cell.offset))
+        town = self._town(cell)
+        return town[0] if town else None
 
     def _facility_index(self, cell):
-        """Which ProvinceTacticalFacilityTiles slot (0/1/2) this cell is, or None."""
-        if self.facilities is None or self.tile_codec is None:
-            return None
-        m = self.m
-        prov, quad = m.zone_meta(cell.zone)[0], cell.quad
-        gx = cell.col & (m.GRID - 1)
-        x = gx if quad in ('TL', 'BL') else m.GRID + gx
-        y = cell.crop_row if quad in ('TL', 'TR') else m.TOP_ROWS + cell.crop_row
-        for slot, pair in enumerate(self.facilities[prov]):
-            if pair == (x, y):
-                return slot
-        return None
+        """Which ProvinceTacticalFacilityTiles slot (0/1/2) marks this cell, or None."""
+        town = self._town(cell)
+        return town[1] if town and town[0] == 'facility' else None
 
     def _facility_slot(self, cell):
         """The facility name the table gives this cell, e.g. 'Hospital 病院'."""
         index = self._facility_index(cell)
-        return None if index is None else self.tile_codec.FACILITY_SLOTS[index]
+        return None if index is None else self.m.FACILITY_SLOTS[index]
 
     def _object_char(self, cell):
         """The classes-view character for a settlement cell, else None.
 
-        The map byte says only "castle" or "settlement"; which facility it is
-        comes from ProvinceTacticalFacilityTiles, so the letter follows the
-        table when it has a pair here and falls back to 村 (village) when not.
+        The tables decide which town is drawn, so they pick the letter: `c`
+        castle, `h`/`a`/`b` House/Armory/Hospital. `v` is a $79/$7A/$7B stamp the
+        tables have no pair for, i.e. a settlement the console never draws.
         """
-        codec = self.tile_codec
-        if codec is None:
-            return None
-        kind = codec.OBJECT_TILES.get(self.get_byte(cell.bank, cell.offset))
-        if kind is None:
-            return None
-        if kind == 'castle':
-            return OBJECT_CHARS['castle']
-        index = self._facility_index(cell)
-        return (OBJECT_CHARS['facility'][index] if index is not None
-                else OBJECT_CHARS['village'])
+        town = self._town(cell)
+        if town is not None:
+            return (OBJECT_CHARS['castle'] if town[0] == 'castle'
+                    else OBJECT_CHARS['facility'][town[1]])
+        return OBJECT_CHARS['village'] if self._stamp(cell) else None
 
     def _object_note(self, tile, cell):
-        """The cell-info line explaining a settlement byte, or '' for terrain."""
-        codec = self.tile_codec
-        if codec is None or tile not in codec.OBJECT_TILES:
+        """The cell-info line for a marker cell or a settlement stamp, else ''."""
+        town, stamp = self._town(cell), self._stamp(cell)
+        if town is None and stamp is None:
             return ''
-        kind = codec.OBJECT_TILES[tile]
-        slot = self._facility_slot(cell)
-        return ('settlement object: %s (%s) - marker sprite over plain ground, '
-                'no building in the map art%s'
-                % (kind, self._object_char(cell) or '?',
-                   '  - table slot: ' + slot if slot
-                   else '  - no ProvinceTacticalFacilityTiles pair here'))
+        byte = '$%02X %s' % (tile, self.m.terrain_name(tile, self.tile_table))
+        if town is not None:
+            name, table = (
+                ('castle', 'ProvincePixelPositionTable $9D58')
+                if town[0] == 'castle'
+                else (self.m.FACILITY_SLOTS[town[1]],
+                      'ProvinceTacticalFacilityTiles $9BA4'))
+            note = ('marker sprite here (%s, from %s) - map byte %s'
+                    % (name, table, byte))
+            if stamp is None:
+                note += ' (never stamped in the terrain)'
+            elif stamp != town[0]:
+                note += ' (map byte says %s)' % stamp
+            return note
+        return ('no marker on this cell - the map byte %s is a settlement the '
+                'tables have no pair for' % byte)
 
     def _prune_images(self, keep):
         """Drop cached tile/marker images for zoom levels the user has left behind."""
@@ -885,8 +930,9 @@ class TacticalMapEditor(tk.Tk):
     def selector_values(self):
         """Dropdown entries for the active view, aligned with the view index.
 
-        Provinces are named from docs/province_names.csv, which makes switching
-        obvious: `17  荆州 (ショウシュウ)` instead of a bare number.
+        Provinces are named from the repo's province CSVs (docs/province_data.csv
+        first), which makes switching obvious: `17  荆州 (ショウシュウ)` instead
+        of a bare number.
         """
         m = self.m
         kind = self.view_kind.get()
@@ -1091,22 +1137,21 @@ class TacticalMapEditor(tk.Tk):
             lines.append('  %d cells sit on ribbon gap rows' % gaps)
         if blocked:
             lines.append('  %d blocked tiles (>= $80) read as Forest' % blocked)
-        if self.tile_codec is not None:
+        if self.facilities or self.castles:
             seen = {}
             for r in cells:
                 for cc in r:
                     char = self._object_char(cc)
                     if not char:
                         continue
-                    kind = self.tile_codec.OBJECT_TILES.get(
-                        self.get_byte(cc.bank, cc.offset))
-                    label = ('castle' if kind == 'castle'
-                             else (self._facility_slot(cc) or 'village 村')
-                             ).split()[0]
+                    town = self._town(cc)
+                    label = ('castle' if town and town[0] == 'castle' else
+                             (self._facility_slot(cc) if town
+                              else 'unpaired stamp'))
                     seen.setdefault(char, [label, 0])
                     seen[char][1] += 1
             if seen:
-                lines.append('  settlement objects (not art in the map): %s'
+                lines.append('  towns as the game draws them (bank $31 tables): %s'
                              % ', '.join('%d %s=%s' % (n, ch, lab)
                                          for ch, (lab, n) in sorted(seen.items())))
         self._set_text(self.census, lines)

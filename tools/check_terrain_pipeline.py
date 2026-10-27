@@ -25,20 +25,24 @@ Proves, in order:
      straddling a bank seam included), and every province keeps a Castle;
   7. the GUI's view builders address the same bytes as the model, its selector
      lists all 30 provinces, every `self.<attribute>` it reads is defined, the
-     view tuple its canvas unpacks is the one it asks for, and the zoom
-     arithmetic (pixel->cell hit test, fit, scroll clamp) holds at 6-96 px;
+     view tuple its canvas unpacks is the one it asks for, the town overlay
+     follows the bank `$31` marker tables rather than the crop bytes, and the
+     zoom arithmetic (pixel->cell hit test, fit, scroll clamp) holds at 6-96 px;
   8. the editor still runs in standalone mode, i.e. with only a copy of the
      model codec and a CSV next to it and no disassembly repo around;
   9. the real-tile render mode's chain holds: MetaTileData is read from $F477,
      every tile byte the banks can hold decodes to a 16x16 RGB cell, blocked
      bytes stay unrenderable, and the mode degrades instead of crashing when
-     the ROM dumps are missing.
+     the ROM dumps are missing; and the two bank `$31` tables that place the
+     buildings hold their documented shape - $9D58 is each province's $61 castle
+     cell, the $9BA4 pairs are the 67 towns, and the marker rows skip $0F.
 
 The GUI is imported with a stubbed `tkinter`, so this needs no display.
 """
 import ast
 import os
 import re
+import struct
 import subprocess
 import sys
 import types
@@ -275,6 +279,7 @@ def test_gui_views():
     check_editor_attributes(gui)
     check_selector(gui)
     check_view_cells(gui)
+    check_town_markers(gui)
     check_zoom(gui)
 
 
@@ -339,6 +344,55 @@ def check_view_cells(gui):
         check('%s: %d x %d tiles addressed, titled' % (label, cols, rows),
               len(cells) == rows and all(len(r) == cols for r in cells)
               and bool(title), title)
+
+
+def check_town_markers(gui):
+    """The overlay follows the bank $31 tables, not the $61/$79/$7A/$7B bytes.
+
+    12 of the 67 town pairs have no stamp in the crops, so a byte-keyed overlay
+    drops towns the console really draws; these are the cells the editor must show.
+    """
+    import terrain_tiles as tiles
+    app = gui.TacticalMapEditor.__new__(gui.TacticalMapEditor)
+    app.m = model
+    app.banks = {b: bytearray(model.read_bank(b)) for b in model.TERRAIN_BANKS}
+    app.tile_codec = tiles
+    app.facilities = model.load_facilities()
+    app.castles = model.load_castles()
+    app.render_mode = _Var('tile')
+    app.show_objects = _Var(True)
+    wrong, unstamped, orphan = [], 0, 0
+    for prov in range(model.PROVINCES):
+        app.view_kind, app.view_index = _Var('province'), _Var(prov)
+        cols, rows, cells, _ = app._view_cells()
+        grid = model.province_map(lambda b, o: app.banks[b][o], prov)
+        drawn = {(c.col, c.row) for r in cells for c in r if app._object_marker(c)}
+        expect = {app.castles[prov]} | {p for p in app.facilities[prov] if p}
+        if drawn != expect:
+            wrong.append('prov %d: drew %s, tables say %s'
+                         % (prov, sorted(drawn), sorted(expect)))
+        unstamped += sum(1 for x, y in expect if grid[y][x] not in tiles.OBJECT_TILES)
+        orphan += sum(1 for y in range(rows) for x in range(cols)
+                      if grid[y][x] in tiles.OBJECT_TILES and (x, y) not in expect)
+    check('province overlay == the $9D58/$9BA4 marker cells (all 30)',
+          not wrong, wrong[0] if wrong else '')
+    check('the 12 unstamped towns draw and the 2 unpaired stamps do not',
+          unstamped == 12 and orphan == 2,
+          '%d marker cells with no stamp, %d stamps with no marker'
+          % (unstamped, orphan))
+    app.render_mode = _Var('class')
+    letters = []
+    for prov in range(model.PROVINCES):
+        app.view_kind, app.view_index = _Var('province'), _Var(prov)
+        cols, rows, cells, _ = app._view_cells()
+        for r in cells:
+            for c in r:
+                town = app._town(c)
+                if town and app._object_char(c) not in 'cahb':
+                    letters.append('prov %d cell (%d,%d) -> %r'
+                                   % (prov, c.col, c.row, app._object_char(c)))
+    check('every table marker gets a classes-view letter', not letters,
+          letters[0] if letters else '')
 
 
 def check_zoom(gui):
@@ -574,20 +628,78 @@ def test_tile_graphics():
                                                 for r in rgb)
               and 0 < ink < tiles.CELL_PX ** 2, '%d/%d opaque'
               % (ink, tiles.CELL_PX ** 2))
-    fac = tiles.load_facilities()
+    fac = model.load_facilities()
     check('ProvinceTacticalFacilityTiles loads (30 rows x 3 slots)',
           fac is not None and len(fac) == model.PROVINCES
           and all(len(row) == 3 for row in fac))
-    pairs = [p for row in fac for p in row if p]
-    in_bounds = [p for p in pairs if p[0] < model.MAP_COLS and p[1] < model.MAP_H]
-    on_object = sum(1 for prov, row in enumerate(fac) for p in row
-                    if p and p[0] < model.MAP_COLS and p[1] < model.MAP_H
-                    and model.province_map(
-                        lambda b, o: images[b][o], prov)[p[1]][p[0]]
-                    in tiles.OBJECT_TILES)
-    check('facility pairs stay in the map and land on settlement cells',
-          len(in_bounds) == len(pairs) and on_object >= 0.8 * len(pairs),
-          '%d/%d land on a settlement byte' % (on_object, len(pairs)))
+    castles = model.load_castles()
+    check('ProvincePixelPositionTable loads (30 castle cells)',
+          castles is not None and len(castles) == model.PROVINCES)
+
+    # The two bank $31 tables, not the crop bytes, are where the console draws a
+    # building, so they have to land on cells the map actually has.
+    maps = {p: model.province_map(lambda b, o: images[b][o], p)
+            for p in range(model.PROVINCES)}
+    obj = {p: {(x, y): t for y, row in enumerate(maps[p])
+               for x, t in enumerate(row) if t in tiles.OBJECT_TILES}
+           for p in range(model.PROVINCES)}
+    pairs = [(p, s, pair) for p in range(model.PROVINCES)
+             for s, pair in enumerate(fac[p]) if pair]
+    all_cells = [pair for _, _, pair in pairs] + list(castles)
+    check('every marker cell is inside the authored 32 x 20 map',
+          all(0 <= x < model.MAP_COLS and 0 <= y < model.MAP_H
+              for x, y in all_cells),
+          '%d pairs + %d castles' % (len(pairs), len(castles)))
+    dup = [(p, pair) for p in range(model.PROVINCES)
+           for pair in set(c for c in fac[p] if c)
+           if [c for c in fac[p] if c].count(pair) > 1]
+    check('no two markers of a province share a cell', not dup, str(dup[:3]))
+    check('each province has exactly one $61 castle cell',
+          all(sum(1 for t in obj[p].values() if t == 0x61) == 1
+              for p in range(model.PROVINCES)))
+    # ProvincePixelPositionTable ($9D58) is the tactical castle position: its
+    # pixel (X, Y) is the $61 cell, with the row-15 gap fixup the tables share.
+    bad = ['prov %d: $9D58 -> (%d,%d) but the $61 is %s'
+           % (p, castles[p][0], castles[p][1],
+              [c for c, t in obj[p].items() if t == 0x61])
+           for p in range(model.PROVINCES)
+           if [c for c, t in obj[p].items() if t == 0x61] != [castles[p]]]
+    check('$9D58 is the castle marker: 30/30 land on the province $61 cell',
+          not bad, bad[0] if bad else '')
+    stamped = sum(1 for p, _, pair in pairs if pair in obj[p])
+    no_pair = sum(1 for p in range(model.PROVINCES)
+                  for c, t in obj[p].items()
+                  if t != 0x61 and c not in fac[p])
+    check('the town table is the marker set: 55 pairs on a stamp, 12 unstamped, '
+          '2 stamps the table never pairs',
+          len(pairs) == 67 and stamped == 55 and len(pairs) - stamped == 12
+          and no_pair == 2,
+          '%d/%d stamped, %d stamps unpaired' % (stamped, len(pairs), no_pair))
+    check('no facility pair sits on a province castle cell',
+          all(fac[p][s] != [c for c, t in obj[p].items() if t == 0x61][0]
+              for p in range(model.PROVINCES) for s in range(3) if fac[p][s]))
+
+    # the row convention both tables and the bank $06 pools follow: $0F is the
+    # gap row, so a raw tile Y of $0F never appears and $10+ means one row lower
+    blob = model.read_bank(model.MARKER_BANK)
+    offset = model.FACILITY_CPU - model.WINDOW_CPU
+    raw_fac = blob[offset:offset + model.PROVINCES * model.FACILITY_STRIDE]
+    offset = model.CASTLE_CPU - model.WINDOW_CPU
+    raw_castle = blob[offset:offset + model.PROVINCES * model.CASTLE_STRIDE]
+    raw_y = [raw_fac[p * 6 + 2 * s + 1] for p in range(model.PROVINCES)
+             for s in range(3) if raw_fac[p * 6 + 2 * s] < 0x80]
+    check('marker rows skip $0F (the gap row) and stay inside the 20-row map',
+          0x0F not in raw_y and min(raw_y) >= 1 and max(raw_y) <= 0x13,
+          'Y $%02X-$%02X, $0F absent: %s'
+          % (min(raw_y), max(raw_y), 0x0F not in raw_y))
+    castle_y = [struct.unpack_from('<2H', raw_castle, p * 4)[0] // model.MARKER_PX
+                for p in range(model.PROVINCES)]
+    check('castle rows skip $0F too', 15 not in castle_y,
+          'Y tile %d-%d, $0F absent: %s'
+          % (min(castle_y), max(castle_y), 15 not in castle_y))
+    check('marker_row maps $10 to the gap row below it',
+          model.marker_row(0x0E) == 0x0E and model.marker_row(0x10) == 0x0F
+          and model.marker_row(0x12) == 0x11)
 
 
 def _raises_oserror(fn):
